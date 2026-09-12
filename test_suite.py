@@ -1326,7 +1326,64 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         )
         self.assertEqual(total_jest, 94, f"Total Jest assertions across 7 suites must equal 94, got {total_jest}")
 
+    def test_e2e_21_pr008_frontend_shell_and_visual_testing_gate(self):
+        """Automated verification of PR-008 Next.js Frontend Shell, Mobbin Design Tokens & Visual Testing Gate."""
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        frontend_dir = os.path.join(root_dir, "frontend")
+
+        # 1. Verify frontend core directory and configuration
+        self.assertTrue(os.path.isdir(frontend_dir), "frontend directory must exist")
+        for f in ["package.json", "tsconfig.json", "next.config.mjs", "tailwind.config.ts", "postcss.config.mjs", "jest.config.js"]:
+            self.assertTrue(os.path.isfile(os.path.join(frontend_dir, f)), f"frontend/{f} must exist")
+
+        # 2. Verify App Router structure and Mobbin design tokens
+        app_dir = os.path.join(frontend_dir, "app")
+        self.assertTrue(os.path.isfile(os.path.join(app_dir, "globals.css")))
+        self.assertTrue(os.path.isfile(os.path.join(app_dir, "layout.tsx")))
+        self.assertTrue(os.path.isfile(os.path.join(app_dir, "page.tsx")))
+        self.assertTrue(os.path.isfile(os.path.join(app_dir, "login", "page.tsx")))
+
+        # 3. Verify globals.css contains dark/light theme variables and WCAG AAA tokens
+        with open(os.path.join(app_dir, "globals.css"), "r", encoding="utf-8") as f:
+            css_content = f.read()
+        self.assertIn(":root", css_content)
+        self.assertIn(".dark", css_content)
+        self.assertIn("--primary", css_content)
+        self.assertIn("--status-active-bg", css_content)
+        self.assertIn(":focus-visible", css_content)
+
+        # 4. Verify Accessible Components & Zustand Store
+        comp_dir = os.path.join(frontend_dir, "components")
+        self.assertTrue(os.path.isfile(os.path.join(comp_dir, "ThemeToggle.tsx")))
+        self.assertTrue(os.path.isfile(os.path.join(comp_dir, "CommandPalette.tsx")))
+        self.assertTrue(os.path.isfile(os.path.join(comp_dir, "Navigation.tsx")))
+        self.assertTrue(os.path.isfile(os.path.join(frontend_dir, "store", "useUIStore.ts")))
+        self.assertTrue(os.path.isfile(os.path.join(frontend_dir, "lib", "queryClient.ts")))
+
+        # 5. Verify Visual Testing & Accessibility Suite (10 assertions)
+        visual_test_file = os.path.join(frontend_dir, "tests", "visual_theme_a11y.test.ts")
+        self.assertTrue(os.path.isfile(visual_test_file), "visual_theme_a11y.test.ts must exist")
+        with open(visual_test_file, "r", encoding="utf-8") as f:
+            visual_test_code = f.read()
+        visual_assertions = visual_test_code.count("test(")
+        self.assertEqual(visual_assertions, 10, "visual_theme_a11y.test.ts must contain exactly 10 visual/a11y assertions")
+        self.assertIn("getContrastRatio", visual_test_code)
+        self.assertIn("Color-Blind Safety Simulation", visual_test_code)
+        self.assertIn("Desktop vs Mobile Breakpoints", visual_test_code)
+        self.assertIn("Focus Indicator Verification", visual_test_code)
+
+        # 6. Verify index.html and static/app.jsx theme integration
+        with open(os.path.join(root_dir, "index.html"), "r", encoding="utf-8") as f:
+            index_html = f.read()
+        self.assertIn("darkMode: 'class'", index_html)
+
+        with open(os.path.join(root_dir, "static", "app.jsx"), "r", encoding="utf-8") as f:
+            app_jsx = f.read()
+        self.assertIn("toggleTheme", app_jsx)
+        self.assertIn("apex_theme", app_jsx)
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
+
 
 

@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #f8fafc;
+    --foreground: #090d16;
+    --card: #ffffff;
+    --card-foreground: #090d16;
+    --popover: #ffffff;
+    --popover-foreground: #090d16;
+    --primary: #026fc7;
+    --primary-foreground: #ffffff;
+    --secondary: #e2e8f0;
+    --secondary-foreground: #0f172a;
+    --muted: #f1f5f9;
+    --muted-foreground: #334155;
+    --accent: #e0effe;
+    --accent-foreground: #0358a1;
+    --destructive: #dc2626;
+    --destructive-foreground: #ffffff;
+    --border: #cbd5e1;
+    --input: #cbd5e1;
+    --ring: #026fc7;
+    --radius: 0.75rem;
+
+    /* Semantic status tokens with AAA text contrast */
+    --status-active-bg: #ecfdf5;
+    --status-active-text: #065f46;
+    --status-active-border: #10b981;
+
+    --status-warning-bg: #fffbeb;
+    --status-warning-text: #92400e;
+    --status-warning-border: #f59e0b;
+
+    --status-depleted-bg: #fef2f2;
+    --status-depleted-text: #991b1b;
+    --status-depleted-border: #ef4444;
+  }
+
+  .dark {
+    --background: #090d16;
+    --foreground: #f8fafc;
+    --card: #111827;
+    --card-foreground: #f8fafc;
+    --popover: #111827;
+    --popover-foreground: #f8fafc;
+    --primary: #38a9f6;
+    --primary-foreground: #082849;
+    --secondary: #1e293b;
+    --secondary-foreground: #f8fafc;
+    --muted: #1e293b;
+    --muted-foreground: #cbd5e1;
+    --accent: #0c3f6e;
+    --accent-foreground: #bae0fd;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --border: #334155;
+    --input: #334155;
+    --ring: #38a9f6;
+
+    /* Semantic status tokens in Dark Mode with AAA text contrast */
+    --status-active-bg: #064e3b;
+    --status-active-text: #a7f3d0;
+    --status-active-border: #059669;
+
+    --status-warning-bg: #78350f;
+    --status-warning-text: #fde68a;
+    --status-warning-border: #d97706;
+
+    --status-depleted-bg: #7f1d1d;
+    --status-depleted-text: #fecaca;
+    --status-depleted-border: #dc2626;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground transition-colors duration-200;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Accessible focus indicators for keyboard navigation */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
