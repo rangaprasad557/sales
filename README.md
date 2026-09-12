@@ -87,6 +87,21 @@ Open your browser at: **[http://localhost:8000](http://localhost:8000)**
 ├── server.py             # REST API server, lot allocation engine & static file router
 ├── test_suite.py         # Automated unit, integration, and allocation test suite
 ├── index.html            # SPA HTML entry point
+├── frontend/             # Next.js 14 (App Router) + React 18 + Tailwind v4 + Zustand + TanStack Query
+│   ├── app/              # Routes: / (Dashboard), /sales (POS), /catalogue, /categories, /procurement, /analytics, /customers, /suppliers, /login
+│   ├── components/       # Drawer, CategoryTree, ProductPickerModal, ManualLotOverrideModal, InvoiceReceiptModal, CommandPalette, ThemeToggle
+│   ├── lib/              # fuzzy.ts, queryClient.ts
+│   ├── store/            # useUIStore.ts (Zustand client UI state)
+│   └── tests/            # visual_theme_a11y, masters_catalogue_a11y, pos_billing_a11y (54 tests)
+├── backend/              # NestJS Modular Monolith + Drizzle ORM + PostgreSQL 16 + pgvector
+│   ├── src/modules/      # auth, users, customers, suppliers, categories, products, procurements, inventory, sales, analytics
+│   ├── drizzle/          # SQL migrations & solo migrator
+│   └── tests/            # 7 Jest test suites (94 assertions)
+├── docs/prs/             # Formal staged PR documents (PR-001 through PR-010)
+├── db.py                 # SQLite database schema, indices, and realistic seed data
+├── server.py             # REST API server, lot allocation engine & static file router
+├── test_suite.py         # Automated cross-stack regression test suite (35 tests)
+├── index.html            # SPA HTML entry point (dark/light theme compatible)
 ├── static/
 │   └── app.jsx           # React 18 application with all POS, Inventory, and Analytics views
 ├── start.bat             # One-click Windows startup script
@@ -101,25 +116,44 @@ Open your browser at: **[http://localhost:8000](http://localhost:8000)**
 
 ## 🧪 Running Automated Tests & Quality Gates
 
-Run the comprehensive 23-test suite verifying Lowest-Cost-First allocation, split-batch handling, manual overrides, granular analytics, and live HTTP REST endpoints:
+The repository is verified by **183 automated test assertions** across 3 test suites:
 
+### 1. Frontend Visual, Accessibility & Business Logic Tests (54 tests)
+```bash
+cd frontend
+npm test
+```
+- `visual_theme_a11y.test.ts` (10 tests): WCAG 2.1 AAA contrast ($\ge 7:1$), color-blind simulation across Protanopia/Deuteranopia/Tritanopia, viewport integrity (1440px desktop vs 375px mobile), keyboard focus rings.
+- `masters_catalogue_a11y.test.ts` (20 tests): Form validation, procurement channels, category tree resolution, stock health classification, units of measure, drawer WAI-ARIA contract.
+- `pos_billing_a11y.test.ts` (24 tests): Typo-tolerant fuzzy search, multi-attribute grid sorting, inline quantity entries, LCF splitting math, manual lot override validation, customer credit checks, printable invoice layout.
+
+### 2. Backend Modular Monolith Jest Tests (94 tests)
+```bash
+cd backend
+npm test
+```
+Verifies 7 domain modules: `schema_verification`, `auth`, `master_data`, `products_discovery`, `inventory_procurements`, `sales_allocation`, `analytics_engine`.
+
+### 3. Live E2E Integration Suite (35 tests)
 ```bash
 python test_suite.py
 ```
-Expected output:
-```
-Ran 23 tests in 1.270s
-
-OK (100% pass rate)
-```
+Verifies live HTTP server endpoints, transactional integrity, database schema, and all 10 PR deliveries.
 
 ---
 
-## 🛡️ Repository Quality Gate
+## 🛡️ Repository Quality Gate & 10-PR Lifecycle
 
-Every modification in this repository is strictly governed by rules defined in `GEMINI.md`, `AGENTS.md`, and `.agents/rules/agentic_quality_gate.md`:
-1. **Functional Review**: Verifies multi-batch costing, Lowest-Cost-First allocation, manual override, Day-to-Year analytics, and catalogue management.
-2. **Automated E2E Tests**: 100% test pass rate across all 23 tests in `test_suite.py`.
-3. **Critic Agent Review**: Adversarial scrutiny by the `critic_agent` before completion.
-4. **Audit Logging**: Full traceability preserved in `AGENT_LOG.md`.
+Every increment in this repository follows the mandatory Solution Design & Staged PR workflow with iterative review by `functional_reviewer`, `e2e_reviewer`, and `critic_agent`:
+- **PR-001**: Core Foundation & Database Migrations (Drizzle + PostgreSQL 16) - **APPROVED**
+- **PR-002**: Google SSO Authentication & User Management (JWT RBAC) - **APPROVED**
+- **PR-003**: Configurable Master Data Modules (Customers, Suppliers, Categories) - **APPROVED**
+- **PR-004**: Product Catalogue with pgvector & Trigram Fuzzy Discovery - **APPROVED**
+- **PR-005**: Multi-Batch Procurement Intake & Inventory Lot Engine - **APPROVED**
+- **PR-006**: Sales Engine & Lowest-Cost-First Automated Allocation - **APPROVED**
+- **PR-007**: Granular Profit & Sales Analytics Engine (Zero Row Multiplication) - **APPROVED**
+- **PR-008**: Next.js Frontend Shell, Mobbin Design Tokens, Dark/Light Themes & Visual Gate - **APPROVED**
+- **PR-009**: Configurable Masters UI & Catalogue Management - **APPROVED**
+- **PR-010**: POS Billing View, Advanced Product Picker Grid & End-to-End Certification - **APPROVED**
+
 
