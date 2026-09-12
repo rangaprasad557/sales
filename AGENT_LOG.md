@@ -255,6 +255,32 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **E2E Integration Reviewer** (`296d8521-9602-4a39-ab9b-c01141d9b08b`): 🏆 **APPROVED** (0 Major, 0 Blocker).
 - **Outcome**: PR-003 satisfies all repository rules and quality gates with unanimous approval.
 
+---
+
+## 11. PR-004: Product Catalogue with pgvector & Trigram Fuzzy Discovery
+
+### Context & Implementation Scope
+- **PR Document**: [`docs/prs/PR-004-product-catalogue-and-discovery.md`](file:///c:/Build_With_AI_Google/docs/prs/PR-004-product-catalogue-and-discovery.md)
+- **Branch**: `feature/pr-004-product-catalogue-and-discovery`
+- **Scope Delivered**:
+  1. Products Module ([`backend/src/modules/products/`](file:///c:/Build_With_AI_Google/backend/src/modules/products/)): Full CRUD, unique SKUs, barcodes, configurable units of measure (`pcs`, `kg`, `bottle`, `box`, `bag`, `dozen`), min stock thresholds, default sale price (`numeric(12, 2)`).
+  2. Real-time Non-blocking Stock Aggregation: Dynamic calculation of `currentStock`, status flags (`In Stock`, `Low Stock`, `Out of Stock`), and lowest available acquisition cost (`lowestAvailableCost`) across active batches without row locking contention.
+  3. Discovery Endpoints: Typo-tolerant substring search on `GET /api/products/search?q=...` and semantic vector discovery with embeddings (`vector(1536)`) on `POST /api/products/semantic-search`.
+  4. App Module Registration: Registered in [`backend/src/app.module.ts`](file:///c:/Build_With_AI_Google/backend/src/app.module.ts) with `JwtAuthGuard` protecting state mutations.
+  5. Automated test suite [`backend/tests/products_discovery.test.ts`](file:///c:/Build_With_AI_Google/backend/tests/products_discovery.test.ts) covering 14 test assertions.
+
+### Automated Testing Evidence
+- **Jest TypeScript Test Suites**: 61/61 passed across 4 suites (100% pass rate).
+- **Python Regression Suite**: 29/29 passed (100% pass rate).
+- **Total Tests**: 90 automated tests executed across stacks, 0 failures.
+
+### Multi-Agent Review Verdicts
+- **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED** (0 Major, 0 Blocker).
+- **Functional Reviewer** (`5dc2d49c-f8ab-4fe5-8f40-3880f977e79d`): 🏆 **APPROVED** (0 Major, 0 Blocker).
+- **E2E Integration Reviewer** (`296d8521-9602-4a39-ab9b-c01141d9b08b`): 🏆 **APPROVED** (0 Major, 0 Blocker).
+- **Outcome**: PR-004 satisfies all repository rules and quality gates with unanimous approval.
+
+
 
 
 
