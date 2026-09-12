@@ -86,6 +86,7 @@ export default function CustomersPage() {
     notes: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch from API
   const fetchCustomers = () => {
@@ -157,13 +158,16 @@ export default function CustomersPage() {
     const errors: Record<string, string> = {};
     if (!formData.name.trim()) {
       errors.name = 'Customer name is required';
+      addNotification('error', 'Customer name is required');
     }
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       errors.email = 'Please enter a valid email address';
+      addNotification('error', 'Please enter a valid email address');
     }
     const limit = parseFloat(formData.creditLimit);
     if (isNaN(limit) || limit < 0) {
       errors.creditLimit = 'Credit limit must be a positive number';
+      addNotification('error', 'Credit limit must be a positive number');
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -173,6 +177,7 @@ export default function CustomersPage() {
     e.preventDefault();
     if (!validateForm()) return;
 
+    setIsSubmitting(true);
     const creditLimitVal = parseFloat(formData.creditLimit);
     const payload = {
       name: formData.name.trim(),
@@ -215,6 +220,8 @@ export default function CustomersPage() {
       fetchCustomers();
     } catch (err: any) {
       addNotification('error', err.message || 'Operation failed');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -449,9 +456,10 @@ export default function CustomersPage() {
             <button
               type="button"
               onClick={handleSubmit}
-              className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
+              disabled={isSubmitting}
+              className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-sm disabled:opacity-50"
             >
-              {editingCustomer ? 'Update Customer' : 'Create Customer'}
+              {isSubmitting ? 'Saving...' : editingCustomer ? 'Update Customer' : 'Create Customer'}
             </button>
           </>
         }

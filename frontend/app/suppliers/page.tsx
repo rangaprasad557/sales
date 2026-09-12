@@ -104,6 +104,7 @@ export default function SuppliersPage() {
     notes: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch from backend API
   const fetchSuppliers = () => {
@@ -181,9 +182,11 @@ export default function SuppliersPage() {
     const errors: Record<string, string> = {};
     if (!formData.name.trim()) {
       errors.name = 'Supplier name is required';
+      addNotification('error', 'Supplier name is required');
     }
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       errors.email = 'Please enter a valid email address';
+      addNotification('error', 'Please enter a valid email address');
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -193,6 +196,7 @@ export default function SuppliersPage() {
     e.preventDefault();
     if (!validateForm()) return;
 
+    setIsSubmitting(true);
     const payload = {
       name: formData.name.trim(),
       contact_person: formData.contactPerson.trim(),
@@ -236,6 +240,8 @@ export default function SuppliersPage() {
       fetchSuppliers();
     } catch (err: any) {
       addNotification('error', err.message || 'Operation failed');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -529,9 +535,10 @@ export default function SuppliersPage() {
             <button
               type="button"
               onClick={handleSubmit}
-              className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
+              disabled={isSubmitting}
+              className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-sm disabled:opacity-50"
             >
-              {editingSupplier ? 'Update Supplier' : 'Register Supplier'}
+              {isSubmitting ? 'Saving...' : editingSupplier ? 'Update Supplier' : 'Register Supplier'}
             </button>
           </>
         }

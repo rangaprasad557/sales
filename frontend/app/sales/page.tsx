@@ -193,7 +193,7 @@ export default function SalesPOSPage() {
   };
 
   // Load backend products and customers
-  useEffect(() => {
+  const fetchProducts = () => {
     fetch('/api/products')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -214,7 +214,9 @@ export default function SalesPOSPage() {
         );
       })
       .catch(() => {});
+  };
 
+  const fetchCustomers = () => {
     fetch('/api/customers')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -231,6 +233,11 @@ export default function SalesPOSPage() {
         );
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchProducts();
+    fetchCustomers();
   }, []);
 
   // Add items from Advanced Product Picker Grid
@@ -394,6 +401,35 @@ export default function SalesPOSPage() {
       totalProfit: cartSummary.netProfit,
       items: itemsForSale,
     };
+
+    // Persist sale to backend API and deduct inventory
+    const salePayload = {
+      invoice_no: invoiceNo,
+      customer_id: selectedCustomerId || null,
+      sale_date: new Date().toISOString().slice(0, 10),
+      notes: `POS Sale. Customer: ${selectedCustomer ? selectedCustomer.name : 'Walk-in'}`,
+      items: cart.map((item) => ({
+        product_id: item.product.id,
+        qty: item.qty,
+        unit_sale_price: item.salePrice,
+        allocation_mode: item.allocationType === 'MANUAL_OVERRIDE' ? 'MANUAL' : 'AUTO',
+        manual_lots:
+          item.allocationType === 'MANUAL_OVERRIDE' && item.manualAllocations
+            ? item.manualAllocations.map((m) => ({ lot_id: m.lotId, qty: m.qty }))
+            : undefined,
+      })),
+    };
+
+    try {
+      await fetch('/api/sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(salePayload),
+      });
+      fetchProducts();
+    } catch (e) {
+      console.warn('Backend sale recording note:', e);
+    }
 
     setCompletedSale(record);
     setReceiptOpen(true);

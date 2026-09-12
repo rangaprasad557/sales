@@ -184,13 +184,13 @@ export default function CategoriesPage() {
     setDrawerOpen(true);
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const validateForm = () => {
     const errors: Record<string, string> = {};
     if (!formData.name.trim()) {
       errors.name = 'Category name is required';
-    }
-    if (!formData.code.trim()) {
-      errors.code = 'Category code is required (e.g. GRAINS, RICE)';
+      addNotification('error', 'Category name is required');
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -200,10 +200,16 @@ export default function CategoriesPage() {
     e.preventDefault();
     if (!validateForm()) return;
 
+    setIsSubmitting(true);
     const parentIdNum = formData.parentId ? parseInt(formData.parentId, 10) : null;
+    const finalCode = (
+      formData.code.trim() ||
+      formData.name.trim().toUpperCase().replace(/[^A-Z0-9]/g, '-').slice(0, 15)
+    ).toUpperCase();
+
     const payload = {
       name: formData.name.trim(),
-      icon: formData.code.trim().toUpperCase(),
+      icon: finalCode,
       parent_id: parentIdNum,
       description: formData.description.trim(),
     };
@@ -239,6 +245,8 @@ export default function CategoriesPage() {
       fetchCategories();
     } catch (err: any) {
       addNotification('error', err.message || 'Operation failed');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -570,9 +578,10 @@ export default function CategoriesPage() {
             <button
               type="button"
               onClick={handleSubmit}
-              className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
+              disabled={isSubmitting}
+              className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-sm disabled:opacity-50"
             >
-              Save Category
+              {isSubmitting ? 'Saving...' : editingCategory ? 'Update Category' : 'Save Category'}
             </button>
           </>
         }

@@ -264,10 +264,14 @@ export default function CataloguePage() {
     setFormData((prev) => ({ ...prev, sku: `${clean}-${randomSuffix}` }));
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const validateForm = () => {
     const errors: Record<string, string> = {};
-    if (!formData.name.trim()) errors.name = 'Product name is required';
-    if (!formData.sku.trim()) errors.sku = 'SKU is required';
+    if (!formData.name.trim()) {
+      errors.name = 'Product name is required';
+      addNotification('error', 'Product title is required');
+    }
     const minVal = parseInt(formData.minStock, 10);
     if (isNaN(minVal) || minVal < 0) {
       errors.minStock = 'Minimum stock threshold must be 0 or higher';
@@ -280,10 +284,16 @@ export default function CataloguePage() {
     e.preventDefault();
     if (!validateForm()) return;
 
+    setIsSubmitting(true);
     const minVal = parseInt(formData.minStock, 10);
+    const finalSku = (
+      formData.sku.trim() ||
+      `${formData.name.trim().toUpperCase().replace(/[^A-Z0-9]/g, '-').slice(0, 10)}-${Math.floor(100 + Math.random() * 900)}`
+    ).toUpperCase();
+
     const payload = {
       name: formData.name.trim(),
-      sku: formData.sku.trim().toUpperCase(),
+      sku: finalSku,
       category: formData.category,
       unit: formData.unit,
       min_stock: minVal,
@@ -325,6 +335,8 @@ export default function CataloguePage() {
       fetchCategories();
     } catch (err: any) {
       addNotification('error', err.message || 'Operation failed');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -676,9 +688,10 @@ export default function CataloguePage() {
             <button
               type="button"
               onClick={handleSubmit}
-              className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
+              disabled={isSubmitting}
+              className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-sm disabled:opacity-50"
             >
-              {editingProduct ? 'Update Product' : 'Save Product'}
+              {isSubmitting ? 'Saving...' : editingProduct ? 'Update Product' : 'Save Product'}
             </button>
           </>
         }
