@@ -626,6 +626,17 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertIsInstance(data["lots"], list)
 
+        # GET lots/product/:productId -> 200
+        status, _, body = self._http_get("/api/inventory/lots/product/1")
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertTrue(data["success"])
+        self.assertIsInstance(data["lots"], list)
+
+        # GET lots/product/invalid -> 400
+        status, _, _ = self._http_get("/api/inventory/lots/product/invalid-id")
+        self.assertEqual(status, 400)
+
     def test_e2e_07_procurements_api(self):
         # POST new procurement
         status, _, res = self._http_post("/api/procurements", {
@@ -636,12 +647,28 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertEqual(status, 201)
         self.assertTrue(res["success"])
 
-        # GET procurements
+        # GET procurements list
         status, _, body = self._http_get("/api/procurements")
         self.assertEqual(status, 200)
         data = json.loads(body)
         self.assertTrue(data["success"])
         self.assertGreater(len(data["procurements"]), 0)
+
+        # GET procurement by ID
+        status, _, body = self._http_get("/api/procurements/1")
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertTrue(data["success"])
+        self.assertIn("procurement", data)
+        self.assertIn("items", data["procurement"])
+
+        # GET non-existent procurement -> 404
+        status, _, _ = self._http_get("/api/procurements/999999")
+        self.assertEqual(status, 404)
+
+        # GET invalid procurement ID -> 400
+        status, _, _ = self._http_get("/api/procurements/invalid-id")
+        self.assertEqual(status, 400)
 
     def test_e2e_08_sales_simulate_and_execute(self):
         # 1. Simulate sale
@@ -1066,6 +1093,84 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         tsbuildinfo = os.path.join(backend_dir, "dist", "tsconfig.tsbuildinfo")
         self.assertTrue(os.path.isfile(tsbuildinfo), "TypeScript buildinfo must exist")
         self.assertGreater(os.path.getsize(tsbuildinfo), 100000, "TypeScript buildinfo must be non-trivial (>100KB)")
+
+    def test_e2e_18_pr005_procurement_and_inventory_lots(self):
+        """Automated verification of PR-005 Multi-Batch Procurement Intake & Inventory Lot Engine."""
+        backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
+
+        proc_dir = os.path.join(backend_dir, "src", "modules", "procurements")
+        self.assertTrue(os.path.isdir(proc_dir), "procurements module directory must exist")
+        for f in ["procurements.controller.ts", "procurements.service.ts", "procurements.module.ts"]:
+            self.assertTrue(os.path.isfile(os.path.join(proc_dir, f)), f"procurements/{f} must exist")
+        self.assertTrue(os.path.isfile(os.path.join(proc_dir, "dto", "create-procurement.dto.ts")))
+
+        inv_dir = os.path.join(backend_dir, "src", "modules", "inventory")
+        self.assertTrue(os.path.isdir(inv_dir), "inventory module directory must exist")
+        for f in ["inventory.controller.ts", "inventory.service.ts", "inventory.module.ts"]:
+            self.assertTrue(os.path.isfile(os.path.join(inv_dir, f)), f"inventory/{f} must exist")
+
+        # 2. Verify AppModule imports both modules
+        app_module_file = os.path.join(backend_dir, "src", "app.module.ts")
+        with open(app_module_file, "r", encoding="utf-8") as f:
+            app_code = f.read()
+        self.assertIn("ProcurementsModule", app_code)
+        self.assertIn("InventoryModule", app_code)
+
+        # 3. Verify ProcurementsController route contracts
+        with open(os.path.join(proc_dir, "procurements.controller.ts"), "r", encoding="utf-8") as f:
+            proc_ctrl_code = f.read()
+        self.assertIn("@Get()", proc_ctrl_code)
+        self.assertIn("@Get(':id')", proc_ctrl_code)
+        self.assertIn("@Post()", proc_ctrl_code)
+        self.assertIn("JwtAuthGuard", proc_ctrl_code)
+
+        # 4. Verify InventoryController route contracts
+        with open(os.path.join(inv_dir, "inventory.controller.ts"), "r", encoding="utf-8") as f:
+            inv_ctrl_code = f.read()
+        self.assertIn("@Get()", inv_ctrl_code)
+        self.assertIn("@Get('lots')", inv_ctrl_code)
+        self.assertIn("@Get('lots/product/:productId')", inv_ctrl_code)
+
+        # 5. Verify ProcurementsService invariants
+        with open(os.path.join(proc_dir, "procurements.service.ts"), "r", encoding="utf-8") as f:
+            proc_serv_code = f.read()
+        self.assertIn("VALID_SOURCES.includes", proc_serv_code)
+        self.assertIn("async create(dto: CreateProcurementDto)", proc_serv_code)
+        self.assertIn("async findAll(", proc_serv_code)
+        self.assertIn("async findById(id: number)", proc_serv_code)
+
+        # 6. Verify InventoryService invariants
+        with open(os.path.join(inv_dir, "inventory.service.ts"), "r", encoding="utf-8") as f:
+            inv_serv_code = f.read()
+        self.assertIn("async getStoreValuation()", inv_serv_code)
+        self.assertIn("async getLotsForProduct(", inv_serv_code)
+        self.assertIn("async getAllActiveLots()", inv_serv_code)
+
+        # 7. Verify Jest test assertion counts across all 5 test suites (total = 72 assertions)
+        inv_proc_test_file = os.path.join(backend_dir, "tests", "inventory_procurements.test.ts")
+        self.assertTrue(os.path.isfile(inv_proc_test_file), "inventory_procurements.test.ts must exist")
+        with open(inv_proc_test_file, "r", encoding="utf-8") as f:
+            inv_proc_assertions = f.read().count("test(")
+        self.assertEqual(inv_proc_assertions, 11, "inventory_procurements.test.ts must contain exactly 11 assertions")
+
+        prod_test_file = os.path.join(backend_dir, "tests", "products_discovery.test.ts")
+        with open(prod_test_file, "r", encoding="utf-8") as f:
+            prod_assertions = f.read().count("test(")
+
+        master_test_file = os.path.join(backend_dir, "tests", "master_data.test.ts")
+        with open(master_test_file, "r", encoding="utf-8") as f:
+            master_assertions = f.read().count("test(")
+
+        auth_test_file = os.path.join(backend_dir, "tests", "auth.test.ts")
+        with open(auth_test_file, "r", encoding="utf-8") as f:
+            auth_assertions = f.read().count("test(")
+
+        schema_test_file = os.path.join(backend_dir, "tests", "schema_verification.test.ts")
+        with open(schema_test_file, "r", encoding="utf-8") as f:
+            schema_assertions = f.read().count("test(")
+
+        total_jest = inv_proc_assertions + prod_assertions + master_assertions + auth_assertions + schema_assertions
+        self.assertEqual(total_jest, 72, f"Total Jest assertions across 5 suites must equal 72, got {total_jest}")
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

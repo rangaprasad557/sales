@@ -1,4 +1,4 @@
-import { Controller, Get, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Query, Param, ParseIntPipe, BadRequestException } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 
 @Controller('inventory')
@@ -34,6 +34,20 @@ export class InventoryController {
     }
 
     const lots = await this.inventoryService.getAllActiveLots();
+    return {
+      status: 'success',
+      count: lots.length,
+      data: lots,
+    };
+  }
+
+  @Get('lots/product/:productId')
+  async getLotsByProduct(
+    @Param('productId', ParseIntPipe) productId: number,
+    @Query('active_only') activeOnlyStr?: string,
+  ) {
+    const activeOnly = activeOnlyStr !== 'false';
+    const lots = await this.inventoryService.getLotsForProduct(productId, activeOnly);
     return {
       status: 'success',
       count: lots.length,

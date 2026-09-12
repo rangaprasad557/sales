@@ -522,6 +522,41 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 lots = [dict(l) for l in cur.fetchall()]
                 json_response(self, {"success": True, "lots": lots})
 
+            elif path.startswith("/api/inventory/lots/product/"):
+                prod_id = path.split("/")[-1]
+                if not prod_id.isdigit():
+                    error_response(self, "Invalid product ID", 400)
+                    return
+                cur.execute("""
+                    SELECT id, batch_code, unit_cost, initial_qty, remaining_qty, procurement_date, source
+                    FROM inventory_lots
+                    WHERE product_id = ? AND remaining_qty > 0
+                    ORDER BY unit_cost ASC, procurement_date ASC
+                """, (int(prod_id),))
+                lots = [dict(l) for l in cur.fetchall()]
+                json_response(self, {"success": True, "lots": lots})
+
+            elif path.startswith("/api/procurements/"):
+                proc_id = path.split("/")[-1]
+                if not proc_id.isdigit():
+                    error_response(self, "Invalid procurement ID", 400)
+                    return
+                cur.execute("SELECT * FROM procurements WHERE id = ?", (int(proc_id),))
+                row = cur.fetchone()
+                if not row:
+                    error_response(self, "Procurement not found", 404)
+                    return
+                proc = dict(row)
+                cur.execute("""
+                    SELECT l.id, l.product_id, pr.name as product_name, pr.sku, l.batch_code,
+                           l.unit_cost, l.initial_qty, l.remaining_qty, l.source
+                    FROM inventory_lots l
+                    JOIN products pr ON l.product_id = pr.id
+                    WHERE l.procurement_id = ?
+                """, (proc["id"],))
+                proc["items"] = [dict(it) for it in cur.fetchall()]
+                json_response(self, {"success": True, "procurement": proc})
+
             elif path == "/api/procurements":
                 cur.execute("""
                     SELECT p.*,
