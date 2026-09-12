@@ -1248,7 +1248,85 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         )
         self.assertEqual(total_jest, 86, f"Total Jest assertions across 6 suites must equal 86, got {total_jest}")
 
-if __name__ == "__main__":
+    def test_e2e_20_pr007_analytics_engine(self):
+        """Automated verification of PR-007 Granular Profit & Sales Analytics Engine."""
+        backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
 
+        # 1. Verify analytics module directory and required files
+        analytics_dir = os.path.join(backend_dir, "src", "modules", "analytics")
+        self.assertTrue(os.path.isdir(analytics_dir), "analytics module directory must exist")
+        for f in ["analytics.controller.ts", "analytics.service.ts", "analytics.module.ts"]:
+            self.assertTrue(os.path.isfile(os.path.join(analytics_dir, f)), f"analytics/{f} must exist")
+        self.assertTrue(os.path.isfile(os.path.join(analytics_dir, "dto", "analytics-query.dto.ts")))
+
+        # 2. Verify AppModule imports AnalyticsModule
+        app_module_file = os.path.join(backend_dir, "src", "app.module.ts")
+        with open(app_module_file, "r", encoding="utf-8") as f:
+            app_code = f.read()
+        self.assertIn("AnalyticsModule", app_code)
+
+        # 3. Verify AnalyticsController route contracts
+        with open(os.path.join(analytics_dir, "analytics.controller.ts"), "r", encoding="utf-8") as f:
+            ctrl_code = f.read()
+        self.assertIn("@Get()", ctrl_code)
+        self.assertIn("granularity", ctrl_code)
+        self.assertIn("from_date", ctrl_code)
+        self.assertIn("to_date", ctrl_code)
+
+        # 4. Verify AnalyticsService invariants
+        with open(os.path.join(analytics_dir, "analytics.service.ts"), "r", encoding="utf-8") as f:
+            serv_code = f.read()
+        self.assertIn("async getAnalytics(", serv_code)
+        self.assertIn("getTimeBucketKey", serv_code)
+        self.assertIn("getIsoWeek", serv_code)
+        self.assertIn("total_revenue", serv_code)
+        self.assertIn("total_cogs", serv_code)
+        self.assertIn("total_profit", serv_code)
+        self.assertIn("margin_pct", serv_code)
+
+        # 5. Verify Jest test assertion counts across all 7 test suites (total = 94 assertions)
+        analytics_test_file = os.path.join(backend_dir, "tests", "analytics_engine.test.ts")
+        self.assertTrue(os.path.isfile(analytics_test_file), "analytics_engine.test.ts must exist")
+        with open(analytics_test_file, "r", encoding="utf-8") as f:
+            analytics_assertions = f.read().count("test(")
+        self.assertEqual(analytics_assertions, 8, "analytics_engine.test.ts must contain exactly 8 assertions")
+
+        sales_test_file = os.path.join(backend_dir, "tests", "sales_allocation.test.ts")
+        with open(sales_test_file, "r", encoding="utf-8") as f:
+            sales_assertions = f.read().count("test(")
+
+        inv_proc_file = os.path.join(backend_dir, "tests", "inventory_procurements.test.ts")
+        with open(inv_proc_file, "r", encoding="utf-8") as f:
+            inv_proc_assertions = f.read().count("test(")
+
+        prod_test_file = os.path.join(backend_dir, "tests", "products_discovery.test.ts")
+        with open(prod_test_file, "r", encoding="utf-8") as f:
+            prod_assertions = f.read().count("test(")
+
+        master_test_file = os.path.join(backend_dir, "tests", "master_data.test.ts")
+        with open(master_test_file, "r", encoding="utf-8") as f:
+            master_assertions = f.read().count("test(")
+
+        auth_test_file = os.path.join(backend_dir, "tests", "auth.test.ts")
+        with open(auth_test_file, "r", encoding="utf-8") as f:
+            auth_assertions = f.read().count("test(")
+
+        schema_test_file = os.path.join(backend_dir, "tests", "schema_verification.test.ts")
+        with open(schema_test_file, "r", encoding="utf-8") as f:
+            schema_assertions = f.read().count("test(")
+
+        total_jest = (
+            analytics_assertions
+            + sales_assertions
+            + inv_proc_assertions
+            + prod_assertions
+            + master_assertions
+            + auth_assertions
+            + schema_assertions
+        )
+        self.assertEqual(total_jest, 94, f"Total Jest assertions across 7 suites must equal 94, got {total_jest}")
+
+if __name__ == "__main__":
     unittest.main(verbosity=1)
+
 
