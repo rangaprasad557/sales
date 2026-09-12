@@ -5,6 +5,8 @@ import { CustomersModule } from './modules/customers/customers.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { ProductsModule } from './modules/products/products.module';
+import { ProcurementsModule } from './modules/procurements/procurements.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 import { checkDatabaseConnection } from './db/connection';
 
 @Controller('health')
@@ -29,6 +31,8 @@ export class HealthController {
     SuppliersModule,
     CategoriesModule,
     ProductsModule,
+    ProcurementsModule,
+    InventoryModule,
   ],
   controllers: [HealthController],
 })
