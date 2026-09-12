@@ -8,7 +8,7 @@ import {
   AlertCircle,
   Clock,
   Tag,
-  DollarSign,
+  IndianRupee,
   Boxes,
   RotateCcw,
 } from 'lucide-react';
@@ -75,7 +75,8 @@ export function ManualLotOverrideModal({
   const remainingNeeded = requiredQty - totalAllocated;
 
   const handleQtyChange = (lotId: number, maxQty: number, valStr: string) => {
-    const val = parseInt(valStr, 10);
+    const clean = valStr.replace(/[^0-9]/g, '');
+    const val = parseInt(clean, 10);
     const qty = isNaN(val) ? 0 : Math.max(0, Math.min(val, maxQty));
     setAllocations((prev) => ({
       ...prev,
@@ -215,7 +216,7 @@ export function ManualLotOverrideModal({
                           {lot.batchCode}
                         </span>
                         <span className="text-xs font-bold text-primary">
-                          ${lot.unitCost.toFixed(2)} / {unit}
+                          ₹{lot.unitCost.toFixed(2)} / {unit}
                         </span>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -230,9 +231,8 @@ export function ManualLotOverrideModal({
                     <div className="flex items-center gap-2 shrink-0">
                       <label className="text-xs font-medium text-muted-foreground">Bill Qty:</label>
                       <input
-                        type="number"
-                        min="0"
-                        max={lot.remainingQty}
+                        type="text"
+                        inputMode="numeric"
                         value={allocated === 0 ? '' : allocated}
                         onChange={(e) => handleQtyChange(lot.id, lot.remainingQty, e.target.value)}
                         placeholder="0"

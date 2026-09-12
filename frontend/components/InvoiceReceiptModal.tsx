@@ -6,7 +6,7 @@ import {
   Printer,
   CheckCircle2,
   Receipt,
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   Layers,
   Sparkles,
@@ -171,10 +171,10 @@ export function InvoiceReceiptModal({
                         {item.qty} {item.unit}
                       </td>
                       <td className="px-3 py-2.5 text-right font-mono">
-                        ${item.unitPrice.toFixed(2)}
+                        ₹{item.unitPrice.toFixed(2)}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono font-bold text-foreground">
-                        ${item.totalPrice.toFixed(2)}
+                        ₹{item.totalPrice.toFixed(2)}
                       </td>
                     </tr>
                     {item.lotsUsed && item.lotsUsed.length > 0 && (
@@ -183,7 +183,7 @@ export function InvoiceReceiptModal({
                           <span className="font-semibold">Batch Allocation: </span>
                           {item.lotsUsed.map((lot, lIdx) => (
                             <span key={lIdx} className="mr-2 font-mono">
-                              [{lot.batchCode}: {lot.qty} units @ ${lot.unitCost.toFixed(2)}]
+                              [{lot.batchCode}: {lot.qty} units @ ₹{lot.unitCost.toFixed(2)}]
                             </span>
                           ))}
                         </td>
@@ -201,13 +201,13 @@ export function InvoiceReceiptModal({
               <div>
                 <span className="text-muted-foreground">Cost of Goods Sold (COGS): </span>
                 <strong className="font-mono font-semibold text-foreground">
-                  ${sale.totalCogs.toFixed(2)}
+                  ₹{sale.totalCogs.toFixed(2)}
                 </strong>
               </div>
               <div>
                 <span className="text-muted-foreground">Net Order Profit: </span>
                 <strong className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                  +${sale.totalProfit.toFixed(2)}
+                  +₹{sale.totalProfit.toFixed(2)}
                 </strong>{' '}
                 <span className="text-[11px] text-muted-foreground">
                   ({marginPct.toFixed(1)}% margin)
@@ -220,7 +220,7 @@ export function InvoiceReceiptModal({
                 Total Amount Paid
               </span>
               <span className="text-2xl font-black text-foreground font-mono">
-                ${sale.totalAmount.toFixed(2)}
+                ₹{sale.totalAmount.toFixed(2)}
               </span>
             </div>
           </div>

@@ -6,7 +6,7 @@ import {
   Plus,
   Search,
   Store,
-  DollarSign,
+  IndianRupee,
   Layers,
   Package,
   AlertCircle,
@@ -305,10 +305,10 @@ export default function ProcurementPage() {
         <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Capital Invested</span>
-            <DollarSign className="w-4 h-4 text-emerald-500" />
+            <IndianRupee className="w-4 h-4 text-emerald-500" />
           </div>
           <div className="text-2xl font-black text-foreground">
-            ${totalCapitalSpent.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            ₹{totalCapitalSpent.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-muted-foreground mt-1">Total procurement value</p>
         </div>
@@ -419,7 +419,7 @@ export default function ProcurementPage() {
                       <div>Units received: {proc.itemCount}</div>
                     </td>
                     <td className="px-6 py-4 text-right font-mono text-sm font-bold text-foreground">
-                      ${proc.totalAmount.toFixed(2)}
+                      ₹{proc.totalAmount.toFixed(2)}
                     </td>
                   </tr>
                 ))
@@ -601,12 +601,11 @@ export default function ProcurementPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
-                Unit Acquisition Cost ($) <span className="text-destructive">*</span>
+                Unit Acquisition Cost (₹) <span className="text-destructive">*</span>
               </label>
               <input
-                type="number"
-                step="0.01"
-                min="0.01"
+                type="text"
+                inputMode="decimal"
                 value={formData.unitCost}
                 onChange={(e) => setFormData({ ...formData, unitCost: e.target.value })}
                 className={`w-full px-3.5 py-2.5 rounded-xl border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary ${
@@ -626,9 +625,8 @@ export default function ProcurementPage() {
                 Quantity Received <span className="text-destructive">*</span>
               </label>
               <input
-                type="number"
-                min="1"
-                step="any"
+                type="text"
+                inputMode="decimal"
                 value={formData.quantity}
                 onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                 className={`w-full px-3.5 py-2.5 rounded-xl border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary ${

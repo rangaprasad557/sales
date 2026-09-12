@@ -5,7 +5,7 @@ import {
   BarChart3,
   TrendingUp,
   Calendar,
-  DollarSign,
+  IndianRupee,
   Package,
   Layers,
   Store,
@@ -168,10 +168,10 @@ export default function AnalyticsPage() {
         <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Total Revenue</span>
-            <DollarSign className="w-4 h-4 text-primary" />
+            <IndianRupee className="w-4 h-4 text-primary" />
           </div>
           <div className="text-2xl font-black text-foreground font-mono">
-            ${summary.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            ₹{summary.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-muted-foreground mt-1">Gross sales turnover</p>
         </div>
@@ -182,7 +182,7 @@ export default function AnalyticsPage() {
             <Layers className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-2xl font-black text-foreground font-mono">
-            ${summary.totalCogs.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            ₹{summary.totalCogs.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-muted-foreground mt-1">Acquisition lot costs</p>
         </div>
@@ -193,7 +193,7 @@ export default function AnalyticsPage() {
             <TrendingUp className="w-4 h-4 text-emerald-500" />
           </div>
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-            +${summary.totalProfit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            +₹{summary.totalProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-muted-foreground mt-1">True net profitability</p>
         </div>
@@ -243,13 +243,13 @@ export default function AnalyticsPage() {
                   </td>
                   <td className="px-4 py-3.5 text-center font-bold">{p.unitsSold}</td>
                   <td className="px-4 py-3.5 text-right font-mono font-semibold">
-                    ${p.revenue.toFixed(2)}
+                    ₹{p.revenue.toFixed(2)}
                   </td>
                   <td className="px-4 py-3.5 text-right font-mono text-muted-foreground">
-                    ${p.cogs.toFixed(2)}
+                    ₹{p.cogs.toFixed(2)}
                   </td>
                   <td className="px-4 py-3.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                    +${p.profit.toFixed(2)}
+                    +₹{p.profit.toFixed(2)}
                   </td>
                   <td className="px-6 py-3.5 text-right font-mono font-bold text-primary">
                     {p.marginPct.toFixed(1)}%

@@ -9,7 +9,7 @@ import {
   SlidersHorizontal,
   Package,
   Layers,
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   Receipt,
   User,
@@ -235,9 +235,32 @@ export default function SalesPOSPage() {
       .catch(() => {});
   };
 
+  const fetchInventory = () => {
+    fetch('/api/inventory')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return;
+        const items = data.inventory || data.items || (Array.isArray(data) ? data : []);
+        const map: Record<number, LotItem[]> = {};
+        items.forEach((item: any) => {
+          map[item.id] = (item.lots || []).map((l: any) => ({
+            id: l.id,
+            batchCode: l.batch_code || l.batchCode,
+            unitCost: parseFloat(l.unit_cost || l.unitCost || '0'),
+            remainingQty: parseFloat(l.remaining_qty || l.remainingQty || '0'),
+            source: l.source || 'Wholesale Shop',
+            procurementDate: l.procurement_date || l.procurementDate,
+          }));
+        });
+        setLotsMap(map);
+      })
+      .catch(() => {});
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchCustomers();
+    fetchInventory();
   }, []);
 
   // Add items from Advanced Product Picker Grid
@@ -266,13 +289,14 @@ export default function SalesPOSPage() {
 
   // Update Cart Item Quantity
   const handleUpdateQty = (cartId: string, qtyStr: string) => {
-    const val = parseInt(qtyStr, 10);
-    const qty = isNaN(val) ? 1 : Math.max(1, val);
+    const clean = qtyStr.replace(/[^0-9]/g, '');
+    const val = parseInt(clean, 10);
+    const qty = isNaN(val) ? 0 : val;
 
     setCart((prev) =>
       prev.map((item) => {
         if (item.id === cartId) {
-          if (qty > item.product.currentStock) {
+          if (item.product.currentStock > 0 && qty > item.product.currentStock) {
             addNotification('warning', `Requested ${qty} exceeds available stock (${item.product.currentStock}).`);
             return { ...item, qty: item.product.currentStock };
           }
@@ -427,6 +451,7 @@ export default function SalesPOSPage() {
         body: JSON.stringify(salePayload),
       });
       fetchProducts();
+      fetchInventory();
     } catch (e) {
       console.warn('Backend sale recording note:', e);
     }
@@ -468,7 +493,7 @@ export default function SalesPOSPage() {
               <option value="">-- Walk-in Retail Customer --</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} (Credit: ${c.creditLimit.toLocaleString()})
+                  {c.name} (Credit: ₹{c.creditLimit.toLocaleString()})
                 </option>
               ))}
             </select>
@@ -482,8 +507,8 @@ export default function SalesPOSPage() {
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
             <div>
-              <strong>Credit Limit Warning:</strong> Order subtotal ($
-              {cartSummary.subtotal.toFixed(2)}) exceeds authorized credit line of $
+              <strong>Credit Limit Warning:</strong> Order subtotal (₹
+              {cartSummary.subtotal.toFixed(2)}) exceeds authorized credit line of ₹
               {selectedCustomer.creditLimit.toLocaleString()} for {selectedCustomer.name}.
             </div>
           </div>
@@ -546,7 +571,7 @@ export default function SalesPOSPage() {
                             <span>{p.category}</span>
                             <span>•</span>
                             <span className="font-bold text-primary">
-                              ${p.lowestCost > 0 ? (p.lowestCost * 1.3).toFixed(2) : '10.00'}
+                              ₹{p.lowestCost > 0 ? (p.lowestCost * 1.3).toFixed(2) : '10.00'}
                             </span>
                           </div>
                         </div>
@@ -669,12 +694,11 @@ export default function SalesPOSPage() {
                         <div className="flex items-center gap-1.5">
                           <label className="text-xs font-semibold text-muted-foreground">Qty:</label>
                           <input
-                            type="number"
-                            min="1"
-                            max={item.product.currentStock}
+                            type="text"
+                            inputMode="numeric"
                             value={item.qty}
                             onChange={(e) => handleUpdateQty(item.id, e.target.value)}
-                            className="w-16 px-2.5 py-1 text-center text-xs font-bold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                            className="w-16 px-2.5 py-1 text-center text-xs font-bold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono"
                           />
                           <span className="text-xs text-muted-foreground">{item.product.unit}</span>
                         </div>
@@ -684,15 +708,14 @@ export default function SalesPOSPage() {
                           <label className="text-xs font-semibold text-muted-foreground">Price:</label>
                           <div className="relative">
                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                              $
+                              ₹
                             </span>
                             <input
-                              type="number"
-                              step="0.01"
-                              min="0"
+                              type="text"
+                              inputMode="decimal"
                               value={item.salePrice}
                               onChange={(e) => handleUpdatePrice(item.id, e.target.value)}
-                              className="w-20 pl-5 pr-2 py-1 text-right text-xs font-bold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                              className="w-20 pl-5 pr-2 py-1 text-right text-xs font-bold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono"
                             />
                           </div>
                         </div>
@@ -701,10 +724,10 @@ export default function SalesPOSPage() {
                       {/* Line Financials */}
                       <div className="text-right">
                         <div className="text-sm font-black text-foreground font-mono">
-                          ${lineTotal.toFixed(2)}
+                          ₹{lineTotal.toFixed(2)}
                         </div>
                         <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-                          Est. Profit: +${lineProfit.toFixed(2)} ({marginPct.toFixed(0)}%)
+                          Est. Profit: +₹{lineProfit.toFixed(2)} ({marginPct.toFixed(0)}%)
                         </div>
                       </div>
                     </div>
@@ -723,7 +746,7 @@ export default function SalesPOSPage() {
                               key={idx}
                               className="font-mono text-[11px] px-2 py-0.5 rounded bg-card text-foreground border border-border shrink-0"
                             >
-                              {lot.batchCode} ({lot.qty} @ ${lot.unitCost.toFixed(2)})
+                              {lot.batchCode} ({lot.qty} @ ₹{lot.unitCost.toFixed(2)})
                             </span>
                           ))
                         )}
@@ -749,7 +772,7 @@ export default function SalesPOSPage() {
         <div className="rounded-3xl border border-border bg-card p-6 shadow-xs flex flex-col justify-between space-y-6">
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-foreground pb-3 border-b border-border flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-primary" />
+              <IndianRupee className="w-5 h-5 text-primary" />
               <span>Financial Allocation Summary</span>
             </h2>
 
@@ -762,14 +785,14 @@ export default function SalesPOSPage() {
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Estimated Acquisition Cost (COGS):</span>
                 <span className="font-mono font-semibold text-foreground">
-                  ${cartSummary.totalCogs.toFixed(2)}
+                  ₹{cartSummary.totalCogs.toFixed(2)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Estimated Net Profit:</span>
                 <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                  +${cartSummary.netProfit.toFixed(2)}
+                  +₹{cartSummary.netProfit.toFixed(2)}
                 </span>
               </div>
 
@@ -783,7 +806,7 @@ export default function SalesPOSPage() {
               <div className="pt-3 border-t border-border flex items-center justify-between">
                 <span className="text-base font-bold text-foreground">Order Subtotal:</span>
                 <span className="text-2xl font-black font-mono text-foreground">
-                  ${cartSummary.subtotal.toFixed(2)}
+                  ₹{cartSummary.subtotal.toFixed(2)}
                 </span>
               </div>
             </div>
@@ -797,7 +820,7 @@ export default function SalesPOSPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Credit Line:</span>
                   <span className="font-mono font-semibold text-foreground">
-                    ${selectedCustomer.creditLimit.toLocaleString()}
+                    ₹{selectedCustomer.creditLimit.toLocaleString()}
                   </span>
                 </div>
               </div>

@@ -675,7 +675,9 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 cur.execute("""
                     SELECT p.*, 
                            COALESCE(SUM(l.remaining_qty), 0) as total_stock,
-                           COUNT(CASE WHEN l.remaining_qty > 0 THEN 1 END) as active_lots_count
+                           COUNT(CASE WHEN l.remaining_qty > 0 THEN 1 END) as active_lots_count,
+                           COALESCE(MIN(CASE WHEN l.remaining_qty > 0 THEN l.unit_cost END), 0.0) as lowest_cost,
+                           COALESCE(SUM(CASE WHEN l.remaining_qty > 0 THEN l.remaining_qty * l.unit_cost END) / NULLIF(SUM(CASE WHEN l.remaining_qty > 0 THEN l.remaining_qty END), 0), 0.0) as avg_cost
                     FROM products p
                     LEFT JOIN inventory_lots l ON p.id = l.product_id AND l.remaining_qty > 0
                     GROUP BY p.id

@@ -111,7 +111,8 @@ export function ProductPickerModal({
   };
 
   const handleQtyChange = (productId: number, qtyStr: string) => {
-    const val = parseInt(qtyStr, 10);
+    const clean = qtyStr.replace(/[^0-9]/g, '');
+    const val = parseInt(clean, 10);
     setEnteredQuantities((prev) => ({
       ...prev,
       [productId]: isNaN(val) ? 0 : Math.max(0, val),
@@ -119,7 +120,8 @@ export function ProductPickerModal({
   };
 
   const handlePriceChange = (productId: number, priceStr: string) => {
-    const val = parseFloat(priceStr);
+    const clean = priceStr.replace(/[^0-9.]/g, '');
+    const val = parseFloat(clean);
     setCustomPrices((prev) => ({
       ...prev,
       [productId]: isNaN(val) ? 0 : Math.max(0, val),
@@ -447,16 +449,15 @@ export function ProductPickerModal({
 
                       {/* Lowest Batch Cost */}
                       <td className="px-4 py-3.5 text-right font-mono text-xs font-bold text-foreground">
-                        ${p.lowestCost > 0 ? p.lowestCost.toFixed(2) : '0.00'}
+                        ₹{p.lowestCost > 0 ? p.lowestCost.toFixed(2) : '0.00'}
                       </td>
 
                       {/* Add Qty & Action */}
                       <td className="px-6 py-3.5">
                         <div className="flex items-center justify-center gap-2">
                           <input
-                            type="number"
-                            min="0"
-                            max={p.currentStock > 0 ? p.currentStock : 999}
+                            type="text"
+                            inputMode="numeric"
                             value={qtyEntered === 0 ? '' : qtyEntered}
                             onChange={(e) => handleQtyChange(p.id, e.target.value)}
                             placeholder="Qty"

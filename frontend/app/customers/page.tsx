@@ -8,7 +8,7 @@ import {
   Mail,
   Phone,
   MapPin,
-  DollarSign,
+  IndianRupee,
   ShieldCheck,
   Edit2,
   CheckCircle2,
@@ -281,10 +281,10 @@ export default function CustomersPage() {
         <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Total Credit Limit</span>
-            <DollarSign className="w-4 h-4 text-emerald-500" />
+            <IndianRupee className="w-4 h-4 text-emerald-500" />
           </div>
           <div className="text-2xl font-black text-foreground">
-            ${totalCreditLimit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            ₹{totalCreditLimit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-muted-foreground mt-1">Authorized credit line</p>
         </div>
@@ -402,8 +402,8 @@ export default function CustomersPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary font-mono font-bold text-xs border border-primary/20">
-                        <DollarSign className="w-3 h-3" />
-                        {customer.creditLimit.toLocaleString('en-US', {
+                        <IndianRupee className="w-3 h-3" />
+                        {customer.creditLimit.toLocaleString('en-IN', {
                           minimumFractionDigits: 2,
                         })}
                       </span>
@@ -524,18 +524,21 @@ export default function CustomersPage() {
 
           <div>
             <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
-              Credit Limit (USD)
+              Credit Limit (₹)
             </label>
             <div className="relative">
-              <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <IndianRupee className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 value={formData.creditLimit}
-                onChange={(e) =>
-                  setFormData({ ...formData, creditLimit: e.target.value })
-                }
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9.]/g, '');
+                  // Ensure only single decimal point
+                  const parts = val.split('.');
+                  const clean = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : val;
+                  setFormData({ ...formData, creditLimit: clean });
+                }}
                 placeholder="5000.00"
                 className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary ${
                   formErrors.creditLimit ? 'border-destructive' : 'border-border'

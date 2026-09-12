@@ -14,7 +14,7 @@ import {
   Sparkles,
   ArrowUpDown,
   Filter,
-  DollarSign,
+  IndianRupee,
   Boxes,
   Archive,
   AlertCircle,
@@ -628,8 +628,8 @@ export default function CataloguePage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         {product.lowestCost > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-mono font-bold text-foreground">
-                            <DollarSign className="w-3 h-3 text-muted-foreground" />
+                          <span className="inline-flex items-center gap-0.5 text-xs font-mono font-bold text-foreground">
+                            <IndianRupee className="w-3 h-3 text-muted-foreground" />
                             {product.lowestCost.toFixed(2)}
                             <span className="text-[10px] text-muted-foreground font-normal">
                               /{product.unit}
@@ -772,10 +772,13 @@ export default function CataloguePage() {
                 Min Stock Threshold
               </label>
               <input
-                type="number"
-                min="0"
+                type="text"
+                inputMode="numeric"
                 value={formData.minStock}
-                onChange={(e) => setFormData({ ...formData, minStock: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, '');
+                  setFormData({ ...formData, minStock: val });
+                }}
                 placeholder="10"
                 className={`w-full px-3.5 py-2.5 rounded-xl border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary ${
                   formErrors.minStock ? 'border-destructive' : 'border-border'
