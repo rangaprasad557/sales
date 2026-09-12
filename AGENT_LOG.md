@@ -197,5 +197,39 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **E2E Integration Reviewer** (`296d8521-9602-4a39-ab9b-c01141d9b08b`): 🏆 **APPROVED** (0 Major, 0 Blocker).
 - **Outcome**: PR-001 satisfies all repository rules and quality gates with unanimous approval.
 
+---
+
+## 9. PR-002: Google SSO Authentication & User Management (JWT + Passport)
+
+### Context & Implementation Scope
+- **PR Document**: [`docs/prs/PR-002-google-sso-auth.md`](file:///c:/Build_With_AI_Google/docs/prs/PR-002-google-sso-auth.md)
+- **Branch**: `feature/pr-002-google-sso-auth`
+- **Scope Delivered**:
+  1. Google OAuth 2.0 / OpenID Connect token verification via `google-auth-library` (`OAuth2Client`).
+  2. User synchronization & profile upsert via Drizzle ORM [`users.service.ts`](file:///c:/Build_With_AI_Google/backend/src/modules/users/users.service.ts) with email normalization and idempotency.
+  3. Stateless JWT session tokens with claims (`sub`, `email`, `name`, `role`).
+  4. Passport JWT verification strategy in [`jwt.strategy.ts`](file:///c:/Build_With_AI_Google/backend/src/modules/auth/jwt.strategy.ts) and guard [`jwt-auth.guard.ts`](file:///c:/Build_With_AI_Google/backend/src/modules/auth/jwt-auth.guard.ts).
+  5. Role-based authorization: `@Roles(...)` metadata decorator and [`roles.guard.ts`](file:///c:/Build_With_AI_Google/backend/src/modules/auth/roles.guard.ts) supporting `salesperson`, `admin`, `auditor`.
+  6. REST API endpoints:
+     - `POST /api/auth/google`: Google ID token verification & session issuance.
+     - `POST /api/auth/dev-login`: Dev/test token issuance.
+     - `GET /api/auth/me`: Authenticated user profile.
+     - `POST /api/auth/logout`: Session clearance.
+     - `GET /api/users`: User listing (Admin & Auditor).
+     - `PATCH /api/users/:id/role`: Role assignment (Admin only).
+  7. Automated test suite [`backend/tests/auth.test.ts`](file:///c:/Build_With_AI_Google/backend/tests/auth.test.ts) covering 16 test assertions.
+
+### Automated Testing Evidence
+- **Jest TypeScript Test Suites**: 28/28 passed (100% pass rate).
+- **Python Regression Suite**: 27/27 passed (100% pass rate).
+- **Total Tests**: 55 automated tests executed across stacks, 0 failures.
+
+### Multi-Agent Review Verdicts
+- **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED** (0 Major, 0 Blocker).
+- **Functional Reviewer** (`5dc2d49c-f8ab-4fe5-8f40-3880f977e79d`): 🏆 **APPROVED** (0 Major, 0 Blocker).
+- **E2E Integration Reviewer** (`296d8521-9602-4a39-ab9b-c01141d9b08b`): 🏆 **APPROVED** (0 Major, 0 Blocker).
+- **Outcome**: PR-002 satisfies all repository rules and quality gates with unanimous approval.
+
+
 
 
