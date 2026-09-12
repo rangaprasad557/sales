@@ -475,6 +475,51 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED** (0 Major, 0 Blocker).
 - **Outcome**: PR-011 merged into `master` with unanimous multi-agent approval.
 
+---
+
+## 19. PR-012: Search Removal, Legacy Roles Purge & Exclusive Two-User Full-Access Authorization
+
+### Context & Implementation Scope
+- **PR Document**: [`docs/prs/PR-012-search-removal-and-exclusive-two-user-auth.md`](file:///c:/Build_With_AI_Google/docs/prs/PR-012-search-removal-and-exclusive-two-user-auth.md)
+- **Branch**: `feature/pr-012-search-removal-and-exclusive-two-user-auth` (Merged to `master`)
+- **Scope Delivered**:
+  1. **Complete Search Removal**:
+     - Removed `GlobalSearchBar` completely from the navigation bar ([`frontend/components/Navigation.tsx`](file:///c:/Build_With_AI_Google/frontend/components/Navigation.tsx)).
+     - Removed Quick Search input box, `searchQuery` state, and floating autocomplete dropdown from the POS billing screen ([`frontend/app/sales/page.tsx`](file:///c:/Build_With_AI_Google/frontend/app/sales/page.tsx)). Replaced with a clean "Catalogue Product Selection" action bar opening the **Advanced Product Picker Grid** (`ProductPickerModal`).
+  2. **Purge of Legacy Roles & Personas**:
+     - Purged all legacy roles (`salesperson`, `admin`, `auditor`) and demo logins from the codebase and login screen.
+     - Authorized users receive full administrative privileges (`role: 'full_access'`).
+  3. **Exclusive Two-User Full-Access Authorization**:
+     - Enforced strict whitelist restricted exclusively to:
+       - `rangaprasad.557@gmail.com` (Ranga Prasad)
+       - `singarisurendra@gmail.com` (Surendra Singari)
+     - Backend enforcement ([`backend/src/modules/auth/auth.service.ts`](file:///c:/Build_With_AI_Google/backend/src/modules/auth/auth.service.ts)): `AUTHORIZED_EMAILS` whitelist checks in `verifyGoogleToken` and `devLogin`. Any other email throws `ForbiddenException` (HTTP 403) with a security rejection message.
+     - Frontend store enforcement ([`frontend/store/useUIStore.ts`](file:///c:/Build_With_AI_Google/frontend/store/useUIStore.ts)): Client hydration `getStoredUser()` validates against `AUTHORIZED_EMAILS` and automatically clears unauthorized sessions from `localStorage` (`apex_user_session`, `apex_auth_token`). `login()` verifies whitelist and stamps `role: 'full_access'`.
+  4. **Clean Login Experience & Profile Pill**:
+     - [`frontend/app/login/page.tsx`](file:///c:/Build_With_AI_Google/frontend/app/login/page.tsx): Streamlined account selection cards for Ranga Prasad and Surendra Singari with glowing **Full Access** badges, Google SSO authentication, direct sign-in, and security rejection banners.
+     - [`frontend/components/Navigation.tsx`](file:///c:/Build_With_AI_Google/frontend/components/Navigation.tsx): Profile pill displays avatar initial, user name, glowing **Full Access** badge, Sign Out button, maintaining strict `h-9` (36px) vertical alignment contract. Retained cigarette brand icon with no text.
+  5. **Visual Testing Gate**:
+     - High contrast ratio $\ge 7:1$ (WCAG 2.1 AAA) across dark and light themes for all text, buttons, and emerald badges.
+     - Color-blind safety (Protanopia, Deuteranopia, Tritanopia) ensured via redundant visual encoding (initials + textual label + border + icon).
+     - Standardized focus-visible rings (`focus-visible:ring-2 focus-visible:ring-primary`) on all interactive controls.
+  6. **Automated Testing Suite**:
+     - [`frontend/tests/authorized_users_and_clean_ui.test.ts`](file:///c:/Build_With_AI_Google/frontend/tests/authorized_users_and_clean_ui.test.ts): 13 automated test assertions for whitelist enforcement, unauthorized rejection, search elimination, and visual accessibility.
+     - [`test_suite.py`](file:///c:/Build_With_AI_Google/test_suite.py): Added `test_e2e_25_pr012_authorized_users_and_search_removal` asserting two-user whitelist, legacy role purge, search elimination, and UI contracts.
+
+### Automated Testing Evidence
+- **Frontend Jest Suites**: 80/80 passed across 5 suites (100% pass rate).
+- **TypeScript Type Check**: `tsc --noEmit` passed with 0 errors.
+- **Backend Jest Suites**: 94/94 passed across 7 suites (100% pass rate).
+- **Python Regression Suite**: 37/37 passed in 1.206s (100% pass rate).
+- **Total Tests**: **211 automated tests** executed across stacks, 0 failures.
+
+### Multi-Agent Review Verdicts
+- **Functional Reviewer** (`5dc2d49c-f8ab-4fe5-8f40-3880f977e79d`): 🏆 **APPROVED** (0 Major, 0 Blocker).
+- **E2E Integration Reviewer** (`296d8521-9602-4a39-ab9b-c01141d9b08b`): 🏆 **APPROVED** (0 Major, 0 Blocker).
+- **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED** (0 Major, 0 Blocker).
+- **Outcome**: PR-012 merged into `master` with unanimous multi-agent approval.
+
+
 
 
 
