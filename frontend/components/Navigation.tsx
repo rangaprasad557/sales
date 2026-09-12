@@ -15,6 +15,7 @@ import {
   LogIn,
   LogOut,
   Layers,
+  Receipt,
 } from 'lucide-react';
 import { useUIStore } from '../store/useUIStore';
 import { ThemeToggle } from './ThemeToggle';
@@ -63,6 +64,7 @@ export function Navigation() {
   // POS Billing is now the root view; Overview has been removed as requested
   const navLinks = [
     { href: '/', label: 'POS Billing', icon: ShoppingCart },
+    { href: '/orders', label: 'Orders', icon: Receipt },
     { href: '/catalogue', label: 'Catalogue', icon: Package },
     { href: '/categories', label: 'Categories', icon: Layers },
     { href: '/procurement', label: 'Procurement', icon: Truck },

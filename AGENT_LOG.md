@@ -707,6 +707,38 @@ The system meets 100% of functional, architectural, accessibility, data integrit
   - Procurement Intake: POST /api/procurements verified with lot creation and stock update.
 - **Outcome**: PR-016 verified and ready for commit and merge.
 
+---
+
+## 23. PR-017: Past Orders & Order History Interface (`/orders`)
+
+### Context & Implementation Scope
+- **PR Document**: [`docs/prs/PR-017-past-orders-and-order-history.md`](file:///c:/Build_With_AI_Google/docs/prs/PR-017-past-orders-and-order-history.md)
+- **Branch**: `master` / `main`
+- **Scope Delivered**:
+  1. Dedicated Past Orders & Invoices page [`frontend/app/orders/page.tsx`](file:///c:/Build_With_AI_Google/frontend/app/orders/page.tsx) with:
+     - Real-time order loading from `GET /api/sales` and detailed breakdown from `GET /api/sales/<id>`.
+     - 4 KPI summary cards (Total Orders, Gross Sales in ₹, Total COGS in ₹, Net Profit in ₹ with avg margin %).
+     - Fuzzy search by invoice number, customer name, notes, or date.
+     - Multi-attribute sorting (Date, Total Amount, Net Profit) with Asc/Desc toggle.
+     - Responsive orders table with invoice badge, customer name with Walk-in fallback, item & unit counts, exact Rupee pricing, and "View Receipt" action.
+     - Interactive printable invoice receipt modal (`InvoiceReceiptModal`) showing exact batch allocations (`[LOT-XXXX: Qty @ ₹Cost]`).
+     - Accessible empty state with direct "Go to POS Billing" navigation.
+  2. Top navigation integration [`frontend/components/Navigation.tsx`](file:///c:/Build_With_AI_Google/frontend/components/Navigation.tsx):
+     - Added Orders link with `Receipt` icon across desktop and mobile menus.
+  3. Command palette integration [`frontend/components/CommandPalette.tsx`](file:///c:/Build_With_AI_Google/frontend/components/CommandPalette.tsx):
+     - Added "Past Orders & Invoices" command under Navigation.
+  4. POS header toolbar shortcut [`frontend/app/sales/page.tsx`](file:///c:/Build_With_AI_Google/frontend/app/sales/page.tsx):
+     - Added "Past Orders" button next to Customer Selector.
+  5. Automated test suite [`frontend/tests/orders_history_a11y.test.ts`](file:///c:/Build_With_AI_Google/frontend/tests/orders_history_a11y.test.ts) covering 10 new test assertions.
+
+### Automated Testing & Verification Evidence
+- **Frontend Jest Suite**: **126 / 126 passing across 9 suites (100% pass rate)**.
+- **Python Backend Test Suite**: **40 / 40 passing (100% pass rate)**.
+- **TypeScript Verification**: `npx tsc --noEmit` exited with 0 compile/type errors.
+- **Next.js HTTP Verification**: `GET /orders` returned HTTP 200.
+- **Outcome**: PR-017 approved and verified.
+
+
 
 
 

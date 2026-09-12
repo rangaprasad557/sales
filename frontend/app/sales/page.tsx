@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import {
   ShoppingCart,
   Search,
@@ -479,8 +480,18 @@ export default function SalesPOSPage() {
           </p>
         </div>
 
-        {/* Customer Selector */}
-        <div className="flex items-center gap-3">
+        {/* Header Actions: Past Orders & Customer Selector */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <Link
+            href="/orders"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-border bg-card hover:bg-muted text-foreground text-xs font-semibold shadow-xs focus-visible:ring-2 focus-visible:ring-primary transition-all cursor-pointer"
+            title="View past orders and customer invoices"
+            aria-label="View past orders and invoices"
+          >
+            <Receipt className="w-3.5 h-3.5 text-primary" />
+            <span>Past Orders</span>
+          </Link>
+
           <div className="relative">
             <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <select

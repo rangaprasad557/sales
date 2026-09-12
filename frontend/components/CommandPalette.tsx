@@ -15,6 +15,7 @@ import {
   Sun,
   X,
   ArrowRight,
+  Receipt,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
@@ -69,6 +70,17 @@ export function CommandPalette() {
       icon: ShoppingCart,
       action: () => {
         router.push('/');
+        setCommandPaletteOpen(false);
+      },
+    },
+    {
+      id: 'orders',
+      title: 'Past Orders & Invoices',
+      subtitle: 'View completed sales history, receipts, and multi-batch costs',
+      category: 'Navigation',
+      icon: Receipt,
+      action: () => {
+        router.push('/orders');
         setCommandPaletteOpen(false);
       },
     },
