@@ -1382,6 +1382,78 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertIn("toggleTheme", app_jsx)
         self.assertIn("apex_theme", app_jsx)
 
+    def test_e2e_22_pr009_masters_and_catalogue_ui(self):
+        """Automated verification of PR-009 Configurable Masters UI & Catalogue Management."""
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        frontend_dir = os.path.join(root_dir, "frontend")
+
+        # 1. Verify master pages exist
+        app_dir = os.path.join(frontend_dir, "app")
+        for page in ["customers", "suppliers", "categories", "catalogue"]:
+            page_path = os.path.join(app_dir, page, "page.tsx")
+            self.assertTrue(os.path.isfile(page_path), f"{page}/page.tsx must exist")
+
+        # 2. Verify reusable Drawer and CategoryTree components
+        comp_dir = os.path.join(frontend_dir, "components")
+        self.assertTrue(os.path.isfile(os.path.join(comp_dir, "Drawer.tsx")), "Drawer.tsx must exist")
+        self.assertTrue(os.path.isfile(os.path.join(comp_dir, "CategoryTree.tsx")), "CategoryTree.tsx must exist")
+
+        with open(os.path.join(comp_dir, "Drawer.tsx"), "r", encoding="utf-8") as f:
+            drawer_code = f.read()
+        self.assertIn('role="dialog"', drawer_code)
+        self.assertIn('aria-modal="true"', drawer_code)
+        self.assertIn("Escape", drawer_code)
+        self.assertIn("overflow = 'hidden'", drawer_code)
+
+        # 3. Verify Customer Directory page contracts
+        with open(os.path.join(app_dir, "customers", "page.tsx"), "r", encoding="utf-8") as f:
+            cust_page = f.read()
+        self.assertIn("Customer Directory", cust_page)
+        self.assertIn("Credit Limit", cust_page)
+        self.assertIn("validateForm", cust_page)
+        self.assertIn("Drawer", cust_page)
+
+        # 4. Verify Supplier Directory page contracts
+        with open(os.path.join(app_dir, "suppliers", "page.tsx"), "r", encoding="utf-8") as f:
+            sup_page = f.read()
+        self.assertIn("Supplier & Vendor Directory", sup_page)
+        self.assertIn("Wholesale Shop", sup_page)
+        self.assertIn("Quick Commerce", sup_page)
+        self.assertIn("E-Commerce", sup_page)
+        self.assertIn("Payment Terms", sup_page)
+
+        # 5. Verify Categories page contracts
+        with open(os.path.join(app_dir, "categories", "page.tsx"), "r", encoding="utf-8") as f:
+            cat_page = f.read()
+        self.assertIn("Category Hierarchy", cat_page)
+        self.assertIn("CategoryTree", cat_page)
+        self.assertIn("Category Inspector", cat_page)
+        self.assertIn("Hierarchical Category Structure", cat_page)
+
+        # 6. Verify Catalogue page contracts & non-color-reliant stock badges
+        with open(os.path.join(app_dir, "catalogue", "page.tsx"), "r", encoding="utf-8") as f:
+            cat_prod_page = f.read()
+        self.assertIn("Product Catalogue", cat_prod_page)
+        self.assertIn("CheckCircle2", cat_prod_page)
+        self.assertIn("AlertTriangle", cat_prod_page)
+        self.assertIn("XCircle", cat_prod_page)
+        self.assertIn("UNITS_OF_MEASURE", cat_prod_page)
+        self.assertIn("Add to Catalogue", cat_prod_page)
+
+        # 7. Verify PR-009 Visual & Accessibility test suite assertions
+        test_file = os.path.join(frontend_dir, "tests", "masters_catalogue_a11y.test.ts")
+        self.assertTrue(os.path.isfile(test_file), "masters_catalogue_a11y.test.ts must exist")
+        with open(test_file, "r", encoding="utf-8") as f:
+            test_content = f.read()
+        it_count = test_content.count("it(")
+        self.assertEqual(it_count, 20, f"masters_catalogue_a11y.test.ts must contain exactly 20 test assertions, got {it_count}")
+        self.assertIn("Customer Master Data Validation", test_content)
+        self.assertIn("Supplier Procurement Channels", test_content)
+        self.assertIn("Hierarchical Category Tree", test_content)
+        self.assertIn("Product Catalogue Stock Health", test_content)
+        self.assertIn("Slide-Over Drawer Accessibility", test_content)
+        self.assertIn("WCAG 2.1 AAA Contrast Ratio", test_content)
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
 
