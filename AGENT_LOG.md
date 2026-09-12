@@ -359,3 +359,34 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **E2E Integration Reviewer** (`296d8521-9602-4a39-ab9b-c01141d9b08b`): ✅ **APPROVED** (0 Major, 0 Blocker).
 - **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED (READY FOR MERGE)** (0 Major, 0 Blocker).
 - **Outcome**: PR-007 satisfies all repository rules and quality gates with unanimous approval.
+
+---
+
+## 15. PR-008: Next.js Frontend Shell, Mobbin Design Tokens, Dark/Light Themes & Visual Testing Gate
+
+### Context & Implementation Scope
+- **PR Document**: [`docs/prs/PR-008-frontend-shell-and-design-system.md`](file:///c:/Build_With_AI_Google/docs/prs/PR-008-frontend-shell-and-design-system.md)
+- **Branch**: `feature/pr-008-nextjs-shell-and-design-system` (Merged to `master`)
+- **Scope Delivered**:
+  1. Next.js App Router Application Structure ([`frontend/app/`](file:///c:/Build_With_AI_Google/frontend/app/)): `layout.tsx`, `page.tsx` (Dashboard home), `login/page.tsx` (Google SSO & dev auth).
+  2. Mobbin-Grade Design Tokens & Theme Engine ([`frontend/app/globals.css`](file:///c:/Build_With_AI_Google/frontend/app/globals.css), [`frontend/tailwind.config.ts`](file:///c:/Build_With_AI_Google/frontend/tailwind.config.ts)): Light-blue tailored palette, dark/light CSS variables, tactile transitions, and typography tokens.
+  3. Dark & Light Mode Switching: Seamless theme switching via `next-themes` and [`frontend/components/ThemeToggle.tsx`](file:///c:/Build_With_AI_Google/frontend/components/ThemeToggle.tsx) with system preference detection and localStorage persistence. Synchronized with `index.html` and `static/app.jsx`.
+  4. WCAG 2.1 AAA Accessibility Compliance: Color contrast ratio $\ge 7:1$ across all core text elements in both dark and light modes. Zero reliance on color alone: status badges (`ACTIVE`, `LOW_STOCK`, `DEPLETED`) couple color with distinct SVG icons, high-contrast borders, and textual labels for complete color-blind safety across Protanopia, Deuteranopia, and Tritanopia.
+  5. Command Palette (`Cmd+K` / `Ctrl+K`) ([`frontend/components/CommandPalette.tsx`](file:///c:/Build_With_AI_Google/frontend/components/CommandPalette.tsx)): Accessible modal dialog (`role="dialog"`, `aria-modal="true"`) supporting instant search, arrow navigation, Enter activation, and Escape key dismissal.
+  6. Responsive Navigation Shell ([`frontend/components/Navigation.tsx`](file:///c:/Build_With_AI_Google/frontend/components/Navigation.tsx)): Desktop header with route highlights, command launcher, and theme switcher; mobile touch-friendly drawer without horizontal clipping.
+  7. Client State Segregation: Zustand store ([`frontend/store/useUIStore.ts`](file:///c:/Build_With_AI_Google/frontend/store/useUIStore.ts)) for UI/client state; TanStack Query ([`frontend/lib/queryClient.ts`](file:///c:/Build_With_AI_Google/frontend/lib/queryClient.ts)) for server state caching.
+  8. Mandatory Visual Testing Gate ([`frontend/tests/visual_theme_a11y.test.ts`](file:///c:/Build_With_AI_Google/frontend/tests/visual_theme_a11y.test.ts)): 10 automated visual and accessibility test assertions.
+  9. Production Build Verification: Next.js production build (`next build`) compiles 5 static routes with 0 errors.
+
+### Automated Testing Evidence
+- **Frontend Visual & A11y Suite**: 10/10 passed (100% pass rate).
+- **Backend Jest Suites**: 94/94 passed across 7 suites (100% pass rate).
+- **Python Regression Suite**: 33/33 passed (100% pass rate).
+- **Total Tests**: 137 automated tests executed across stacks, 0 failures.
+
+### Multi-Agent Review Verdicts
+- **Functional Reviewer** (`5dc2d49c-f8ab-4fe5-8f40-3880f977e79d`): ✅ **APPROVED** (0 Major, 0 Blocker).
+- **E2E Integration Reviewer** (`296d8521-9602-4a39-ab9b-c01141d9b08b`): ✅ **APPROVED** (0 Major, 0 Blocker).
+- **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED (READY FOR MERGE)** (0 Major, 0 Blocker).
+- **Outcome**: PR-008 satisfies all repository rules, visual testing requirements, and quality gates with unanimous approval.
+
