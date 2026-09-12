@@ -303,3 +303,32 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **E2E Integration Reviewer** (`296d8521-9602-4a39-ab9b-c01141d9b08b`): ✅ **APPROVED** (0 Major, 0 Blocker).
 - **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED (READY FOR MERGE)** (0 Major, 0 Blocker).
 - **Outcome**: PR-005 satisfies all repository rules and quality gates with unanimous approval.
+
+---
+
+## 13. PR-006: Sales Engine & Lowest-Cost-First Automated Allocation
+
+### Context & Implementation Scope
+- **PR Document**: [`docs/prs/PR-006-sales-engine-and-lcf-allocation.md`](file:///c:/Build_With_AI_Google/docs/prs/PR-006-sales-engine-and-lcf-allocation.md)
+- **Branch**: `feature/pr-006-sales-engine-and-lcf-allocation` (Merged to `master`)
+- **Scope Delivered**:
+  1. Sales Module ([`backend/src/modules/sales/`](file:///c:/Build_With_AI_Google/backend/src/modules/sales/)): Core sales billing engine with automated Lowest-Cost-First (Cheapest-First) greedy allocation, clean multi-batch lot splitting across fluctuating acquisition costs, and manual lot selection override.
+  2. Cross-Product Lot Leakage Guard: Strict verification ensuring that designated lots belong exclusively to the specified product ID (`lot.productId === productId`), rejecting unauthorized lot assignments with `BadRequestException`.
+  3. Exact Inventory Depletion: Atomically decrements lot stock in database transactions, automatically transitioning batch status to `'DEPLETED'` when remaining quantity reaches 0.
+  4. Dry-Run Sales Simulation: `POST /api/sales/simulate` calculating projected Revenue, COGS, Net Profit, and margin percentage without mutating persistent storage.
+  5. Atomic Transaction Rollback: All mutations executed inside `db.transaction(tx)`, rolling back entirely on inventory shortage or validation failures.
+  6. Audit Lineage Recording: Creates immutable records in `sales`, `sale_items`, and `sale_item_lots` capturing batch-by-batch attribution.
+  7. Decoupled REST Endpoints: `POST /api/sales/simulate`, `POST /api/sales`, `GET /api/sales`, `GET /api/sales/:id`.
+  8. Automated test suite [`backend/tests/sales_allocation.test.ts`](file:///c:/Build_With_AI_Google/backend/tests/sales_allocation.test.ts) covering 14 test assertions.
+
+### Automated Testing Evidence
+- **Jest TypeScript Test Suites**: 86/86 passed across 6 suites (100% pass rate).
+- **Python Regression Suite**: 31/31 passed (100% pass rate).
+- **Total Tests**: 117 automated tests executed across stacks, 0 failures.
+
+### Multi-Agent Review Verdicts
+- **Functional Reviewer** (`5dc2d49c-f8ab-4fe5-8f40-3880f977e79d`): ✅ **APPROVED** (0 Major, 0 Blocker).
+- **E2E Integration Reviewer** (`296d8521-9602-4a39-ab9b-c01141d9b08b`): ✅ **APPROVED** (0 Major, 0 Blocker).
+- **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED (READY FOR MERGE)** (0 Major, 0 Blocker).
+- **Outcome**: PR-006 satisfies all repository rules and quality gates with unanimous approval.
+
