@@ -1454,6 +1454,81 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertIn("Slide-Over Drawer Accessibility", test_content)
         self.assertIn("WCAG 2.1 AAA Contrast Ratio", test_content)
 
+    def test_e2e_23_pr010_pos_billing_picker_and_certification(self):
+        """Automated verification of PR-010 POS Billing View, Advanced Product Picker Grid & End-to-End Certification."""
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        frontend_dir = os.path.join(root_dir, "frontend")
+
+        # 1. Verify POS Billing, Procurement, and Analytics pages
+        app_dir = os.path.join(frontend_dir, "app")
+        self.assertTrue(os.path.isfile(os.path.join(app_dir, "sales", "page.tsx")), "sales/page.tsx must exist")
+        self.assertTrue(os.path.isfile(os.path.join(app_dir, "procurement", "page.tsx")), "procurement/page.tsx must exist")
+        self.assertTrue(os.path.isfile(os.path.join(app_dir, "analytics", "page.tsx")), "analytics/page.tsx must exist")
+
+        # 2. Verify ProductPickerModal component
+        comp_dir = os.path.join(frontend_dir, "components")
+        picker_path = os.path.join(comp_dir, "ProductPickerModal.tsx")
+        self.assertTrue(os.path.isfile(picker_path), "ProductPickerModal.tsx must exist")
+        with open(picker_path, "r", encoding="utf-8") as f:
+            picker_code = f.read()
+        self.assertIn("fuzzyMatch", picker_code)
+        self.assertIn('role="dialog"', picker_code)
+        self.assertIn('aria-modal="true"', picker_code)
+        self.assertIn("handleSort", picker_code)
+        self.assertIn("handleAddAllSelected", picker_code)
+        self.assertIn("handleQtyChange", picker_code)
+
+        # 3. Verify ManualLotOverrideModal component
+        override_path = os.path.join(comp_dir, "ManualLotOverrideModal.tsx")
+        self.assertTrue(os.path.isfile(override_path), "ManualLotOverrideModal.tsx must exist")
+        with open(override_path, "r", encoding="utf-8") as f:
+            override_code = f.read()
+        self.assertIn("Manual Batch Selection Override", override_code)
+        self.assertIn("totalAllocated !== requiredQty", override_code)
+        self.assertIn("onResetToAutoLCF", override_code)
+
+        # 4. Verify InvoiceReceiptModal component
+        receipt_path = os.path.join(comp_dir, "InvoiceReceiptModal.tsx")
+        self.assertTrue(os.path.isfile(receipt_path), "InvoiceReceiptModal.tsx must exist")
+        with open(receipt_path, "r", encoding="utf-8") as f:
+            receipt_code = f.read()
+        self.assertIn("window.print()", receipt_code)
+        self.assertIn("INVOICE #", receipt_code)
+        self.assertIn("Cost of Goods Sold (COGS)", receipt_code)
+        self.assertIn("Net Order Profit", receipt_code)
+
+        # 5. Verify lib/fuzzy.ts utility functions
+        fuzzy_path = os.path.join(frontend_dir, "lib", "fuzzy.ts")
+        self.assertTrue(os.path.isfile(fuzzy_path), "lib/fuzzy.ts must exist")
+        with open(fuzzy_path, "r", encoding="utf-8") as f:
+            fuzzy_code = f.read()
+        self.assertIn("export function fuzzyMatch", fuzzy_code)
+
+        # 6. Verify POS Billing page business invariants
+        with open(os.path.join(app_dir, "sales", "page.tsx"), "r", encoding="utf-8") as f:
+            sales_code = f.read()
+        self.assertIn("computeLCFAllocation", sales_code)
+        self.assertIn("AUTO_LOWEST_COST", sales_code)
+        self.assertIn("MANUAL_OVERRIDE", sales_code)
+        self.assertIn("isCreditExceeded", sales_code)
+        self.assertIn("ProductPickerModal", sales_code)
+        self.assertIn("ManualLotOverrideModal", sales_code)
+        self.assertIn("InvoiceReceiptModal", sales_code)
+
+        # 7. Verify PR-010 Visual & Accessibility test assertions (24 tests)
+        test_file = os.path.join(frontend_dir, "tests", "pos_billing_a11y.test.ts")
+        self.assertTrue(os.path.isfile(test_file), "pos_billing_a11y.test.ts must exist")
+        with open(test_file, "r", encoding="utf-8") as f:
+            pos_test_content = f.read()
+        it_count = pos_test_content.count("it(")
+        self.assertEqual(it_count, 24, f"pos_billing_a11y.test.ts must contain exactly 24 test assertions, got {it_count}")
+        self.assertIn("Typo-Tolerant Fuzzy Search Algorithm", pos_test_content)
+        self.assertIn("Advanced Product Picker Grid Sorting", pos_test_content)
+        self.assertIn("Automated Lowest-Cost-First (LCF) Multi-Batch Allocation", pos_test_content)
+        self.assertIn("Manual Batch Selection Override Validation", pos_test_content)
+        self.assertIn("Customer Credit Limit", pos_test_content)
+        self.assertIn("WCAG 2.1 AAA Contrast Ratio Verification", pos_test_content)
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
 

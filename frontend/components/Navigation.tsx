@@ -15,6 +15,7 @@ import {
   Search,
   Sparkles,
   LogIn,
+  Layers,
 } from 'lucide-react';
 import { useUIStore } from '../store/useUIStore';
 import { ThemeToggle } from './ThemeToggle';
@@ -24,8 +25,10 @@ export function Navigation() {
   const { isMobileSidebarOpen, setMobileSidebarOpen, toggleCommandPalette } = useUIStore();
 
   const navLinks = [
-    { href: '/', label: 'POS Billing', icon: ShoppingCart },
+    { href: '/', label: 'Overview', icon: Sparkles },
+    { href: '/sales', label: 'POS Billing', icon: ShoppingCart },
     { href: '/catalogue', label: 'Catalogue', icon: Package },
+    { href: '/categories', label: 'Categories', icon: Layers },
     { href: '/procurement', label: 'Procurement', icon: Truck },
     { href: '/analytics', label: 'Analytics', icon: BarChart3 },
     { href: '/customers', label: 'Customers', icon: Users },
