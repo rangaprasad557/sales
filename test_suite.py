@@ -988,5 +988,85 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         total_jest = master_assertions + auth_assertions + schema_assertions
         self.assertEqual(total_jest, 47, f"Total Jest assertions across 3 suites must equal 47, got {total_jest}")
 
+    def test_e2e_17_pr004_products_discovery(self):
+        """Automated verification of PR-004 Product Catalogue, pgvector & fuzzy discovery modules and tests."""
+        backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
+
+        # 1. Verify module files exist
+        products_dir = os.path.join(backend_dir, "src", "modules", "products")
+        self.assertTrue(os.path.isdir(products_dir), "products module directory must exist")
+        for f in ["products.controller.ts", "products.service.ts", "products.module.ts"]:
+            self.assertTrue(os.path.isfile(os.path.join(products_dir, f)), f"products/{f} must exist")
+        dto_dir = os.path.join(products_dir, "dto")
+        self.assertTrue(os.path.isdir(dto_dir), "products/dto directory must exist")
+        for f in ["create-product.dto.ts", "search-product.dto.ts"]:
+            self.assertTrue(os.path.isfile(os.path.join(dto_dir, f)), f"products/dto/{f} must exist")
+
+        # 2. Verify AppModule imports ProductsModule
+        app_module_file = os.path.join(backend_dir, "src", "app.module.ts")
+        with open(app_module_file, "r", encoding="utf-8") as f:
+            app_code = f.read()
+        self.assertIn("ProductsModule", app_code)
+
+        # 3. Verify Products route contracts
+        with open(os.path.join(products_dir, "products.controller.ts"), "r", encoding="utf-8") as f:
+            prod_code = f.read()
+        self.assertIn("@Get()", prod_code)
+        self.assertIn("@Get('search')", prod_code)
+        self.assertIn("@Post('semantic-search')", prod_code)
+        self.assertIn("@Get(':id')", prod_code)
+        self.assertIn("@Post()", prod_code)
+        self.assertIn("@Put(':id')", prod_code)
+        self.assertIn("@Delete(':id')", prod_code)
+        self.assertIn("JwtAuthGuard", prod_code)
+
+        # 4. Verify Jest test assertion counts (14 in products_discovery.test.ts = 61 total across 4 suites)
+        prod_test_file = os.path.join(backend_dir, "tests", "products_discovery.test.ts")
+        self.assertTrue(os.path.isfile(prod_test_file), "products_discovery.test.ts must exist")
+        with open(prod_test_file, "r", encoding="utf-8") as f:
+            prod_test_code = f.read()
+        prod_assertions = prod_test_code.count("test(")
+        self.assertEqual(prod_assertions, 14, "products_discovery.test.ts must contain exactly 14 test assertions")
+
+        master_test_file = os.path.join(backend_dir, "tests", "master_data.test.ts")
+        with open(master_test_file, "r", encoding="utf-8") as f:
+            master_assertions = f.read().count("test(")
+
+        auth_test_file = os.path.join(backend_dir, "tests", "auth.test.ts")
+        with open(auth_test_file, "r", encoding="utf-8") as f:
+            auth_assertions = f.read().count("test(")
+
+        schema_test_file = os.path.join(backend_dir, "tests", "schema_verification.test.ts")
+        with open(schema_test_file, "r", encoding="utf-8") as f:
+            schema_assertions = f.read().count("test(")
+
+        total_jest = prod_assertions + master_assertions + auth_assertions + schema_assertions
+        self.assertEqual(total_jest, 61, f"Total Jest assertions across 4 suites must equal 61, got {total_jest}")
+
+        # 5. Verify ProductsService business logic methods & contracts
+        with open(os.path.join(products_dir, "products.service.ts"), "r", encoding="utf-8") as f:
+            serv_code = f.read()
+        self.assertIn("async create(dto: CreateProductDto)", serv_code)
+        self.assertIn("async findAll(query?: SearchProductQueryDto)", serv_code)
+        self.assertIn("async findById(id: number)", serv_code)
+        self.assertIn("async update(id: number, dto: UpdateProductDto)", serv_code)
+        self.assertIn("async delete(id: number)", serv_code)
+        self.assertIn("async fuzzySearch(searchQuery: string)", serv_code)
+        self.assertIn("async semanticSearch(dto: SemanticSearchDto)", serv_code)
+        self.assertIn("'In Stock'", serv_code)
+        self.assertIn("'Low Stock'", serv_code)
+        self.assertIn("'Out of Stock'", serv_code)
+
+        # 6. Verify routing precedence in ProductsController: @Get('search') before @Get(':id')
+        search_idx = prod_code.find("@Get('search')")
+        param_idx = prod_code.find("@Get(':id')")
+        self.assertTrue(search_idx < param_idx, "@Get('search') must precede @Get(':id') to prevent route collision")
+
+        # 7. Verify TypeScript build artifact cleanliness
+        tsbuildinfo = os.path.join(backend_dir, "dist", "tsconfig.tsbuildinfo")
+        self.assertTrue(os.path.isfile(tsbuildinfo), "TypeScript buildinfo must exist")
+        self.assertGreater(os.path.getsize(tsbuildinfo), 100000, "TypeScript buildinfo must be non-trivial (>100KB)")
+
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    unittest.main(verbosity=1)
+
