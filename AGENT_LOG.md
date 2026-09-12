@@ -446,5 +446,35 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED & FINAL REPOSITORY QUALITY GATE CERTIFIED** (0 Major, 0 Blocker).
 - **Final Outcome**: PR-010 concludes the 10-stage delivery lifecycle. 100% of user requirements and repository rules satisfied with unanimous multi-agent approval.
 
+---
+
+## 18. PR-011: Global Search Bar, Google SSO Session Persistence, Cigarette Brand Icon & Overview Removal
+
+### Context & Implementation Scope
+- **PR Document**: [`docs/prs/PR-011-global-search-sso-and-brand-polish.md`](file:///c:/Build_With_AI_Google/docs/prs/PR-011-global-search-sso-and-brand-polish.md)
+- **Branch**: `feature/pr-011-global-search-sso-and-brand-polish` (Merged to `master`)
+- **Scope Delivered**:
+  1. Google SSO Sign-in & Session Persistence ([`frontend/store/useUIStore.ts`](file:///c:/Build_With_AI_Google/frontend/store/useUIStore.ts)): Added `UserSession`, `currentUser`, `login()`, `logout()` backed by bidirectional `localStorage` (`apex_user_session`, `apex_auth_token`) hydration. Fixed sign-in state persistence so logging in immediately updates the top navigation bar.
+  2. Top-Right Header Alignment ([`frontend/components/Navigation.tsx`](file:///c:/Build_With_AI_Google/frontend/components/Navigation.tsx)): Standardized an exact `h-9` (36px) vertical height contract across `ThemeToggle`, `GlobalSearchBar`, and the Auth action. When logged in, renders an authenticated profile pill (initials avatar, user name, uppercase role badge, and one-click Sign Out); when logged out, renders an aligned Sign In button with matching dimensions and focus rings.
+  3. Cigarette Sales Brand Icon ([`frontend/components/CigaretteIcon.tsx`](file:///c:/Build_With_AI_Google/frontend/components/CigaretteIcon.tsx)): Custom SVG emblem featuring cigarette body, filter divider line, glowing ember tip (`stroke="#ef4444"`), and rising smoke trails. Completely removed the "Apex POS Multi-Batch" text label per explicit user feedback.
+  4. Overview Page Removal ([`frontend/app/page.tsx`](file:///c:/Build_With_AI_Google/frontend/app/page.tsx)): Completely removed the redundant Overview dashboard page. Root `/` now renders `SalesPOSPage` directly so users land straight into the billing workspace upon opening the app. Removed "Overview" from navigation menus; "POS Billing" is the primary root link.
+  5. Top Panel Global Search Bar ([`frontend/components/GlobalSearchBar.tsx`](file:///c:/Build_With_AI_Google/frontend/components/GlobalSearchBar.tsx)): Built an active top-bar search querying across **Catalogue Products**, **Customers**, **Suppliers**, and **Categories** simultaneously with typo-tolerant fuzzy matching (`lib/fuzzy.ts`), floating dropdown results, accessible color-blind safe badges (`Product`, `Customer`, `Supplier`, `Category`), 8-item display cap, and global `Cmd+K` / `Ctrl+K` keyboard shortcut.
+  6. Visual Testing Gate ([`frontend/tests/global_search_auth_brand.test.ts`](file:///c:/Build_With_AI_Google/frontend/tests/global_search_auth_brand.test.ts)): 13 automated test assertions verifying Google SSO session persistence, top-right height alignment contract, brand icon without text, overview removal, multi-entity fuzzy search, WCAG 2.1 AAA contrast ($\ge 7:1$), color-blind safety, and keyboard focus rings.
+  7. End-to-End Integration ([`test_suite.py`](file:///c:/Build_With_AI_Google/test_suite.py)): Added `test_e2e_24_pr011_global_search_sso_and_brand_polish` verifying all PR-011 component, routing, and persistence contracts.
+
+### Automated Testing Evidence
+- **Frontend Jest Suites**: 67/67 passed across 4 suites (100% pass rate).
+- **TypeScript Type Check**: `tsc --noEmit` passed with 0 errors.
+- **Backend Jest Suites**: 93/93 passed across 7 suites (100% pass rate).
+- **Python Regression Suite**: 36/36 passed in 1.361s (100% pass rate).
+- **Total Tests**: **196 automated tests** executed across stacks, 0 failures.
+
+### Multi-Agent Review Verdicts
+- **Functional Reviewer** (`5dc2d49c-f8ab-4fe5-8f40-3880f977e79d`): ✅ **APPROVED** (0 Major, 0 Blocker).
+- **E2E Integration Reviewer** (`296d8521-9602-4a39-ab9b-c01141d9b08b`): ✅ **APPROVED** (0 Major, 0 Blocker).
+- **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED** (0 Major, 0 Blocker).
+- **Outcome**: PR-011 merged into `master` with unanimous multi-agent approval.
+
+
 
 
