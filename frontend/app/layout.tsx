@@ -3,10 +3,14 @@ import './globals.css';
 import { ThemeProvider } from 'next-themes';
 import { Navigation } from '../components/Navigation';
 import { CommandPalette } from '../components/CommandPalette';
+import { AuthGuard } from '../components/AuthGuard';
 
 export const metadata: Metadata = {
-  title: 'Apex POS | Multi-Batch Inventory & Sales Engine',
+  title: 'Retail Sales',
   description: 'Enterprise-grade Lowest-Cost-First multi-batch sales, procurement intake, and granular analytics',
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
@@ -23,13 +27,15 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange={false}
         >
-          <div className="relative min-h-screen flex flex-col">
-            <Navigation />
-            <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-              {children}
-            </main>
-            <CommandPalette />
-          </div>
+          <AuthGuard>
+            <div className="relative min-h-screen flex flex-col">
+              <Navigation />
+              <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                {children}
+              </main>
+              <CommandPalette />
+            </div>
+          </AuthGuard>
         </ThemeProvider>
       </body>
     </html>

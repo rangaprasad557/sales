@@ -536,7 +536,7 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         status, headers, body = self._http_get("/")
         self.assertEqual(status, 200)
         self.assertIn("text/html", headers.get("Content-Type", ""))
-        self.assertIn("Apex Inventory & Sales", body)
+        self.assertIn("Retail Sales", body)
 
     def test_e2e_02_static_app_jsx(self):
         status, headers, body = self._http_get("/static/app.jsx")
@@ -1622,13 +1622,11 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertIn("Full Access", nav_code, "Navigation must display Full Access badge")
         self.assertIn("CigaretteIcon", nav_code, "Navigation must retain CigaretteIcon")
 
-        # 2. Verify sales page omits quick search
+        # 2. Verify sales page features Product Picker Grid and restored Quick Search
         sales_path = os.path.join(app_dir, "sales", "page.tsx")
         with open(sales_path, "r", encoding="utf-8") as f:
             sales_code = f.read()
-        self.assertNotIn("searchQuery", sales_code, "sales/page.tsx must not contain searchQuery state")
-        self.assertNotIn("searchInputRef", sales_code, "sales/page.tsx must not contain searchInputRef")
-        self.assertNotIn("handleQuickAdd", sales_code, "sales/page.tsx must not contain handleQuickAdd")
+        self.assertIn("searchQuery", sales_code, "sales/page.tsx features Quick Search per PR-013 user request")
         self.assertIn("Open Product Picker Grid", sales_code, "sales/page.tsx must feature Product Picker Grid trigger")
 
         # 3. Verify useUIStore authorized emails whitelist
@@ -1669,6 +1667,86 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertIn("User Session Lifecycle, Storage & Role Purge", test_content)
         self.assertIn("Clean UI Architecture Contracts", test_content)
         self.assertIn("WCAG 2.1 AAA Accessibility & Visual Quality Gate", test_content)
+
+    def test_e2e_26_pr013_auth_guard_clean_data_and_branding(self):
+        """Automated verification of PR-013 Strict AuthGuard, Clean Data, Favicon & Retail Sales Branding."""
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        frontend_dir = os.path.join(root_dir, "frontend")
+        app_dir = os.path.join(frontend_dir, "app")
+        comp_dir = os.path.join(frontend_dir, "components")
+
+        # 1. Verify App Title is 'Retail Sales' in layout and index.html
+        layout_path = os.path.join(app_dir, "layout.tsx")
+        with open(layout_path, "r", encoding="utf-8") as f:
+            layout_code = f.read()
+        self.assertIn("title: 'Retail Sales'", layout_code)
+        self.assertIn("icon: '/favicon.ico'", layout_code)
+        self.assertIn("<AuthGuard>", layout_code)
+
+        index_path = os.path.join(root_dir, "index.html")
+        with open(index_path, "r", encoding="utf-8") as f:
+            index_code = f.read()
+        self.assertIn("<title>Retail Sales</title>", index_code)
+        self.assertIn("/favicon.ico", index_code)
+
+        # 2. Verify favicon.ico exists in app and public
+        fav_app = os.path.join(app_dir, "favicon.ico")
+        fav_pub = os.path.join(frontend_dir, "public", "favicon.ico")
+        self.assertTrue(os.path.isfile(fav_app), "frontend/app/favicon.ico must exist")
+        self.assertTrue(os.path.isfile(fav_pub), "frontend/public/favicon.ico must exist")
+
+        # 3. Verify AuthGuard component implementation
+        guard_path = os.path.join(comp_dir, "AuthGuard.tsx")
+        with open(guard_path, "r", encoding="utf-8") as f:
+            guard_code = f.read()
+        self.assertIn("isAuthorizedEmail(currentUser.email)", guard_code)
+        self.assertIn("router.replace('/login')", guard_code)
+        self.assertIn("Retail Sales Protected Workspace", guard_code)
+
+        # 4. Verify Navigation minimal header on /login
+        nav_path = os.path.join(comp_dir, "Navigation.tsx")
+        with open(nav_path, "r", encoding="utf-8") as f:
+            nav_code = f.read()
+        self.assertIn("pathname === '/login'", nav_code)
+        self.assertIn("Retail Sales", nav_code)
+        self.assertIn("handleLogout", nav_code)
+
+        # 5. Verify CommandPalette disabled on /login or unauthenticated
+        cmd_path = os.path.join(comp_dir, "CommandPalette.tsx")
+        with open(cmd_path, "r", encoding="utf-8") as f:
+            cmd_code = f.read()
+        self.assertIn("pathname === '/login' || !currentUser", cmd_code)
+
+        # 6. Verify Quick Search in sales/page.tsx
+        sales_path = os.path.join(app_dir, "sales", "page.tsx")
+        with open(sales_path, "r", encoding="utf-8") as f:
+            sales_code = f.read()
+        self.assertIn("Quick search & add product", sales_code)
+        self.assertIn("handleQuickAdd", sales_code)
+        self.assertIn("Open Product Picker Grid", sales_code)
+
+        # 7. Verify PR-013 test suite exists (13 assertions)
+        pr013_test_file = os.path.join(frontend_dir, "tests", "auth_guard.test.ts")
+        self.assertTrue(os.path.isfile(pr013_test_file), "auth_guard.test.ts must exist")
+        with open(pr013_test_file, "r", encoding="utf-8") as f:
+            test_content = f.read()
+        test_count = test_content.count("test(")
+        self.assertEqual(test_count, 13, f"auth_guard.test.ts must contain 13 test assertions, got {test_count}")
+
+        # 8. Verify clean data in main app database
+        main_db = os.path.join(root_dir, "inventory_sales.db")
+        if os.path.exists(main_db):
+            mconn = sqlite3.connect(main_db)
+            mcur = mconn.cursor()
+            mcur.execute("SELECT COUNT(*) FROM products")
+            self.assertEqual(mcur.fetchone()[0], 0, "Main app products must be clean (0 records)")
+            mcur.execute("SELECT COUNT(*) FROM customers")
+            self.assertEqual(mcur.fetchone()[0], 0, "Main app customers must be clean (0 records)")
+            mcur.execute("SELECT COUNT(*) FROM procurements")
+            self.assertEqual(mcur.fetchone()[0], 0, "Main app procurements must be clean (0 records)")
+            mcur.execute("SELECT COUNT(*) FROM sales")
+            self.assertEqual(mcur.fetchone()[0], 0, "Main app sales must be clean (0 records)")
+            mconn.close()
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

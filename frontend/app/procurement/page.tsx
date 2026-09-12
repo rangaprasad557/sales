@@ -67,7 +67,7 @@ const SEED_PROCUREMENTS: ProcurementRecord[] = [
 ];
 
 export default function ProcurementPage() {
-  const [procurements, setProcurements] = useState<ProcurementRecord[]>(SEED_PROCUREMENTS);
+  const [procurements, setProcurements] = useState<ProcurementRecord[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSource, setSelectedSource] = useState('ALL');
   const [isDrawerOpen, setDrawerOpen] = useState(false);
@@ -91,7 +91,7 @@ export default function ProcurementPage() {
     fetch('/api/procurements')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setProcurements(
             data.map((p: any) => ({
               id: p.id,

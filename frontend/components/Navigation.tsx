@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   ShoppingCart,
   Package,
@@ -22,6 +22,7 @@ import { CigaretteIcon } from './CigaretteIcon';
 
 export function Navigation() {
   const pathname = usePathname();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const {
     currentUser,
@@ -33,6 +34,31 @@ export function Navigation() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleLogout = () => {
+    logout();
+    setMobileSidebarOpen(false);
+    router.replace('/login');
+  };
+
+  // If on login page, render clean minimal header without protected store navigation tabs
+  if (pathname === '/login') {
+    return (
+      <header className="sticky top-0 z-40 w-full border-b border-border bg-card/80 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-xs">
+              <CigaretteIcon className="w-6 h-6" />
+            </div>
+            <span className="font-extrabold text-sm tracking-tight text-foreground">Retail Sales</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   // POS Billing is now the root view; Overview has been removed as requested
   const navLinks = [
@@ -125,7 +151,7 @@ export function Navigation() {
                 </div>
                 <button
                   type="button"
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
                   title="Sign Out"
                   aria-label="Sign Out"
@@ -226,10 +252,7 @@ export function Navigation() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      logout();
-                      setMobileSidebarOpen(false);
-                    }}
+                    onClick={handleLogout}
                     className="p-1.5 rounded-lg text-destructive hover:bg-destructive/10"
                     title="Sign Out"
                     aria-label="Sign Out"
