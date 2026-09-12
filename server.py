@@ -1124,7 +1124,7 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                     email = payload.get("email", "").strip().lower()
                     authorized_emails = ["rangaprasad.557@gmail.com", "singarisurendra@gmail.com"]
                     if email not in authorized_emails:
-                        error_response(self, f"Access denied. {email} is not authorized.", 403)
+                        error_response(self, f"Access denied. Account ({email}) is not authorized to log in.", 403)
                         return
                     json_response(self, {
                         "success": True,

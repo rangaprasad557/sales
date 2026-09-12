@@ -738,6 +738,35 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **Next.js HTTP Verification**: `GET /orders` returned HTTP 200.
 - **Outcome**: PR-017 approved and verified.
 
+---
+
+## 24. PR-018: Hide Authorized Account Emails on Login Page & Enhance Unauthorized Login Error Handling
+
+### Context & Implementation Scope
+- **PR Document**: [`docs/prs/PR-018-hide-authorized-emails-and-enhance-unauthorized-login-error.md`](file:///c:/Build_With_AI_Google/docs/prs/PR-018-hide-authorized-emails-and-enhance-unauthorized-login-error.md)
+- **Branch**: `master` / `main`
+- **Scope Delivered**:
+  1. Login Page Privacy Hardening (`frontend/app/login/page.tsx`):
+     - Removed the "Authorized Users (Full Access)" account box that displayed `rangaprasad.557@gmail.com` and `singarisurendra@gmail.com`.
+     - Replaced with a generic enterprise restricted-access notice without disclosing permitted emails.
+     - Changed subheader to "Strict Google SSO • Authorized Personnel Only".
+  2. "Not Allowed to Login" Error Presentation (`frontend/app/login/page.tsx`):
+     - Added prominent "Not Allowed to Login" error alert banner with `AlertOctagon` icon and dismiss action.
+     - Informative error text: `Access Denied: Your Google account (${email}) is not authorized to log in. Please contact the store administrator for access.`
+     - Replaced error text that previously leaked the authorized emails list.
+  3. Backend Agreement (`server.py`):
+     - `/api/auth/google` returns `Access denied. Account (${email}) is not authorized to log in.` with HTTP 403 Forbidden.
+  4. Test Suite Alignment (`test_suite.py`):
+     - Updated `test_e2e_25` to verify that login page source does NOT disclose authorized email addresses and renders "Not Allowed to Login".
+
+### Automated Testing & Verification Evidence
+- **Frontend Jest Suite**: **126 / 126 passing across 9 suites (100% pass rate)**.
+- **Python Backend Test Suite**: **40 / 40 passing (100% pass rate)**.
+- **TypeScript Verification**: `npx tsc --noEmit` exited with 0 compile/type errors.
+- **Email Leakage Check**: Grep for `@` in `login/page.tsx` returned 0 occurrences.
+- **Outcome**: PR-018 approved and verified.
+
+
 
 
 

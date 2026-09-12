@@ -1654,13 +1654,13 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertIn("singarisurendra@gmail.com", store_code)
         self.assertIn("isAuthorizedEmail", store_code)
 
-        # 4. Verify LoginPage presents two authorized users with full access
+        # 4. Verify LoginPage hides authorized user emails per security requirement
         login_path = os.path.join(app_dir, "login", "page.tsx")
         with open(login_path, "r", encoding="utf-8") as f:
             login_code = f.read()
-        self.assertIn("rangaprasad.557@gmail.com", login_code)
-        self.assertIn("singarisurendra@gmail.com", login_code)
-        self.assertIn("Full Access", login_code)
+        self.assertNotIn("rangaprasad.557@gmail.com", login_code)
+        self.assertNotIn("singarisurendra@gmail.com", login_code)
+        self.assertIn("Not Allowed to Login", login_code)
         self.assertNotIn("salesperson", login_code)
         self.assertNotIn("auditor", login_code)
 

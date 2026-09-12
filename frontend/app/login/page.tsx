@@ -70,23 +70,31 @@ export default function LoginPage() {
 
       const email = payload.email.toLowerCase().trim();
 
-      // Strict Two-User Whitelist Gate
+      // Strict Whitelist Gate
       if (!isAuthorizedEmail(email)) {
         setAuthError(
-          `Access Denied: ${email} is not authorized. Access is strictly limited to rangaprasad.557@gmail.com and singarisurendra@gmail.com.`
+          `Access Denied: Your Google account (${email}) is not authorized to log in. Please contact the store administrator for access.`
         );
-        addNotification('error', `Access Denied: ${email} is not on the authorized whitelist.`);
+        addNotification('error', `Access Denied: Account ${email} is not authorized.`);
         setLoading(false);
         return;
       }
 
       // Backend token verification
       try {
-        await fetch('/api/auth/google', {
+        const backendRes = await fetch('/api/auth/google', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ idToken: credential }),
         });
+        if (!backendRes.ok && backendRes.status === 403) {
+          setAuthError(
+            `Access Denied: Your Google account (${email}) is not authorized to log in. Please contact the store administrator for access.`
+          );
+          addNotification('error', `Access Denied: Account ${email} is not authorized.`);
+          setLoading(false);
+          return;
+        }
       } catch {
         // Continue with decoded verified identity if backend is offline/standalone
       }
@@ -139,7 +147,7 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-black text-foreground tracking-tight">Retail Sales</h1>
           <p className="text-xs text-muted-foreground">
-            Strict Google SSO • Only Authorized Accounts Permitted
+            Strict Google SSO • Authorized Personnel Only
           </p>
         </div>
 
@@ -147,31 +155,31 @@ export default function LoginPage() {
         {authError && (
           <div
             role="alert"
-            className="p-3.5 rounded-2xl bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-start gap-2.5 animate-in fade-in"
+            className="p-4 rounded-2xl bg-destructive/10 border border-destructive/30 text-destructive text-xs space-y-1.5 animate-in fade-in"
           >
-            <AlertOctagon className="w-4 h-4 mt-0.5 shrink-0" />
-            <div className="font-semibold leading-relaxed">{authError}</div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-xs">
+                <AlertOctagon className="w-4 h-4 text-destructive shrink-0" />
+                <span>Not Allowed to Login</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAuthError(null)}
+                className="text-destructive/70 hover:text-destructive text-[11px] font-semibold underline cursor-pointer"
+                aria-label="Dismiss error notification"
+              >
+                Dismiss
+              </button>
+            </div>
+            <p className="leading-relaxed pl-6 text-foreground/90">{authError}</p>
           </div>
         )}
 
-        {/* Authorized Accounts Policy Box */}
-        <div className="p-3.5 rounded-2xl bg-muted/40 border border-border space-y-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Authorized Users (Full Access)</span>
-          </div>
-          <div className="text-[11px] text-muted-foreground space-y-1">
-            <div className="flex items-center justify-between font-mono bg-card px-2.5 py-1.5 rounded-lg border border-border/60">
-              <span>rangaprasad.557@gmail.com</span>
-              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Full Access</span>
-            </div>
-            <div className="flex items-center justify-between font-mono bg-card px-2.5 py-1.5 rounded-lg border border-border/60">
-              <span>singarisurendra@gmail.com</span>
-              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Full Access</span>
-            </div>
-          </div>
-          <p className="text-[10px] text-muted-foreground pt-1">
-            Impersonation protection: You must sign in with the corresponding Google account in the browser. Any other account will be denied.
+        {/* Enterprise Security Access Note (Emails hidden) */}
+        <div className="p-3.5 rounded-2xl bg-muted/40 border border-border flex items-center gap-3">
+          <ShieldCheck className="w-5 h-5 text-primary shrink-0" />
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            <strong>Restricted Workspace:</strong> Access is limited to authorized store personnel. Please sign in with your registered Google account.
           </p>
         </div>
 
