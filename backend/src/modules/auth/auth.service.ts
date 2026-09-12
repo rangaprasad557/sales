@@ -1,8 +1,18 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { OAuth2Client } from 'google-auth-library';
 import { UsersService } from '../users/users.service';
 import { User } from '../../db/schema';
+
+export const AUTHORIZED_EMAILS = [
+  'rangaprasad.557@gmail.com',
+  'singarisurendra@gmail.com',
+] as const;
+
+export function isAuthorizedEmail(email: string): boolean {
+  if (!email) return false;
+  return AUTHORIZED_EMAILS.includes(email.toLowerCase().trim() as any);
+}
 
 @Injectable()
 export class AuthService {
@@ -33,38 +43,62 @@ export class AuthService {
         throw new UnauthorizedException('Invalid Google token payload');
       }
 
+      const email = payload.email.toLowerCase().trim();
+      if (!isAuthorizedEmail(email)) {
+        throw new ForbiddenException(
+          `Access denied. ${email} is not authorized. Only rangaprasad.557@gmail.com and singarisurendra@gmail.com have access.`
+        );
+      }
+
       const user = await this.usersService.upsertGoogleUser({
-        email: payload.email,
-        name: payload.name || payload.email.split('@')[0],
+        email,
+        name: payload.name || email.split('@')[0],
         picture: payload.picture,
         googleId: payload.sub,
+        role: 'full_access',
       });
 
       return user;
     } catch (error: any) {
+      if (error instanceof ForbiddenException || error instanceof BadRequestException) {
+        throw error;
+      }
       // Allow structured test/mock token if development mode
       if (process.env.NODE_ENV !== 'production' && idToken.startsWith('mock-google-token:')) {
-        const email = idToken.replace('mock-google-token:', '').trim();
+        const email = idToken.replace('mock-google-token:', '').trim().toLowerCase();
+        if (!isAuthorizedEmail(email)) {
+          throw new ForbiddenException(
+            `Access denied. ${email} is not authorized. Only rangaprasad.557@gmail.com and singarisurendra@gmail.com have access.`
+          );
+        }
         return this.usersService.upsertGoogleUser({
           email,
           name: email.split('@')[0],
           googleId: `mock-google-${email}`,
+          role: 'full_access',
         });
       }
       throw new UnauthorizedException(`Google authentication failed: ${error.message}`);
     }
   }
 
-  async devLogin(email: string, role: 'admin' | 'salesperson' | 'auditor' = 'salesperson'): Promise<{ accessToken: string; user: User }> {
+  async devLogin(email: string, role: string = 'full_access'): Promise<{ accessToken: string; user: User }> {
     if (process.env.NODE_ENV === 'production') {
       throw new UnauthorizedException('Dev login is disabled in production environment');
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+    if (!isAuthorizedEmail(normalizedEmail)) {
+      throw new ForbiddenException(
+        `Access denied. ${normalizedEmail} is not authorized. Only rangaprasad.557@gmail.com and singarisurendra@gmail.com have access.`
+      );
+    }
+
     const user = await this.usersService.upsertGoogleUser({
-      email,
-      name: email.split('@')[0],
-      googleId: `dev-sso-${email}`,
-      role,
+      email: normalizedEmail,
+      name: normalizedEmail.split('@')[0],
+      googleId: `dev-sso-${normalizedEmail}`,
+      role: 'full_access',
     });
 
     const accessToken = this.generateToken(user);
@@ -81,3 +115,4 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 }
+

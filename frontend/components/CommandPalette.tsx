@@ -62,7 +62,7 @@ export function CommandPalette() {
     {
       id: 'pos',
       title: 'POS Billing View',
-      subtitle: 'Open search-driven point of sale and product picker',
+      subtitle: 'Open point of sale billing and product picker',
       category: 'Navigation',
       icon: ShoppingCart,
       action: () => {

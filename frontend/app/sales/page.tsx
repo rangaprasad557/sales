@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Search,
   ShoppingCart,
   Plus,
   Trash2,
@@ -21,7 +20,7 @@ import {
   RotateCcw,
   Sparkles,
 } from 'lucide-react';
-import { ProductPickerModal, PickerItemToAdd, fuzzyMatch } from '../../components/ProductPickerModal';
+import { ProductPickerModal, PickerItemToAdd } from '../../components/ProductPickerModal';
 import { ManualLotOverrideModal, LotAllocation, LotItem } from '../../components/ManualLotOverrideModal';
 import { InvoiceReceiptModal, CompletedSaleRecord } from '../../components/InvoiceReceiptModal';
 import { CatalogueProduct } from '../catalogue/page';
@@ -113,11 +112,6 @@ export default function SalesPOSPage() {
   const [customers, setCustomers] = useState<Customer[]>(SEED_CUSTOMERS_DATA);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
 
-  // Quick Search Box State (no static product list clutter)
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchFocused, setSearchFocused] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
   // Active Sale / Cart
   const [cart, setCart] = useState<CartItem[]>([]);
 
@@ -186,56 +180,6 @@ export default function SalesPOSPage() {
       })
       .catch(() => {});
   }, []);
-
-  // Quick search autocomplete suggestions
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    const q = searchQuery.trim();
-    return catalogue
-      .filter((p) => {
-        return (
-          fuzzyMatch(q, p.name) ||
-          fuzzyMatch(q, p.sku) ||
-          (p.barcode && p.barcode.includes(q))
-        );
-      })
-      .slice(0, 6);
-  }, [catalogue, searchQuery]);
-
-  // Add item from quick search
-  const handleQuickAdd = (product: CatalogueProduct) => {
-    if (product.currentStock <= 0) {
-      addNotification('error', `Cannot add "${product.name}": item is depleted (0 in stock).`);
-      return;
-    }
-
-    const existingIndex = cart.findIndex((item) => item.product.id === product.id);
-    if (existingIndex >= 0) {
-      // Increase qty
-      const updated = [...cart];
-      const newQty = updated[existingIndex].qty + 1;
-      if (newQty > product.currentStock) {
-        addNotification('warning', `Reached maximum available stock (${product.currentStock} ${product.unit}).`);
-        return;
-      }
-      updated[existingIndex].qty = newQty;
-      setCart(updated);
-    } else {
-      const defaultPrice = product.lowestCost > 0 ? parseFloat((product.lowestCost * 1.3).toFixed(2)) : 10.0;
-      const newItem: CartItem = {
-        id: `${Date.now()}-${product.id}`,
-        product,
-        qty: 1,
-        salePrice: defaultPrice,
-        allocationType: 'AUTO_LOWEST_COST',
-      };
-      setCart([...cart, newItem]);
-    }
-
-    setSearchQuery('');
-    setSearchFocused(false);
-    addNotification('success', `Added "${product.name}" to active sale.`);
-  };
 
   // Add items from Advanced Product Picker Grid
   const handleAddItemsFromPicker = (itemsToAdd: PickerItemToAdd[]) => {
@@ -418,7 +362,7 @@ export default function SalesPOSPage() {
             POS Billing & Multi-Batch Allocation
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Search-driven billing screen with automated Lowest-Cost-First multi-lot split & manual override.
+            Catalogue-driven billing screen with automated Lowest-Cost-First multi-lot split & manual override.
           </p>
         </div>
 
@@ -461,96 +405,28 @@ export default function SalesPOSPage() {
         </div>
       )}
 
-      {/* Prominent Search Box & Advanced Picker Trigger (No static product list clutter) */}
-      <div className="relative p-3 bg-card rounded-3xl border border-border shadow-xs">
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          {/* Quick Search Input with Fuzzy Match */}
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              placeholder="Quick search & add product by name (e.g. 'bsmt', 'atta'), SKU, or scan barcode..."
-              className="w-full pl-12 pr-4 py-3 text-sm bg-background border border-border rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-
-            {/* Floating Autocomplete Dropdown */}
-            {isSearchFocused && searchResults.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-2 bg-card border border-border rounded-2xl shadow-xl z-30 overflow-hidden divide-y divide-border">
-                {searchResults.map((p) => {
-                  const isDepleted = p.currentStock <= 0;
-                  return (
-                    <div
-                      key={p.id}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleQuickAdd(p);
-                      }}
-                      className="p-3 hover:bg-muted/60 transition-colors flex items-center justify-between gap-4 cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
-                          <Package className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="font-semibold text-sm text-foreground">{p.name}</div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span className="font-mono">{p.sku}</span>
-                            <span>•</span>
-                            <span>{p.category}</span>
-                            <span>•</span>
-                            <span className="font-bold text-primary">
-                              ${p.lowestCost > 0 ? (p.lowestCost * 1.3).toFixed(2) : '10.00'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        {isDepleted ? (
-                          <span className="text-xs text-rose-600 font-semibold">Out of Stock</span>
-                        ) : (
-                          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
-                            {p.currentStock} {p.unit} in stock
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          disabled={isDepleted}
-                          className="px-2.5 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 disabled:opacity-30"
-                        >
-                          + Add
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+      {/* Product Selection Action Bar (No search boxes; direct Advanced Product Picker Grid) */}
+      <div className="p-4 bg-card rounded-3xl border border-border shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <Package className="w-5 h-5" />
           </div>
-
-          {/* Advanced Multi-Attribute Picker Button */}
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-muted text-foreground hover:bg-muted/80 font-bold text-sm border border-border shadow-xs focus-visible:ring-2 focus-visible:ring-primary transition-all cursor-pointer shrink-0"
-          >
-            <SlidersHorizontal className="w-4 h-4 text-primary" />
-            <span>Advanced Product Picker Grid</span>
-          </button>
+          <div>
+            <div className="font-bold text-sm text-foreground">Catalogue Product Selection</div>
+            <div className="text-xs text-muted-foreground">
+              Select products, view multi-attribute sort grid, and add items with entered quantities.
+            </div>
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 shadow-md active:scale-95 transition-all shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        >
+          <SlidersHorizontal className="w-4 h-4" />
+          <span>Open Product Picker Grid</span>
+        </button>
       </div>
 
       {/* Main Billing Workspace (Active Cart & Allocation Lineage) */}
@@ -583,7 +459,7 @@ export default function SalesPOSPage() {
               </div>
               <p className="text-base font-bold text-foreground">Sale Order is Empty</p>
               <p className="text-xs max-w-sm mt-1">
-                Use the search box above or open the Advanced Product Picker to add items with entered quantities.
+                Click "Open Product Picker Grid" above to browse catalogue items and add them to the sale.
               </p>
               <button
                 type="button"
