@@ -7,6 +7,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { ProductsModule } from './modules/products/products.module';
 import { ProcurementsModule } from './modules/procurements/procurements.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { SalesModule } from './modules/sales/sales.module';
 import { checkDatabaseConnection } from './db/connection';
 
 @Controller('health')
@@ -33,6 +34,7 @@ export class HealthController {
     ProductsModule,
     ProcurementsModule,
     InventoryModule,
+    SalesModule,
   ],
   controllers: [HealthController],
 })
