@@ -1748,6 +1748,75 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
             self.assertEqual(mcur.fetchone()[0], 0, "Main app sales must be clean (0 records)")
             mconn.close()
 
+    def test_e2e_27_real_google_oauth_gis(self):
+        """Automated verification of PR-014 Real Google OAuth 2.0 GIS and Impersonation Elimination."""
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        frontend_dir = os.path.join(root_dir, "frontend")
+        app_dir = os.path.join(frontend_dir, "app")
+        comp_dir = os.path.join(frontend_dir, "components")
+
+        # 1. Helper to construct simulated Google JWT
+        import base64
+        def make_token(payload):
+            header_b64 = base64.urlsafe_b64encode(json.dumps({"alg": "RS256"}).encode()).decode().rstrip("=")
+            body_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+            return f"{header_b64}.{body_b64}.fake_sig"
+
+        # 2. Test /api/auth/google endpoint rejection of missing/empty token
+        status, _, res_missing = self._http_post("/api/auth/google", {})
+        self.assertEqual(status, 400)
+        self.assertFalse(res_missing.get("success", False))
+
+        # 3. Test /api/auth/google rejection of malformed token
+        status, _, res_malformed = self._http_post("/api/auth/google", {"idToken": "bad-token"})
+        self.assertEqual(status, 400)
+
+        # 4. Test /api/auth/google rejection of unauthorized email
+        unauth_token = make_token({"email": "intruder@gmail.com", "name": "Intruder"})
+        status, _, res_unauth = self._http_post("/api/auth/google", {"idToken": unauth_token})
+        self.assertEqual(status, 403)
+        self.assertIn("Access denied", res_unauth.get("error", ""))
+
+        # 5. Test /api/auth/google approval of rangaprasad.557@gmail.com
+        token_ranga = make_token({"email": "rangaprasad.557@gmail.com", "name": "Ranga Prasad"})
+        status, _, res_ranga = self._http_post("/api/auth/google", {"idToken": token_ranga})
+        self.assertEqual(status, 200)
+        self.assertTrue(res_ranga.get("success"))
+        self.assertEqual(res_ranga.get("data", {}).get("email"), "rangaprasad.557@gmail.com")
+
+        # 6. Test /api/auth/google approval of singarisurendra@gmail.com
+        token_surendra = make_token({"email": "singarisurendra@gmail.com", "name": "Surendra Singari"})
+        status, _, res_surendra = self._http_post("/api/auth/google", {"idToken": token_surendra})
+        self.assertEqual(status, 200)
+        self.assertTrue(res_surendra.get("success"))
+        self.assertEqual(res_surendra.get("data", {}).get("email"), "singarisurendra@gmail.com")
+
+        # 7. Verify elimination of mock cards and presence of GIS components in code
+        login_path = os.path.join(app_dir, "login", "page.tsx")
+        with open(login_path, "r", encoding="utf-8") as f:
+            login_code = f.read()
+        self.assertNotIn("AUTHORIZED_ACCOUNTS = [", login_code)
+        self.assertNotIn("handleAuthorizedLogin", login_code)
+        self.assertNotIn("Direct Sign In with Full Access", login_code)
+        self.assertIn("GoogleSignInButton", login_code)
+        self.assertIn("handleGoogleCredential", login_code)
+
+        # 8. Verify GoogleSignInButton component exists
+        btn_path = os.path.join(comp_dir, "GoogleSignInButton.tsx")
+        self.assertTrue(os.path.isfile(btn_path), "GoogleSignInButton.tsx must exist")
+        with open(btn_path, "r", encoding="utf-8") as f:
+            btn_code = f.read()
+        self.assertIn("https://accounts.google.com/gsi/client", btn_code)
+        self.assertIn("window.google.accounts.id.renderButton", btn_code)
+
+        # 9. Verify PR-014 frontend test suite exists
+        pr014_test_file = os.path.join(frontend_dir, "tests", "real_google_oauth_gis.test.ts")
+        self.assertTrue(os.path.isfile(pr014_test_file), "real_google_oauth_gis.test.ts must exist")
+        with open(pr014_test_file, "r", encoding="utf-8") as f:
+            test_content = f.read()
+        it_count = test_content.count("it(")
+        self.assertEqual(it_count, 12, f"real_google_oauth_gis.test.ts must contain 12 assertions, got {it_count}")
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
 
