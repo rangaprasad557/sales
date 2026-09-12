@@ -1529,8 +1529,87 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertIn("Customer Credit Limit", pos_test_content)
         self.assertIn("WCAG 2.1 AAA Contrast Ratio Verification", pos_test_content)
 
+    def test_e2e_24_pr011_global_search_sso_and_brand_polish(self):
+        """Automated verification of PR-011 Global Search, Google SSO Auth Persistence, Brand Polish & Overview Removal."""
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        frontend_dir = os.path.join(root_dir, "frontend")
+        comp_dir = os.path.join(frontend_dir, "components")
+        app_dir = os.path.join(frontend_dir, "app")
+
+        # 1. Verify CigaretteIcon component
+        cig_path = os.path.join(comp_dir, "CigaretteIcon.tsx")
+        self.assertTrue(os.path.isfile(cig_path), "CigaretteIcon.tsx must exist")
+        with open(cig_path, "r", encoding="utf-8") as f:
+            cig_code = f.read()
+        self.assertIn("export function CigaretteIcon", cig_code)
+        self.assertIn("<svg", cig_code)
+        self.assertIn("Cigarette Sales Icon", cig_code)
+
+        # 2. Verify GlobalSearchBar component
+        search_path = os.path.join(comp_dir, "GlobalSearchBar.tsx")
+        self.assertTrue(os.path.isfile(search_path), "GlobalSearchBar.tsx must exist")
+        with open(search_path, "r", encoding="utf-8") as f:
+            search_code = f.read()
+        self.assertIn("export function GlobalSearchBar", search_code)
+        self.assertIn("fuzzyMatch", search_code)
+        self.assertIn("SEED_GLOBAL_ITEMS", search_code)
+        self.assertIn("filteredResults", search_code)
+        self.assertIn("getItemBadgeStyle", search_code)
+
+        # 3. Verify Navigation component brand emblem, global search, auth pill & removal of Overview
+        nav_path = os.path.join(comp_dir, "Navigation.tsx")
+        with open(nav_path, "r", encoding="utf-8") as f:
+            nav_code = f.read()
+        self.assertIn("CigaretteIcon", nav_code)
+        self.assertIn("GlobalSearchBar", nav_code)
+        self.assertIn("currentUser", nav_code)
+        self.assertIn("logout", nav_code)
+        # Overview must not be in navLinks
+        self.assertNotIn("label: 'Overview'", nav_code)
+        # POS Billing must be at root '/'
+        self.assertIn("{ href: '/', label: 'POS Billing'", nav_code)
+
+        # 4. Verify Root Page renders POS Billing directly
+        root_page_path = os.path.join(app_dir, "page.tsx")
+        with open(root_page_path, "r", encoding="utf-8") as f:
+            root_page_code = f.read()
+        self.assertIn("SalesPOSPage", root_page_code)
+        self.assertIn("<SalesPOSPage />", root_page_code)
+
+        # 5. Verify useUIStore auth session state and localStorage persistence
+        store_path = os.path.join(frontend_dir, "store", "useUIStore.ts")
+        with open(store_path, "r", encoding="utf-8") as f:
+            store_code = f.read()
+        self.assertIn("export interface UserSession", store_code)
+        self.assertIn("currentUser: UserSession | null", store_code)
+        self.assertIn("login: (user: UserSession) => void", store_code)
+        self.assertIn("logout: () => void", store_code)
+        self.assertIn("apex_user_session", store_code)
+        self.assertIn("apex_auth_token", store_code)
+
+        # 6. Verify LoginPage session dispatch
+        login_page_path = os.path.join(app_dir, "login", "page.tsx")
+        with open(login_page_path, "r", encoding="utf-8") as f:
+            login_code = f.read()
+        self.assertIn("login({", login_code)
+        self.assertIn("router.push('/')", login_code)
+
+        # 7. Verify PR-011 test suite exists and has test assertions (13 tests)
+        test_file = os.path.join(frontend_dir, "tests", "global_search_auth_brand.test.ts")
+        self.assertTrue(os.path.isfile(test_file), "global_search_auth_brand.test.ts must exist")
+        with open(test_file, "r", encoding="utf-8") as f:
+            test_content = f.read()
+        it_count = test_content.count("it(")
+        self.assertEqual(it_count, 13, f"global_search_auth_brand.test.ts must contain exactly 13 test assertions, got {it_count}")
+        self.assertIn("Google SSO Auth Session Lifecycle & Persistence", test_content)
+        self.assertIn("Navigation Top-Right Alignment & Auth UI Contracts", test_content)
+        self.assertIn("Brand Emblem Polish & Overview Page Removal", test_content)
+        self.assertIn("Global Search Bar & Multi-Entity Fuzzy Filtering", test_content)
+        self.assertIn("WCAG 2.1 AAA Accessibility & Visual Testing Quality Gate", test_content)
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
+
 
 
 

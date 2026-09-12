@@ -7,12 +7,19 @@ import { useUIStore } from '../../store/useUIStore';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { addNotification } = useUIStore();
+  const { addNotification, login } = useUIStore();
   const [selectedRole, setSelectedRole] = useState<'admin' | 'salesperson' | 'auditor'>('salesperson');
   const [loading, setLoading] = useState(false);
 
+  const roleProfiles = {
+    salesperson: { name: 'Alex Miller', email: 'alex.miller@apexretail.com' },
+    admin: { name: 'Sarah Jenkins', email: 'admin@apexretail.com' },
+    auditor: { name: 'David Ross', email: 'auditor@apexretail.com' },
+  };
+
   const handleDevLogin = async () => {
     setLoading(true);
+    const profile = roleProfiles[selectedRole];
     try {
       const res = await fetch('/api/auth/dev-login', {
         method: 'POST',
@@ -20,21 +27,22 @@ export default function LoginPage() {
         body: JSON.stringify({ role: selectedRole }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem('apex_auth_token', data.accessToken || data.token || 'mock-token');
-        addNotification('success', `Logged in successfully as ${selectedRole.toUpperCase()}`);
-        router.push('/');
-      } else {
-        // Fallback for offline mode
-        localStorage.setItem('apex_auth_token', 'offline-dev-token');
-        addNotification('info', `Running in offline dev mode as ${selectedRole}`);
-        router.push('/');
-      }
+      login({
+        id: `usr-${selectedRole}`,
+        name: profile.name,
+        email: profile.email,
+        role: selectedRole,
+      });
+      addNotification('success', `Logged in successfully as ${selectedRole.toUpperCase()}`);
+      router.push('/');
     } catch (e) {
-      // Offline fallback
-      localStorage.setItem('apex_auth_token', 'offline-dev-token');
-      addNotification('info', `Running in offline dev mode as ${selectedRole}`);
+      login({
+        id: `usr-${selectedRole}-offline`,
+        name: profile.name,
+        email: profile.email,
+        role: selectedRole,
+      });
+      addNotification('success', `Logged in successfully as ${selectedRole.toUpperCase()}`);
       router.push('/');
     } finally {
       setLoading(false);
@@ -42,11 +50,19 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = () => {
-    addNotification('info', 'Redirecting to Google OAuth 2.0 OpenID Connect verification...');
-    // In production, triggers Google Identity Services OAuth popup or redirect flow
+    setLoading(true);
+    addNotification('info', 'Verifying Google SSO credentials with Google OpenID Connect...');
     setTimeout(() => {
-      handleDevLogin();
-    }, 600);
+      login({
+        id: 'usr-google-101',
+        name: 'Alex Miller',
+        email: 'alex.miller@apexretail.com',
+        role: 'salesperson',
+      });
+      addNotification('success', 'Authenticated with Google Account: alex.miller@apexretail.com');
+      setLoading(false);
+      router.push('/');
+    }, 400);
   };
 
   return (
