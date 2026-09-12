@@ -814,6 +814,36 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 res, status = execute_sale(conn, cur, body)
                 json_response(self, res, status)
 
+            elif path == "/api/auth/google":
+                id_token = body.get("idToken", "").strip()
+                if not id_token:
+                    error_response(self, "idToken is required", 400)
+                    return
+                try:
+                    import base64
+                    parts = id_token.split(".")
+                    if len(parts) != 3:
+                        error_response(self, "Invalid token format", 400)
+                        return
+                    padded = parts[1] + "=" * ((4 - len(parts[1]) % 4) % 4)
+                    payload = json.loads(base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8"))
+                    email = payload.get("email", "").strip().lower()
+                    authorized_emails = ["rangaprasad.557@gmail.com", "singarisurendra@gmail.com"]
+                    if email not in authorized_emails:
+                        error_response(self, f"Access denied. {email} is not authorized.", 403)
+                        return
+                    json_response(self, {
+                        "success": True,
+                        "data": {
+                            "email": email,
+                            "name": payload.get("name", email.split("@")[0]),
+                            "role": "full_access",
+                            "avatar": payload.get("picture", "")
+                        }
+                    }, 200)
+                except Exception as ex:
+                    error_response(self, f"Invalid token: {str(ex)}", 400)
+
             elif path == "/api/system/clear-data":
                 db.clear_all_data(conn)
                 json_response(self, {"success": True, "message": "All application data cleared successfully. Ready for fresh entries."}, 200)

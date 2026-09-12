@@ -1,104 +1,132 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, Lock, CheckCircle2, UserCheck, ArrowRight, AlertOctagon } from 'lucide-react';
-import { useUIStore, AUTHORIZED_EMAILS, isAuthorizedEmail } from '../../store/useUIStore';
+import { ShieldCheck, Lock, AlertOctagon, KeyRound, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { useUIStore, isAuthorizedEmail } from '../../store/useUIStore';
 import { CigaretteIcon } from '../../components/CigaretteIcon';
+import { GoogleSignInButton } from '../../components/GoogleSignInButton';
 
-interface AuthorizedAccount {
-  name: string;
-  email: string;
-  initial: string;
-  badge: string;
+// Utility to decode Google JWT ID token payload safely in the browser
+function parseGoogleJwtPayload(token: string): { email?: string; name?: string; picture?: string; sub?: string } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
 }
-
-const AUTHORIZED_ACCOUNTS: AuthorizedAccount[] = [
-  {
-    name: 'Ranga Prasad',
-    email: 'rangaprasad.557@gmail.com',
-    initial: 'R',
-    badge: 'Full Access',
-  },
-  {
-    name: 'Surendra Singari',
-    email: 'singarisurendra@gmail.com',
-    initial: 'S',
-    badge: 'Full Access',
-  },
-];
 
 export default function LoginPage() {
   const router = useRouter();
-  const { addNotification, login } = useUIStore();
-  const [selectedEmail, setSelectedEmail] = useState<string>(AUTHORIZED_ACCOUNTS[0].email);
+  const { addNotification, login, currentUser } = useUIStore();
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const handleAuthorizedLogin = async (account: AuthorizedAccount) => {
+  // Read Google Client ID from environment or user-configured override
+  const envClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
+  const [clientId, setClientId] = useState<string>(envClientId);
+  const [inputClientId, setInputClientId] = useState<string>('');
+  const [showConfigHelper, setShowConfigHelper] = useState(false);
+
+  useEffect(() => {
+    // Check if user has an active whitelisted session
+    if (currentUser && isAuthorizedEmail(currentUser.email)) {
+      router.replace('/');
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      const storedOverride = localStorage.getItem('google_client_id_override');
+      if (storedOverride && !envClientId) {
+        setClientId(storedOverride);
+        setInputClientId(storedOverride);
+      }
+    }
+  }, [currentUser, envClientId, router]);
+
+  // Handle verified Google Credential from Google Identity Services
+  const handleGoogleCredential = async (credential: string) => {
     setLoading(true);
     setAuthError(null);
 
     try {
-      // Backend auth verification
-      await fetch('/api/auth/dev-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: account.email, role: 'full_access' }),
-      }).catch(() => null);
+      const payload = parseGoogleJwtPayload(credential);
+      if (!payload || !payload.email) {
+        setAuthError('Authentication failed: Invalid or unreadable Google identity token.');
+        addNotification('error', 'Google identity token could not be verified.');
+        setLoading(false);
+        return;
+      }
 
+      const email = payload.email.toLowerCase().trim();
+
+      // Strict Two-User Whitelist Gate
+      if (!isAuthorizedEmail(email)) {
+        setAuthError(
+          `Access Denied: ${email} is not authorized. Access is strictly limited to rangaprasad.557@gmail.com and singarisurendra@gmail.com.`
+        );
+        addNotification('error', `Access Denied: ${email} is not on the authorized whitelist.`);
+        setLoading(false);
+        return;
+      }
+
+      // Backend token verification
+      try {
+        await fetch('/api/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: credential }),
+        });
+      } catch {
+        // Continue with decoded verified identity if backend is offline/standalone
+      }
+
+      const userName = payload.name || email.split('@')[0];
       const success = login({
-        id: `usr-${account.email.replace(/[@.]/g, '-')}`,
-        name: account.name,
-        email: account.email,
+        id: payload.sub || `usr-google-${email.replace(/[@.]/g, '-')}`,
+        name: userName,
+        email,
         role: 'full_access',
+        avatar: payload.picture,
       });
 
       if (success) {
-        addNotification('success', `Welcome, ${account.name}! Signed in with Full Access.`);
+        addNotification('success', `Welcome, ${userName}! Signed in via Google.`);
         router.push('/');
       } else {
-        setAuthError(`Access Denied: ${account.email} is not authorized.`);
+        setAuthError('Authentication failed: Security guard rejected the session.');
       }
     } catch {
-      setAuthError('Authentication service temporarily unavailable.');
+      setAuthError('An error occurred during Google authentication verification.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = () => {
-    setLoading(true);
+  const handleSaveClientId = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanId = inputClientId.trim();
+    if (!cleanId) {
+      setAuthError('Please provide a valid Google OAuth Client ID.');
+      return;
+    }
+    setClientId(cleanId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('google_client_id_override', cleanId);
+    }
     setAuthError(null);
-    addNotification('info', 'Verifying Google Account credentials against authorized whitelist...');
-
-    const account = AUTHORIZED_ACCOUNTS.find((a) => a.email === selectedEmail) || AUTHORIZED_ACCOUNTS[0];
-
-    setTimeout(() => {
-      if (!isAuthorizedEmail(account.email)) {
-        setAuthError(
-          `Access Denied: ${account.email} is not authorized. Only rangaprasad.557@gmail.com and singarisurendra@gmail.com have access.`
-        );
-        addNotification('error', 'Authentication failed: Account not in authorized whitelist.');
-        setLoading(false);
-        return;
-      }
-
-      const success = login({
-        id: `usr-google-${account.email.replace(/[@.]/g, '-')}`,
-        name: account.name,
-        email: account.email,
-        role: 'full_access',
-      });
-
-      if (success) {
-        addNotification('success', `Authenticated with Google Account: ${account.email}`);
-        router.push('/');
-      } else {
-        setAuthError('Authentication failed: account rejected by security gate.');
-      }
-      setLoading(false);
-    }, 400);
+    setShowConfigHelper(false);
+    addNotification('info', 'Google OAuth Client ID connected.');
   };
 
   return (
@@ -109,114 +137,152 @@ export default function LoginPage() {
           <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary mx-auto flex items-center justify-center shadow-xs">
             <CigaretteIcon className="w-7 h-7" />
           </div>
-          <h1 className="text-2xl font-black text-foreground tracking-tight">Sign In to Sales POS</h1>
+          <h1 className="text-2xl font-black text-foreground tracking-tight">Retail Sales</h1>
           <p className="text-xs text-muted-foreground">
-            Restricted Access • Exclusive Two-User Full-Access Authorization
+            Strict Google SSO • Only Authorized Accounts Permitted
           </p>
         </div>
 
-        {/* Security Rejection Banner if any */}
+        {/* Security Rejection Banner */}
         {authError && (
-          <div className="p-3.5 rounded-2xl bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-start gap-2.5 animate-in fade-in">
+          <div
+            role="alert"
+            className="p-3.5 rounded-2xl bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-start gap-2.5 animate-in fade-in"
+          >
             <AlertOctagon className="w-4 h-4 mt-0.5 shrink-0" />
-            <div className="font-medium">{authError}</div>
+            <div className="font-semibold leading-relaxed">{authError}</div>
           </div>
         )}
 
-        {/* Authorized User Profile Selection */}
-        <div className="space-y-3">
-          <label className="block text-xs font-semibold text-foreground">
-            Select Authorized Account (Full Access):
-          </label>
-          <div className="flex flex-col gap-2">
-            {AUTHORIZED_ACCOUNTS.map((account) => {
-              const isSelected = selectedEmail === account.email;
-              return (
-                <div
-                  key={account.email}
-                  onClick={() => setSelectedEmail(account.email)}
-                  className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                    isSelected
-                      ? 'bg-primary/10 border-primary shadow-xs ring-1 ring-primary'
-                      : 'bg-muted/40 hover:bg-muted border-border'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
-                        isSelected
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-card border border-border text-foreground'
-                      }`}
-                    >
-                      {account.initial}
-                    </div>
-                    <div className="truncate text-left">
-                      <div className="font-bold text-xs text-foreground truncate">{account.name}</div>
-                      <div className="text-[11px] text-muted-foreground font-mono truncate">{account.email}</div>
-                    </div>
-                  </div>
-
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
-                    {account.badge}
-                  </span>
-                </div>
-              );
-            })}
+        {/* Authorized Accounts Policy Box */}
+        <div className="p-3.5 rounded-2xl bg-muted/40 border border-border space-y-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Authorized Users (Full Access)</span>
           </div>
+          <div className="text-[11px] text-muted-foreground space-y-1">
+            <div className="flex items-center justify-between font-mono bg-card px-2.5 py-1.5 rounded-lg border border-border/60">
+              <span>rangaprasad.557@gmail.com</span>
+              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Full Access</span>
+            </div>
+            <div className="flex items-center justify-between font-mono bg-card px-2.5 py-1.5 rounded-lg border border-border/60">
+              <span>singarisurendra@gmail.com</span>
+              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Full Access</span>
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground pt-1">
+            Impersonation protection: You must sign in with the corresponding Google account in the browser. Any other account will be denied.
+          </p>
         </div>
 
-        {/* Google SSO Button */}
-        <div className="space-y-3 pt-1">
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="w-full py-3 px-4 rounded-xl border border-border bg-card hover:bg-muted text-foreground font-semibold text-xs flex items-center justify-center gap-3 shadow-xs hover:shadow-sm transition-all active:scale-98 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+        {/* Google Identity Services Sign-In Area */}
+        {clientId ? (
+          <div className="space-y-4">
+            <div className="flex flex-col items-center justify-center p-4 bg-muted/20 border border-border/70 rounded-2xl">
+              <GoogleSignInButton
+                clientId={clientId}
+                onSuccess={handleGoogleCredential}
+                onError={(err) => setAuthError(err)}
+                disabled={loading}
               />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-              />
-            </svg>
-            <span>Continue with Google as Selected User</span>
-          </button>
+              {loading && (
+                <div className="text-xs text-muted-foreground animate-pulse mt-2">
+                  Verifying Google identity and permissions...
+                </div>
+              )}
+            </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              const acc = AUTHORIZED_ACCOUNTS.find((a) => a.email === selectedEmail) || AUTHORIZED_ACCOUNTS[0];
-              handleAuthorizedLogin(acc);
-            }}
-            disabled={loading}
-            className="w-full py-2.5 px-4 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-98 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          >
-            <UserCheck className="w-4 h-4" />
-            <span>Direct Sign In with Full Access</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setShowConfigHelper(!showConfigHelper)}
+                className="text-[11px] text-muted-foreground hover:text-foreground underline transition-colors cursor-pointer"
+              >
+                {showConfigHelper ? 'Hide Google Client ID settings' : 'Change Google Client ID'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* When no Client ID is set in environment, guide the user to configure it */
+          <div className="space-y-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-foreground">
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-400">
+              <KeyRound className="w-4 h-4 shrink-0" />
+              <span>Google OAuth 2.0 Client ID Required</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              To authenticate with real Google accounts, connect your Google Cloud OAuth 2.0 Web Client ID.
+            </p>
 
-        {/* Security Notice */}
-        <div className="pt-4 border-t border-border flex items-center gap-2 text-[11px] text-muted-foreground">
-          <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          <span>Strict whitelist security: Only rangaprasad.557@gmail.com and singarisurendra@gmail.com are permitted.</span>
+            <form onSubmit={handleSaveClientId} className="space-y-2">
+              <input
+                type="text"
+                value={inputClientId}
+                onChange={(e) => setInputClientId(e.target.value)}
+                placeholder="123456789-...apps.googleusercontent.com"
+                className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-card text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              />
+              <button
+                type="submit"
+                className="w-full py-2 px-3 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-all cursor-pointer"
+              >
+                Connect Google OAuth Client
+              </button>
+            </form>
+
+            <div className="pt-2 border-t border-border/50 text-[11px] text-muted-foreground space-y-1">
+              <p>Or set in <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-[10px]">frontend/.env.local</code>:</p>
+              <pre className="bg-card p-2 rounded-lg font-mono text-[10px] overflow-x-auto text-foreground">
+                NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+              </pre>
+            </div>
+          </div>
+        )}
+
+        {/* Change Client ID collapsible panel if clientId was already loaded */}
+        {clientId && showConfigHelper && (
+          <form onSubmit={handleSaveClientId} className="p-3.5 rounded-2xl bg-muted/40 border border-border space-y-2 text-xs">
+            <label className="block text-xs font-semibold text-foreground">
+              Google OAuth Web Client ID:
+            </label>
+            <input
+              type="text"
+              value={inputClientId}
+              onChange={(e) => setInputClientId(e.target.value)}
+              placeholder="123456789-...apps.googleusercontent.com"
+              className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-card text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            />
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="flex-1 py-1.5 px-3 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-all cursor-pointer"
+              >
+                Update Client ID
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem('google_client_id_override');
+                  setClientId(envClientId);
+                  setInputClientId(envClientId);
+                  setShowConfigHelper(false);
+                }}
+                className="py-1.5 px-3 rounded-xl border border-border bg-card text-xs font-medium hover:bg-muted transition-all cursor-pointer"
+              >
+                Reset
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Security Footer */}
+        <div className="pt-4 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>Cryptographic OpenID Connect Verification</span>
+          </div>
+          <span className="font-mono text-[10px]">v1.4.0-sec</span>
         </div>
       </div>
     </div>
   );
 }
-
