@@ -799,5 +799,61 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertEqual(cur.fetchone()[0], 0)
         conn.close()
 
+    def test_e2e_14_pr001_foundation_and_drizzle_schema(self):
+        """Automated verification of PR-001 schema files, Drizzle migration SQL, and solo migrator."""
+        backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
+        self.assertTrue(os.path.isdir(backend_dir), "backend directory must exist")
+
+        # 1. Verify schema files
+        schema_dir = os.path.join(backend_dir, "src", "db", "schema")
+        expected_schema_files = [
+            "users.ts", "categories.ts", "suppliers.ts", "customers.ts", "products.ts",
+            "procurements.ts", "inventory_lots.ts", "sales.ts", "sale_items.ts",
+            "sale_item_lots.ts", "relations.ts", "index.ts"
+        ]
+        for sfile in expected_schema_files:
+            fpath = os.path.join(schema_dir, sfile)
+            self.assertTrue(os.path.isfile(fpath), f"Schema file {sfile} must exist")
+
+        # 2. Verify migration SQL file
+        mig_dir = os.path.join(backend_dir, "drizzle", "migrations")
+        self.assertTrue(os.path.isdir(mig_dir), "Migrations folder must exist")
+        sql_files = [f for f in os.listdir(mig_dir) if f.endswith(".sql")]
+        self.assertGreaterEqual(len(sql_files), 1, "At least one migration SQL file must exist")
+
+        with open(os.path.join(mig_dir, sql_files[0]), "r", encoding="utf-8") as f:
+            sql_content = f.read()
+
+        expected_tables = [
+            "users", "categories", "suppliers", "customers", "products",
+            "procurements", "inventory_lots", "sales", "sale_items", "sale_item_lots"
+        ]
+        for tbl in expected_tables:
+            self.assertIn(f'CREATE TABLE IF NOT EXISTS "{tbl}"', sql_content)
+
+        # Verify composite indexes for lowest-cost-first allocation
+        self.assertIn('CREATE INDEX IF NOT EXISTS "lot_product_cost_idx"', sql_content)
+        self.assertIn('CREATE INDEX IF NOT EXISTS "lot_remaining_qty_idx"', sql_content)
+        self.assertIn('CREATE INDEX IF NOT EXISTS "sales_date_idx"', sql_content)
+        self.assertIn('CREATE INDEX IF NOT EXISTS "sales_customer_idx"', sql_content)
+
+        # 3. Verify solo migrator
+        migrator_file = os.path.join(backend_dir, "src", "db", "migrate.ts")
+        self.assertTrue(os.path.isfile(migrator_file), "migrate.ts must exist")
+        with open(migrator_file, "r", encoding="utf-8") as f:
+            migrator_code = f.read()
+        self.assertIn("vector", migrator_code)
+        self.assertIn("pg_trgm", migrator_code)
+        self.assertIn("migrate(db, { migrationsFolder:", migrator_code)
+
+        # 4. Verify test file assertions completeness
+        test_file = os.path.join(backend_dir, "tests", "schema_verification.test.ts")
+        self.assertTrue(os.path.isfile(test_file), "schema_verification.test.ts must exist")
+        with open(test_file, "r", encoding="utf-8") as f:
+            test_code = f.read()
+
+        test_count = test_code.count("test(")
+        self.assertEqual(test_count, 12, "schema_verification.test.ts must contain exactly 12 test assertions")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
