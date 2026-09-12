@@ -390,3 +390,32 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED (READY FOR MERGE)** (0 Major, 0 Blocker).
 - **Outcome**: PR-008 satisfies all repository rules, visual testing requirements, and quality gates with unanimous approval.
 
+---
+
+## 16. PR-009: Configurable Masters UI & Catalogue Management
+
+### Context & Implementation Scope
+- **PR Document**: [`docs/prs/PR-009-masters-and-catalogue-ui.md`](file:///c:/Build_With_AI_Google/docs/prs/PR-009-masters-and-catalogue-ui.md)
+- **Branch**: `feature/pr-009-masters-and-catalogue-ui` (Merged to `master`)
+- **Scope Delivered**:
+  1. Customer Directory ([`frontend/app/customers/page.tsx`](file:///c:/Build_With_AI_Google/frontend/app/customers/page.tsx)): Customer table, search, KPI metrics (Active Accounts, Total Credit Line, High-Credit Tier), and slide-over drawer with RFC 5322 email validation, name required checks, and positive credit limits.
+  2. Supplier Directory ([`frontend/app/suppliers/page.tsx`](file:///c:/Build_With_AI_Google/frontend/app/suppliers/page.tsx)): Vendor directory, procurement source channel badges (*Wholesale Shop, Quick Commerce, E-Commerce, Other*), commercial payment terms (Immediate/COD, Net 7/15/30/60), and slide-over drawer.
+  3. Category Hierarchy Explorer ([`frontend/app/categories/page.tsx`](file:///c:/Build_With_AI_Google/frontend/app/categories/page.tsx), [`frontend/components/CategoryTree.tsx`](file:///c:/Build_With_AI_Google/frontend/components/CategoryTree.tsx)): Interactive tree view, grid view, parent/child taxonomy nesting, inspector pane, and subcategory creation drawer.
+  4. Product Catalogue Management ([`frontend/app/catalogue/page.tsx`](file:///c:/Build_With_AI_Google/frontend/app/catalogue/page.tsx)): Master product catalogue with search and category pill filtering, min-stock replenishment alert badges (`ACTIVE`, `LOW_STOCK`, `DEPLETED`), configurable units of measure (`pcs`, `kg`, `box`, `liters`, `bundle`, `pack`), automatic SKU generator, and slide-over drawer.
+  5. Reusable Accessible Slide-Over Drawer ([`frontend/components/Drawer.tsx`](file:///c:/Build_With_AI_Google/frontend/components/Drawer.tsx)): WAI-ARIA `role="dialog"`, `aria-modal="true"`, background scroll locking, backdrop blur, Escape key dismissal, and visible focus rings.
+  6. Mandatory Visual Testing Gate ([`frontend/tests/masters_catalogue_a11y.test.ts`](file:///c:/Build_With_AI_Google/frontend/tests/masters_catalogue_a11y.test.ts)): 20 automated test assertions verifying form validation, procurement channels, category tree resolution, stock health classification, units of measure, color-blind safety across Protanopia, Deuteranopia, and Tritanopia, drawer accessibility, WCAG 2.1 AAA contrast ($\ge 7:1$), desktop 1440px vs mobile 375px viewports, and focus rings.
+  7. Production Build Verification: Next.js production build (`next build`) compiles 9 static routes cleanly with 0 errors.
+
+### Automated Testing Evidence
+- **Frontend Jest Suites**: 30/30 passed across 2 suites (100% pass rate).
+- **Backend Jest Suites**: 94/94 passed across 7 suites (100% pass rate).
+- **Python Regression Suite**: 34/34 passed (100% pass rate).
+- **Total Tests**: **158 automated tests** executed across stacks, 0 failures.
+
+### Multi-Agent Review Verdicts
+- **Functional Reviewer** (`5dc2d49c-f8ab-4fe5-8f40-3880f977e79d`): ✅ **APPROVED** (0 Major, 0 Blocker).
+- **E2E Integration Reviewer** (`296d8521-9602-4a39-ab9b-c01141d9b08b`): ✅ **APPROVED** (0 Major, 0 Blocker).
+- **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED (READY FOR MERGE)** (0 Major, 0 Blocker).
+- **Outcome**: PR-009 satisfies all repository rules, visual testing requirements, and quality gates with unanimous approval.
+
+
