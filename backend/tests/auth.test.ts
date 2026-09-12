@@ -102,27 +102,32 @@ describe('PR-002: Google SSO Authentication & User Management Test Suite', () =>
       expect(decoded.role).toBe(mockUser.role);
     });
 
-    test('devLogin generates access token and returns user profile', async () => {
-      jest.spyOn(usersService, 'upsertGoogleUser').mockResolvedValueOnce(mockUser);
+    test('devLogin generates access token and returns user profile for authorized email', async () => {
+      jest.spyOn(usersService, 'upsertGoogleUser').mockResolvedValueOnce({
+        ...mockUser,
+        email: 'rangaprasad.557@gmail.com',
+        role: 'full_access',
+      });
 
-      const result = await authService.devLogin('test.sales@example.com', 'salesperson');
+      const result = await authService.devLogin('rangaprasad.557@gmail.com');
       expect(result.accessToken).toBeDefined();
-      expect(result.user.email).toBe('test.sales@example.com');
-      expect(result.user.role).toBe('salesperson');
+      expect(result.user.email).toBe('rangaprasad.557@gmail.com');
+      expect(result.user.role).toBe('full_access');
     });
 
     test('verifyGoogleToken rejects empty idToken with BadRequestException', async () => {
       await expect(authService.verifyGoogleToken('')).rejects.toThrow(BadRequestException);
     });
 
-    test('verifyGoogleToken parses mock Google token in non-production environment', async () => {
+    test('verifyGoogleToken parses mock Google token for authorized email', async () => {
       jest.spyOn(usersService, 'upsertGoogleUser').mockResolvedValueOnce({
         ...mockUser,
-        email: 'mock.user@gmail.com',
+        email: 'singarisurendra@gmail.com',
+        role: 'full_access',
       });
 
-      const user = await authService.verifyGoogleToken('mock-google-token:mock.user@gmail.com');
-      expect(user.email).toBe('mock.user@gmail.com');
+      const user = await authService.verifyGoogleToken('mock-google-token:singarisurendra@gmail.com');
+      expect(user.email).toBe('singarisurendra@gmail.com');
     });
   });
 

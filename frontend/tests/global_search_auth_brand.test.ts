@@ -53,10 +53,10 @@ describe('PR-011: Global Search, Google SSO Auth Persistence & Brand Polish', ()
   describe('1. Google SSO Auth Session Lifecycle & Persistence', () => {
     it('persists logged in user session and JWT auth token to localStorage', () => {
       const user: UserSession = {
-        id: 'usr-google-101',
-        name: 'Alex Miller',
-        email: 'alex.miller@apexretail.com',
-        role: 'salesperson',
+        id: 'usr-ranga',
+        name: 'Ranga Prasad',
+        email: 'rangaprasad.557@gmail.com',
+        role: 'full_access',
       };
 
       useUIStore.getState().login(user);
@@ -70,15 +70,15 @@ describe('PR-011: Global Search, Google SSO Auth Persistence & Brand Polish', ()
       expect(JSON.parse(stored!)).toEqual(user);
 
       const token = localStorageMock.getItem('apex_auth_token');
-      expect(token).toContain('jwt-salesperson');
+      expect(token).toContain('jwt-full-access');
     });
 
     it('clears session and auth token on logout', () => {
       const user: UserSession = {
-        id: 'usr-admin-1',
-        name: 'Sarah Jenkins',
-        email: 'admin@apexretail.com',
-        role: 'admin',
+        id: 'usr-surendra',
+        name: 'Surendra Singari',
+        email: 'singarisurendra@gmail.com',
+        role: 'full_access',
       };
 
       useUIStore.getState().login(user);
@@ -90,18 +90,26 @@ describe('PR-011: Global Search, Google SSO Auth Persistence & Brand Polish', ()
       expect(localStorageMock.getItem('apex_auth_token')).toBeNull();
     });
 
-    it('supports multiple role profiles (salesperson, admin, auditor)', () => {
-      const roles: Array<UserSession['role']> = ['salesperson', 'admin', 'auditor'];
+    it('authenticates authorized user profiles with full access', () => {
+      const users: Array<UserSession> = [
+        {
+          id: 'usr-1',
+          name: 'Ranga Prasad',
+          email: 'rangaprasad.557@gmail.com',
+          role: 'full_access',
+        },
+        {
+          id: 'usr-2',
+          name: 'Surendra Singari',
+          email: 'singarisurendra@gmail.com',
+          role: 'full_access',
+        },
+      ];
 
-      roles.forEach((role) => {
-        const u: UserSession = {
-          id: `usr-${role}`,
-          name: `Test ${role}`,
-          email: `${role}@apexretail.com`,
-          role,
-        };
-        useUIStore.getState().login(u);
-        expect(useUIStore.getState().currentUser?.role).toBe(role);
+      users.forEach((u) => {
+        const success = useUIStore.getState().login(u);
+        expect(success).toBe(true);
+        expect(useUIStore.getState().currentUser?.role).toBe('full_access');
       });
     });
   });

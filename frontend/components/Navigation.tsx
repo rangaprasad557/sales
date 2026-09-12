@@ -19,7 +19,6 @@ import {
 import { useUIStore } from '../store/useUIStore';
 import { ThemeToggle } from './ThemeToggle';
 import { CigaretteIcon } from './CigaretteIcon';
-import { GlobalSearchBar } from './GlobalSearchBar';
 
 export function Navigation() {
   const pathname = usePathname();
@@ -49,7 +48,7 @@ export function Navigation() {
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-border bg-card/80 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
           {/* Brand & Desktop Navigation */}
           <div className="flex items-center gap-3 lg:gap-6 shrink-0">
             <button
@@ -97,11 +96,6 @@ export function Navigation() {
             </nav>
           </div>
 
-          {/* Top Panel Global Search Bar */}
-          <div className="flex-1 max-w-xs sm:max-w-sm md:max-w-md mx-1 sm:mx-2">
-            <GlobalSearchBar />
-          </div>
-
           {/* Right Action Bar (Properly aligned with equal heights) */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* Theme Toggle */}
@@ -122,11 +116,11 @@ export function Navigation() {
                   {currentUser.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="hidden md:flex flex-col text-left leading-tight mr-1">
-                  <span className="text-xs font-semibold text-foreground truncate max-w-[90px]">
+                  <span className="text-xs font-semibold text-foreground truncate max-w-[120px]">
                     {currentUser.name}
                   </span>
-                  <span className="text-[9px] uppercase tracking-wider font-bold text-primary">
-                    {currentUser.role}
+                  <span className="text-[9px] uppercase tracking-wider font-extrabold text-emerald-600 dark:text-emerald-400">
+                    Full Access
                   </span>
                 </div>
                 <button
@@ -225,8 +219,8 @@ export function Navigation() {
                       <div className="text-xs font-semibold text-foreground truncate">
                         {currentUser.name}
                       </div>
-                      <div className="text-[10px] text-muted-foreground truncate">
-                        {currentUser.role}
+                      <div className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 truncate">
+                        Full Access
                       </div>
                     </div>
                   </div>

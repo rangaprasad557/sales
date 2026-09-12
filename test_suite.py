@@ -1561,7 +1561,6 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         with open(nav_path, "r", encoding="utf-8") as f:
             nav_code = f.read()
         self.assertIn("CigaretteIcon", nav_code)
-        self.assertIn("GlobalSearchBar", nav_code)
         self.assertIn("currentUser", nav_code)
         self.assertIn("logout", nav_code)
         # Overview must not be in navLinks
@@ -1582,7 +1581,7 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
             store_code = f.read()
         self.assertIn("export interface UserSession", store_code)
         self.assertIn("currentUser: UserSession | null", store_code)
-        self.assertIn("login: (user: UserSession) => void", store_code)
+        self.assertIn("login: (user: UserSession)", store_code)
         self.assertIn("logout: () => void", store_code)
         self.assertIn("apex_user_session", store_code)
         self.assertIn("apex_auth_token", store_code)
@@ -1607,8 +1606,73 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertIn("Global Search Bar & Multi-Entity Fuzzy Filtering", test_content)
         self.assertIn("WCAG 2.1 AAA Accessibility & Visual Testing Quality Gate", test_content)
 
+    def test_e2e_25_pr012_authorized_users_and_search_removal(self):
+        """Automated verification of PR-012 Search Removal and Exclusive Two-User Full-Access Authorization."""
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        frontend_dir = os.path.join(root_dir, "frontend")
+        comp_dir = os.path.join(frontend_dir, "components")
+        app_dir = os.path.join(frontend_dir, "app")
+        backend_dir = os.path.join(root_dir, "backend")
+
+        # 1. Verify Navigation omits GlobalSearchBar and displays Full Access badge
+        nav_path = os.path.join(comp_dir, "Navigation.tsx")
+        with open(nav_path, "r", encoding="utf-8") as f:
+            nav_code = f.read()
+        self.assertNotIn("<GlobalSearchBar", nav_code, "Navigation must not render GlobalSearchBar")
+        self.assertIn("Full Access", nav_code, "Navigation must display Full Access badge")
+        self.assertIn("CigaretteIcon", nav_code, "Navigation must retain CigaretteIcon")
+
+        # 2. Verify sales page omits quick search
+        sales_path = os.path.join(app_dir, "sales", "page.tsx")
+        with open(sales_path, "r", encoding="utf-8") as f:
+            sales_code = f.read()
+        self.assertNotIn("searchQuery", sales_code, "sales/page.tsx must not contain searchQuery state")
+        self.assertNotIn("searchInputRef", sales_code, "sales/page.tsx must not contain searchInputRef")
+        self.assertNotIn("handleQuickAdd", sales_code, "sales/page.tsx must not contain handleQuickAdd")
+        self.assertIn("Open Product Picker Grid", sales_code, "sales/page.tsx must feature Product Picker Grid trigger")
+
+        # 3. Verify useUIStore authorized emails whitelist
+        store_path = os.path.join(frontend_dir, "store", "useUIStore.ts")
+        with open(store_path, "r", encoding="utf-8") as f:
+            store_code = f.read()
+        self.assertIn("rangaprasad.557@gmail.com", store_code)
+        self.assertIn("singarisurendra@gmail.com", store_code)
+        self.assertIn("isAuthorizedEmail", store_code)
+
+        # 4. Verify LoginPage presents two authorized users with full access
+        login_path = os.path.join(app_dir, "login", "page.tsx")
+        with open(login_path, "r", encoding="utf-8") as f:
+            login_code = f.read()
+        self.assertIn("rangaprasad.557@gmail.com", login_code)
+        self.assertIn("singarisurendra@gmail.com", login_code)
+        self.assertIn("Full Access", login_code)
+        self.assertNotIn("salesperson", login_code)
+        self.assertNotIn("auditor", login_code)
+
+        # 5. Verify Backend AuthService whitelist
+        auth_service_path = os.path.join(backend_dir, "src", "modules", "auth", "auth.service.ts")
+        with open(auth_service_path, "r", encoding="utf-8") as f:
+            auth_code = f.read()
+        self.assertIn("rangaprasad.557@gmail.com", auth_code)
+        self.assertIn("singarisurendra@gmail.com", auth_code)
+        self.assertIn("isAuthorizedEmail", auth_code)
+        self.assertIn("full_access", auth_code)
+
+        # 6. Verify PR-012 frontend test suite exists (13 assertions)
+        pr012_test_file = os.path.join(frontend_dir, "tests", "authorized_users_and_clean_ui.test.ts")
+        self.assertTrue(os.path.isfile(pr012_test_file), "authorized_users_and_clean_ui.test.ts must exist")
+        with open(pr012_test_file, "r", encoding="utf-8") as f:
+            test_content = f.read()
+        it_count = test_content.count("it(")
+        self.assertEqual(it_count, 13, f"authorized_users_and_clean_ui.test.ts must contain 13 test assertions, got {it_count}")
+        self.assertIn("Two-User Whitelist Authorization Gate", test_content)
+        self.assertIn("User Session Lifecycle, Storage & Role Purge", test_content)
+        self.assertIn("Clean UI Architecture Contracts", test_content)
+        self.assertIn("WCAG 2.1 AAA Accessibility & Visual Quality Gate", test_content)
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
+
 
 
 
