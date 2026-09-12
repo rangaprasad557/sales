@@ -84,7 +84,7 @@ const SEED_SUPPLIERS: Supplier[] = [
 ];
 
 export default function SuppliersPage() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>(SEED_SUPPLIERS);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSource, setSelectedSource] = useState<string>('ALL');
   const [isDrawerOpen, setDrawerOpen] = useState(false);
@@ -104,7 +104,7 @@ export default function SuppliersPage() {
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // Fetch from backend API or fallback
+  // Fetch from backend API
   useEffect(() => {
     fetch('/api/suppliers')
       .then((res) => {
@@ -112,7 +112,7 @@ export default function SuppliersPage() {
         return res.json();
       })
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           const mapped = data.map((s: any) => ({
             id: s.id,
             name: s.name,
@@ -127,9 +127,7 @@ export default function SuppliersPage() {
           setSuppliers(mapped);
         }
       })
-      .catch(() => {
-        // Use seed data
-      });
+      .catch(() => {});
   }, []);
 
   const filteredSuppliers = suppliers.filter((s) => {

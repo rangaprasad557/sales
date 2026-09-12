@@ -69,7 +69,7 @@ const SEED_CUSTOMERS: Customer[] = [
 ];
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>(SEED_CUSTOMERS);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -86,7 +86,7 @@ export default function CustomersPage() {
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // Fetch from API or fallback
+  // Fetch from API
   useEffect(() => {
     fetch('/api/customers')
       .then((res) => {
@@ -94,7 +94,7 @@ export default function CustomersPage() {
         return res.json();
       })
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           const mapped = data.map((c: any) => ({
             id: c.id,
             name: c.name,
@@ -107,9 +107,7 @@ export default function CustomersPage() {
           setCustomers(mapped);
         }
       })
-      .catch(() => {
-        // Use seed data
-      });
+      .catch(() => {});
   }, []);
 
   const filteredCustomers = customers.filter((c) => {

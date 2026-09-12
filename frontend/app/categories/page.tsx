@@ -81,7 +81,7 @@ const SEED_CATEGORY_TREE: CategoryNode[] = [
 ];
 
 export default function CategoriesPage() {
-  const [categoryTree, setCategoryTree] = useState<CategoryNode[]>(SEED_CATEGORY_TREE);
+  const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<CategoryNode | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'tree' | 'grid'>('tree');
@@ -111,7 +111,7 @@ export default function CategoriesPage() {
 
   const allFlatCategories = flattenCategories(categoryTree);
 
-  // Fetch from backend API or fallback
+  // Fetch from backend API
   useEffect(() => {
     fetch('/api/categories')
       .then((res) => {
@@ -119,9 +119,7 @@ export default function CategoriesPage() {
         return res.json();
       })
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          // If flat list returned from server, build tree or use as is
-          // If items have parentId or parent_id
+        if (Array.isArray(data)) {
           const idMap: Record<number, CategoryNode> = {};
           const roots: CategoryNode[] = [];
 
@@ -147,14 +145,10 @@ export default function CategoriesPage() {
             }
           });
 
-          if (roots.length > 0) {
-            setCategoryTree(roots);
-          }
+          setCategoryTree(roots);
         }
       })
-      .catch(() => {
-        // Use seed tree
-      });
+      .catch(() => {});
   }, []);
 
   const openCreateDrawer = (parent?: CategoryNode) => {

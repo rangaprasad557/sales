@@ -83,10 +83,19 @@ const SEED_PRODUCTS: ProductPerformance[] = [
   },
 ];
 
+const EMPTY_SUMMARY: AnalyticsSummary = {
+  totalRevenue: 0,
+  totalCogs: 0,
+  totalProfit: 0,
+  marginPct: 0,
+  orderCount: 0,
+  unitsSold: 0,
+};
+
 export default function AnalyticsPage() {
   const [granularity, setGranularity] = useState<'day' | 'week' | 'month' | 'year'>('month');
-  const [summary, setSummary] = useState<AnalyticsSummary>(SEED_SUMMARY);
-  const [products, setProducts] = useState<ProductPerformance[]>(SEED_PRODUCTS);
+  const [summary, setSummary] = useState<AnalyticsSummary>(EMPTY_SUMMARY);
+  const [products, setProducts] = useState<ProductPerformance[]>([]);
 
   useEffect(() => {
     fetch(`/api/analytics?granularity=${granularity}`)

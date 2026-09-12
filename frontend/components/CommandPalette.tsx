@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useUIStore } from '../store/useUIStore';
 import {
   Search,
@@ -28,15 +28,17 @@ interface CommandItem {
 }
 
 export function CommandPalette() {
-  const { isCommandPaletteOpen, setCommandPaletteOpen } = useUIStore();
+  const { isCommandPaletteOpen, setCommandPaletteOpen, currentUser } = useUIStore();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const router = useRouter();
+  const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (pathname === '/login' || !currentUser) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setCommandPaletteOpen(!isCommandPaletteOpen);
@@ -160,7 +162,7 @@ export function CommandPalette() {
     }
   };
 
-  if (!isCommandPaletteOpen) return null;
+  if (!isCommandPaletteOpen || pathname === '/login' || !currentUser) return null;
 
   return (
     <div

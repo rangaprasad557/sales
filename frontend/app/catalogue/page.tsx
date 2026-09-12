@@ -108,7 +108,7 @@ const SEED_CATALOGUE: CatalogueProduct[] = [
 ];
 
 export default function CataloguePage() {
-  const [products, setProducts] = useState<CatalogueProduct[]>(SEED_CATALOGUE);
+  const [products, setProducts] = useState<CatalogueProduct[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedUnit, setSelectedUnit] = useState<string>('ALL');
@@ -128,7 +128,7 @@ export default function CataloguePage() {
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // Fetch from backend API or fallback
+  // Fetch from backend API
   useEffect(() => {
     fetch('/api/products')
       .then((res) => {
@@ -136,7 +136,7 @@ export default function CataloguePage() {
         return res.json();
       })
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           const mapped = data.map((p: any) => ({
             id: p.id,
             name: p.name,
@@ -153,9 +153,7 @@ export default function CataloguePage() {
           setProducts(mapped);
         }
       })
-      .catch(() => {
-        // Fallback to seed catalogue
-      });
+      .catch(() => {});
   }, []);
 
   const categories = Array.from(new Set(products.map((p) => p.category)));
