@@ -6,6 +6,14 @@ export interface AppNotification {
   message: string;
 }
 
+export interface UserSession {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'salesperson' | 'auditor';
+  avatar?: string;
+}
+
 interface UIState {
   isCommandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
@@ -18,6 +26,20 @@ interface UIState {
   notifications: AppNotification[];
   addNotification: (type: AppNotification['type'], message: string) => void;
   removeNotification: (id: string) => void;
+  currentUser: UserSession | null;
+  login: (user: UserSession) => void;
+  logout: () => void;
+}
+
+// Helper to get stored user on client
+function getStoredUser(): UserSession | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('apex_user_session');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -45,4 +67,19 @@ export const useUIStore = create<UIState>((set) => ({
     set((state) => ({
       notifications: state.notifications.filter((n) => n.id !== id),
     })),
+  currentUser: getStoredUser(),
+  login: (user: UserSession) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('apex_user_session', JSON.stringify(user));
+      localStorage.setItem('apex_auth_token', `jwt-${user.role}-${Date.now()}`);
+    }
+    set({ currentUser: user });
+  },
+  logout: () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('apex_user_session');
+      localStorage.removeItem('apex_auth_token');
+    }
+    set({ currentUser: null });
+  },
 }));
