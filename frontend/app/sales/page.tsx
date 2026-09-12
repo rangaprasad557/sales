@@ -362,7 +362,7 @@ export default function SalesPOSPage() {
             POS Billing & Multi-Batch Allocation
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Search-driven billing screen with automated Lowest-Cost-First multi-lot split & manual override.
+            Catalogue-driven billing screen with automated Lowest-Cost-First multi-lot split & manual override.
           </p>
         </div>
 
