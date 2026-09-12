@@ -917,5 +917,76 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertEqual(schema_assertions, 12, "schema_verification.test.ts must contain exactly 12 test assertions")
         self.assertEqual(auth_assertions + schema_assertions, 28, "Total backend Jest test assertions must equal 28")
 
+    def test_e2e_16_pr003_master_data_modules(self):
+        """Automated verification of PR-003 Master Data modules (Customers, Suppliers, Categories) and tests."""
+        backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
+
+        # 1. Verify module directories and files exist
+        modules = {
+            "customers": ["customers.controller.ts", "customers.service.ts", "customers.module.ts"],
+            "suppliers": ["suppliers.controller.ts", "suppliers.service.ts", "suppliers.module.ts"],
+            "categories": ["categories.controller.ts", "categories.service.ts", "categories.module.ts"],
+        }
+        for mod_name, files in modules.items():
+            mod_dir = os.path.join(backend_dir, "src", "modules", mod_name)
+            self.assertTrue(os.path.isdir(mod_dir), f"{mod_name} module directory must exist")
+            for f in files:
+                self.assertTrue(os.path.isfile(os.path.join(mod_dir, f)), f"{mod_name}/{f} must exist")
+
+        # 2. Verify AppModule imports all 3 modules
+        app_module_file = os.path.join(backend_dir, "src", "app.module.ts")
+        with open(app_module_file, "r", encoding="utf-8") as f:
+            app_code = f.read()
+        self.assertIn("CustomersModule", app_code)
+        self.assertIn("SuppliersModule", app_code)
+        self.assertIn("CategoriesModule", app_code)
+
+        # 3. Verify Customers route contracts
+        with open(os.path.join(backend_dir, "src", "modules", "customers", "customers.controller.ts"), "r", encoding="utf-8") as f:
+            cust_code = f.read()
+        self.assertIn("@Get()", cust_code)
+        self.assertIn("@Get(':id')", cust_code)
+        self.assertIn("@Post()", cust_code)
+        self.assertIn("@Put(':id')", cust_code)
+        self.assertIn("@Delete(':id')", cust_code)
+
+        # 4. Verify Suppliers route contracts
+        with open(os.path.join(backend_dir, "src", "modules", "suppliers", "suppliers.controller.ts"), "r", encoding="utf-8") as f:
+            sup_code = f.read()
+        self.assertIn("@Get()", sup_code)
+        self.assertIn("@Get(':id')", sup_code)
+        self.assertIn("@Post()", sup_code)
+        self.assertIn("@Put(':id')", sup_code)
+        self.assertIn("@Delete(':id')", sup_code)
+
+        # 5. Verify Categories route contracts
+        with open(os.path.join(backend_dir, "src", "modules", "categories", "categories.controller.ts"), "r", encoding="utf-8") as f:
+            cat_code = f.read()
+        self.assertIn("@Get()", cat_code)
+        self.assertIn("@Get('tree')", cat_code)
+        self.assertIn("@Get(':id')", cat_code)
+        self.assertIn("@Post()", cat_code)
+        self.assertIn("@Put(':id')", cat_code)
+        self.assertIn("@Delete(':id')", cat_code)
+
+        # 6. Verify Jest test assertion counts (19 in master_data.test.ts, 16 in auth.test.ts, 12 in schema_verification.test.ts = 47 total)
+        master_test_file = os.path.join(backend_dir, "tests", "master_data.test.ts")
+        self.assertTrue(os.path.isfile(master_test_file), "master_data.test.ts must exist")
+        with open(master_test_file, "r", encoding="utf-8") as f:
+            master_code = f.read()
+        master_assertions = master_code.count("test(")
+        self.assertEqual(master_assertions, 19, "master_data.test.ts must contain exactly 19 test assertions")
+
+        auth_test_file = os.path.join(backend_dir, "tests", "auth.test.ts")
+        with open(auth_test_file, "r", encoding="utf-8") as f:
+            auth_assertions = f.read().count("test(")
+
+        schema_test_file = os.path.join(backend_dir, "tests", "schema_verification.test.ts")
+        with open(schema_test_file, "r", encoding="utf-8") as f:
+            schema_assertions = f.read().count("test(")
+
+        total_jest = master_assertions + auth_assertions + schema_assertions
+        self.assertEqual(total_jest, 47, f"Total Jest assertions across 3 suites must equal 47, got {total_jest}")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
