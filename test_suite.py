@@ -855,5 +855,67 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         test_count = test_code.count("test(")
         self.assertEqual(test_count, 12, "schema_verification.test.ts must contain exactly 12 test assertions")
 
+    def test_e2e_15_pr002_google_sso_and_user_management(self):
+        """Automated verification of PR-002 Google SSO Auth & User Management modules and tests."""
+        backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
+
+        # 1. Verify Auth and Users modules files exist
+        auth_dir = os.path.join(backend_dir, "src", "modules", "auth")
+        self.assertTrue(os.path.isdir(auth_dir), "auth module directory must exist")
+        expected_auth_files = [
+            "auth.controller.ts", "auth.service.ts", "auth.module.ts",
+            "jwt.strategy.ts", "jwt-auth.guard.ts", "roles.decorator.ts", "roles.guard.ts"
+        ]
+        for afile in expected_auth_files:
+            self.assertTrue(os.path.isfile(os.path.join(auth_dir, afile)), f"Auth file {afile} must exist")
+
+        users_dir = os.path.join(backend_dir, "src", "modules", "users")
+        self.assertTrue(os.path.isdir(users_dir), "users module directory must exist")
+        expected_users_files = ["users.controller.ts", "users.service.ts", "users.module.ts"]
+        for ufile in expected_users_files:
+            self.assertTrue(os.path.isfile(os.path.join(users_dir, ufile)), f"Users file {ufile} must exist")
+
+        # 2. Verify AppModule imports AuthModule and UsersModule
+        app_module_file = os.path.join(backend_dir, "src", "app.module.ts")
+        self.assertTrue(os.path.isfile(app_module_file))
+        with open(app_module_file, "r", encoding="utf-8") as f:
+            app_module_code = f.read()
+        self.assertIn("AuthModule", app_module_code)
+        self.assertIn("UsersModule", app_module_code)
+
+        # 3. Verify API route contracts in AuthController
+        auth_ctrl_file = os.path.join(auth_dir, "auth.controller.ts")
+        with open(auth_ctrl_file, "r", encoding="utf-8") as f:
+            auth_ctrl_code = f.read()
+        self.assertIn("@Post('google')", auth_ctrl_code)
+        self.assertIn("@Post('dev-login')", auth_ctrl_code)
+        self.assertIn("@Get('me')", auth_ctrl_code)
+        self.assertIn("@Post('logout')", auth_ctrl_code)
+        self.assertIn("JwtAuthGuard", auth_ctrl_code)
+
+        # 4. Verify API route contracts in UsersController
+        users_ctrl_file = os.path.join(users_dir, "users.controller.ts")
+        with open(users_ctrl_file, "r", encoding="utf-8") as f:
+            users_ctrl_code = f.read()
+        self.assertIn("@Get()", users_ctrl_code)
+        self.assertIn("@Patch(':id/role')", users_ctrl_code)
+        self.assertIn("@Roles('admin')", users_ctrl_code)
+        self.assertIn("RolesGuard", users_ctrl_code)
+
+        # 5. Verify Jest test assertion counts (16 in auth.test.ts + 12 in schema_verification.test.ts = 28 total)
+        auth_test_file = os.path.join(backend_dir, "tests", "auth.test.ts")
+        self.assertTrue(os.path.isfile(auth_test_file), "auth.test.ts must exist")
+        with open(auth_test_file, "r", encoding="utf-8") as f:
+            auth_test_code = f.read()
+        auth_assertions = auth_test_code.count("test(")
+        self.assertEqual(auth_assertions, 16, "auth.test.ts must contain exactly 16 test assertions")
+
+        schema_test_file = os.path.join(backend_dir, "tests", "schema_verification.test.ts")
+        with open(schema_test_file, "r", encoding="utf-8") as f:
+            schema_test_code = f.read()
+        schema_assertions = schema_test_code.count("test(")
+        self.assertEqual(schema_assertions, 12, "schema_verification.test.ts must contain exactly 12 test assertions")
+        self.assertEqual(auth_assertions + schema_assertions, 28, "Total backend Jest test assertions must equal 28")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
