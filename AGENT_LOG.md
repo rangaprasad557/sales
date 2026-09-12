@@ -332,3 +332,30 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED (READY FOR MERGE)** (0 Major, 0 Blocker).
 - **Outcome**: PR-006 satisfies all repository rules and quality gates with unanimous approval.
 
+---
+
+## 14. PR-007: Granular Profit & Sales Analytics Engine
+
+### Context & Implementation Scope
+- **PR Document**: [`docs/prs/PR-007-analytics-engine.md`](file:///c:/Build_With_AI_Google/docs/prs/PR-007-analytics-engine.md)
+- **Branch**: `feature/pr-007-analytics-engine` (Merged to `master`)
+- **Scope Delivered**:
+  1. Analytics Module ([`backend/src/modules/analytics/`](file:///c:/Build_With_AI_Google/backend/src/modules/analytics/)): Financial analytics engine computing store-wide Revenue, COGS, Net Profit, and margin percentages.
+  2. Join Row Multiplication Elimination: Computes summary metrics directly from line items mapped to unique sales, ensuring multi-item orders never multiply revenue or order counts.
+  3. Dynamic Granularity Rollups: Aggregation across `day` (`YYYY-MM-DD`), `week` (`YYYY-Www` ISO 8601), `month` (`YYYY-MM`), and `year` (`YYYY`).
+  4. Per-Product Profitability Breakdown: Sales volume, total revenue, COGS, profit, gross margin %, average sale price, and average acquisition cost per catalogue item within the queried date boundary.
+  5. Procurement Channel Attribution: Analyzes capital spent, procured units, and remaining stock on hand across procurement sources (*Wholesale Shop, Quick Commerce, E-Commerce, Other*).
+  6. Dual-Naming Compatibility: Endpoints serialize both camelCase and snake_case properties for cross-platform compatibility.
+  7. Decoupled REST Endpoint: `GET /api/analytics` supporting `granularity`, `from_date`, and `to_date`.
+  8. Automated test suite [`backend/tests/analytics_engine.test.ts`](file:///c:/Build_With_AI_Google/backend/tests/analytics_engine.test.ts) covering 8 test assertions.
+
+### Automated Testing Evidence
+- **Jest TypeScript Test Suites**: 94/94 passed across 7 suites (100% pass rate).
+- **Python Regression Suite**: 32/32 passed (100% pass rate).
+- **Total Tests**: 126 automated tests executed across stacks, 0 failures.
+
+### Multi-Agent Review Verdicts
+- **Functional Reviewer** (`5dc2d49c-f8ab-4fe5-8f40-3880f977e79d`): ✅ **APPROVED** (0 Major, 0 Blocker).
+- **E2E Integration Reviewer** (`296d8521-9602-4a39-ab9b-c01141d9b08b`): ✅ **APPROVED** (0 Major, 0 Blocker).
+- **Critic Agent** (`070d6f88-ae99-4008-bb89-706a9fc1adb3`): 🏆 **APPROVED (READY FOR MERGE)** (0 Major, 0 Blocker).
+- **Outcome**: PR-007 satisfies all repository rules and quality gates with unanimous approval.
