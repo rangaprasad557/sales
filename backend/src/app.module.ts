@@ -1,6 +1,9 @@
 import { Module, Controller, Get } from '@nestjs/common';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { CustomersModule } from './modules/customers/customers.module';
+import { SuppliersModule } from './modules/suppliers/suppliers.module';
+import { CategoriesModule } from './modules/categories/categories.module';
 import { checkDatabaseConnection } from './db/connection';
 
 @Controller('health')
@@ -18,7 +21,13 @@ export class HealthController {
 }
 
 @Module({
-  imports: [AuthModule, UsersModule],
+  imports: [
+    AuthModule,
+    UsersModule,
+    CustomersModule,
+    SuppliersModule,
+    CategoriesModule,
+  ],
   controllers: [HealthController],
 })
 export class AppModule {}
