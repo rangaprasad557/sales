@@ -1,20 +1,13 @@
 # Google Cloud Platform (GCP) Deployment Guide: Cloud Run
-
-This repository is fully containerized and production-ready for automated deployment to **Google Cloud Run**.
+**Target GCP Project ID**: `retail-sales-508409`  
+**GitHub Repository**: `https://github.com/rangaprasad557/sales.git`
 
 ---
 
-## 1. How to Find Your GCP Project ID
+## 1. Direct 1-Click Deployment to Cloud Run (Recommended)
 
-Since you already created a project when setting up the Google OAuth Client ID, you can find the **Project ID** in under 10 seconds:
-
-1. Open the [Google Cloud Console](https://console.cloud.google.com).
-2. Look at the top blue navigation bar (right next to the "Google Cloud" logo).
-3. Click the **Project dropdown selector**.
-4. In the modal that opens, you will see two columns:
-   - **Project Name** (e.g., *Retail Sales*)
-   - **Project ID** (e.g., *retail-sales-442109* or *smiling-matrix-381902*)
-5. Copy the exact string in the **Project ID** column.
+Click this direct Google Cloud Console link to deploy:  
+👉 **[Open Cloud Run Create Service for `retail-sales-508409`](https://console.cloud.google.com/run/create?project=retail-sales-508409)**
 
 ---
 
