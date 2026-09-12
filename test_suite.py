@@ -532,6 +532,23 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         except urllib.error.HTTPError as e:
             return e.code, dict(e.headers), json.loads(e.read().decode("utf-8"))
 
+    def _http_put(self, path, payload):
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(f"{self.base_url}{path}", data=data, headers={"Content-Type": "application/json"}, method="PUT")
+        try:
+            with urllib.request.urlopen(req) as resp:
+                return resp.status, dict(resp.headers), json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            return e.code, dict(e.headers), json.loads(e.read().decode("utf-8"))
+
+    def _http_delete(self, path):
+        req = urllib.request.Request(f"{self.base_url}{path}", method="DELETE")
+        try:
+            with urllib.request.urlopen(req) as resp:
+                return resp.status, dict(resp.headers), json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            return e.code, dict(e.headers), json.loads(e.read().decode("utf-8"))
+
     def test_e2e_01_static_index_html(self):
         status, headers, body = self._http_get("/")
         self.assertEqual(status, 200)
@@ -1816,6 +1833,269 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
             test_content = f.read()
         it_count = test_content.count("it(")
         self.assertEqual(it_count, 12, f"real_google_oauth_gis.test.ts must contain 12 assertions, got {it_count}")
+
+    def test_e2e_28_master_data_crud_and_editing(self):
+        """
+        PR-015: Master Data Editing, Persistence & Cross-Page Integration
+        Verifies:
+        1. Products full CRUD (POST create, GET list, PUT update, DELETE remove)
+        2. Customers full CRUD (POST with creditLimit/notes, GET, PUT update, DELETE)
+        3. Suppliers full CRUD (POST with source/terms, GET, PUT update, DELETE)
+        4. Categories full CRUD (POST, GET, PUT update, DELETE)
+        5. Cross-page Category discovery: created category used in product catalogue
+        6. Negative tests: invalid ID 400 rejection and nonexistent ID 404 handling
+        7. Frontend verification: PR-015 test file master_data_editing.test.ts exists
+        """
+        # --- 1. Products CRUD ---
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        frontend_dir = os.path.join(root_dir, "frontend")
+        # Create product
+        prod_payload = {
+            "name": "Single Origin Organic Cardamom 100g",
+            "sku": "SPICE-CRD-100G",
+            "category": "Organic Spices",
+            "unit": "pack",
+            "min_stock": 10
+        }
+        status, _, res = self._http_post("/api/products", prod_payload)
+        self.assertEqual(status, 201)
+        self.assertTrue(res.get("success"))
+        prod_id = res.get("id")
+        self.assertIsNotNone(prod_id)
+
+        # Verify created in GET list
+        status, _, body = self._http_get("/api/products")
+        self.assertEqual(status, 200)
+        prods = json.loads(body).get("products", [])
+        created_prod = next((p for p in prods if p["id"] == prod_id), None)
+        self.assertIsNotNone(created_prod)
+        self.assertEqual(created_prod["name"], "Single Origin Organic Cardamom 100g")
+        self.assertEqual(created_prod["sku"], "SPICE-CRD-100G")
+
+        # Update product via PUT
+        update_payload = {
+            "name": "Single Origin Premium Green Cardamom 100g",
+            "sku": "SPICE-CRD-100G",
+            "category": "Gourmet Spices",
+            "unit": "pack",
+            "min_stock": 15
+        }
+        status, _, res = self._http_put(f"/api/products/{prod_id}", update_payload)
+        self.assertEqual(status, 200)
+        self.assertTrue(res.get("success"))
+
+        # Verify updated data in GET
+        status, _, body = self._http_get("/api/products")
+        prods = json.loads(body).get("products", [])
+        updated_prod = next((p for p in prods if p["id"] == prod_id), None)
+        self.assertIsNotNone(updated_prod)
+        self.assertEqual(updated_prod["name"], "Single Origin Premium Green Cardamom 100g")
+        self.assertEqual(updated_prod["category"], "Gourmet Spices")
+        self.assertEqual(updated_prod["min_stock"], 15)
+
+        # Delete product via DELETE
+        status, _, res = self._http_delete(f"/api/products/{prod_id}")
+        self.assertEqual(status, 200)
+        self.assertTrue(res.get("success"))
+
+        # Verify deletion
+        status, _, body = self._http_get("/api/products")
+        prods = json.loads(body).get("products", [])
+        self.assertIsNone(next((p for p in prods if p["id"] == prod_id), None))
+
+        # --- 2. Customers CRUD ---
+        cust_payload = {
+            "name": "Zenith Wellness Club",
+            "phone": "9811223344",
+            "email": "purchasing@zenithwellness.com",
+            "address": "45 Boulevard Heights, Suite 12",
+            "creditLimit": 18000.0,
+            "notes": "Premium fitness accounts. Net 30."
+        }
+        status, _, res = self._http_post("/api/customers", cust_payload)
+        self.assertEqual(status, 201)
+        self.assertTrue(res.get("success"))
+        cust_id = res.get("id")
+        self.assertIsNotNone(cust_id)
+
+        # Verify in GET list
+        status, _, body = self._http_get("/api/customers")
+        self.assertEqual(status, 200)
+        custs = json.loads(body).get("customers", [])
+        created_cust = next((c for c in custs if c["id"] == cust_id), None)
+        self.assertIsNotNone(created_cust)
+        self.assertEqual(created_cust["name"], "Zenith Wellness Club")
+        self.assertEqual(created_cust["phone"], "9811223344")
+
+        # Update customer via PUT
+        update_cust = {
+            "name": "Zenith Wellness & Spa Group",
+            "phone": "9811223355",
+            "email": "finance@zenithwellness.com",
+            "address": "50 Boulevard Heights, Level 2",
+            "creditLimit": 25000.0,
+            "notes": "Approved credit expansion to Net 45."
+        }
+        status, _, res = self._http_put(f"/api/customers/{cust_id}", update_cust)
+        self.assertEqual(status, 200)
+        self.assertTrue(res.get("success"))
+
+        # Verify update in GET
+        status, _, body = self._http_get("/api/customers")
+        custs = json.loads(body).get("customers", [])
+        updated_c = next((c for c in custs if c["id"] == cust_id), None)
+        self.assertIsNotNone(updated_c)
+        self.assertEqual(updated_c["name"], "Zenith Wellness & Spa Group")
+        self.assertEqual(updated_c["email"], "finance@zenithwellness.com")
+
+        # Delete customer
+        status, _, res = self._http_delete(f"/api/customers/{cust_id}")
+        self.assertEqual(status, 200)
+
+        # --- 3. Suppliers CRUD ---
+        sup_payload = {
+            "name": "Malabar Heritage Plantation",
+            "contact_person": "Joseph Mathew",
+            "phone": "9447012345",
+            "email": "sales@malabarheritage.in",
+            "address": "Plantation Estate, Wayanad",
+            "source": "Wholesale Shop",
+            "payment_terms": "Net 15 Days",
+            "notes": "Direct estate spice producer"
+        }
+        status, _, res = self._http_post("/api/suppliers", sup_payload)
+        self.assertEqual(status, 201)
+        self.assertTrue(res.get("success"))
+        sup_id = res.get("id")
+        self.assertIsNotNone(sup_id)
+
+        # Verify in GET
+        status, _, body = self._http_get("/api/suppliers")
+        self.assertEqual(status, 200)
+        sups = json.loads(body).get("suppliers", [])
+        created_sup = next((s for s in sups if s["id"] == sup_id), None)
+        self.assertIsNotNone(created_sup)
+        self.assertEqual(created_sup["name"], "Malabar Heritage Plantation")
+        self.assertEqual(created_sup["contact_person"], "Joseph Mathew")
+
+        # Update supplier via PUT
+        update_sup = {
+            "name": "Malabar Heritage Agro Organics Ltd",
+            "contact_person": "Joseph Mathew",
+            "phone": "9447012345",
+            "email": "export@malabarheritage.in",
+            "address": "Plantation Estate, Wayanad",
+            "source": "E-Commerce",
+            "payment_terms": "Net 30 Days",
+            "notes": "Export grade certification active"
+        }
+        status, _, res = self._http_put(f"/api/suppliers/{sup_id}", update_sup)
+        self.assertEqual(status, 200)
+        self.assertTrue(res.get("success"))
+
+        # Verify update in GET
+        status, _, body = self._http_get("/api/suppliers")
+        sups = json.loads(body).get("suppliers", [])
+        updated_s = next((s for s in sups if s["id"] == sup_id), None)
+        self.assertIsNotNone(updated_s)
+        self.assertEqual(updated_s["name"], "Malabar Heritage Agro Organics Ltd")
+        self.assertEqual(updated_s["source"], "E-Commerce")
+        self.assertEqual(updated_s["payment_terms"], "Net 30 Days")
+
+        # Delete supplier
+        status, _, res = self._http_delete(f"/api/suppliers/{sup_id}")
+        self.assertEqual(status, 200)
+
+        # --- 4. Categories CRUD & Cross-Page Integration ---
+        cat_payload = {
+            "name": "Artisan Spice Blends",
+            "parent_id": None,
+            "icon": "SPICES",
+            "description": "Hand-milled small batch spice powders"
+        }
+        status, _, res = self._http_post("/api/categories", cat_payload)
+        self.assertEqual(status, 201)
+        self.assertTrue(res.get("success"))
+        cat_id = res.get("id")
+        self.assertIsNotNone(cat_id)
+
+        # Verify in GET
+        status, _, body = self._http_get("/api/categories")
+        self.assertEqual(status, 200)
+        cats = json.loads(body).get("categories", [])
+        created_cat = next((c for c in cats if c["id"] == cat_id), None)
+        self.assertIsNotNone(created_cat)
+        self.assertEqual(created_cat["name"], "Artisan Spice Blends")
+
+        # Update category via PUT
+        update_cat = {
+            "name": "Artisan & Heritage Spice Blends",
+            "parent_id": None,
+            "icon": "SPICE-HERITAGE",
+            "description": "Certified heritage single-origin blends"
+        }
+        status, _, res = self._http_put(f"/api/categories/{cat_id}", update_cat)
+        self.assertEqual(status, 200)
+        self.assertTrue(res.get("success"))
+
+        # Verify category updated
+        status, _, body = self._http_get("/api/categories")
+        cats = json.loads(body).get("categories", [])
+        updated_cat = next((c for c in cats if c["id"] == cat_id), None)
+        self.assertIsNotNone(updated_cat)
+        self.assertEqual(updated_cat["name"], "Artisan & Heritage Spice Blends")
+
+        # Cross-page integration: create product using newly created Category!
+        integrated_prod = {
+            "name": "Garam Masala Special Reserve 200g",
+            "sku": "SPICE-GM-200G",
+            "category": "Artisan & Heritage Spice Blends",
+            "unit": "pack",
+            "min_stock": 5
+        }
+        status, _, res = self._http_post("/api/products", integrated_prod)
+        self.assertEqual(status, 201)
+        p_id = res.get("id")
+
+        # Verify product is linked with the category
+        status, _, body = self._http_get("/api/products")
+        prods = json.loads(body).get("products", [])
+        ip = next((p for p in prods if p["id"] == p_id), None)
+        self.assertIsNotNone(ip)
+        self.assertEqual(ip["category"], "Artisan & Heritage Spice Blends")
+
+        # Cleanup
+        self._http_delete(f"/api/products/{p_id}")
+        self._http_delete(f"/api/categories/{cat_id}")
+
+        # --- 5. Negative / Boundary Tests ---
+        # Invalid IDs return 400
+        status, _, _ = self._http_put("/api/products/bad-id", {"name": "X", "sku": "Y"})
+        self.assertEqual(status, 400)
+        status, _, _ = self._http_put("/api/customers/bad-id", {"name": "X"})
+        self.assertEqual(status, 400)
+        status, _, _ = self._http_put("/api/suppliers/bad-id", {"name": "X"})
+        self.assertEqual(status, 400)
+        status, _, _ = self._http_put("/api/categories/bad-id", {"name": "X"})
+        self.assertEqual(status, 400)
+
+        # Nonexistent IDs return 404
+        status, _, _ = self._http_put("/api/products/999999", {"name": "X", "sku": "Y"})
+        self.assertEqual(status, 404)
+        status, _, _ = self._http_put("/api/customers/999999", {"name": "X"})
+        self.assertEqual(status, 404)
+        status, _, _ = self._http_put("/api/suppliers/999999", {"name": "X"})
+        self.assertEqual(status, 404)
+        status, _, _ = self._http_put("/api/categories/999999", {"name": "X"})
+        self.assertEqual(status, 404)
+
+        # --- 6. Verify PR-015 frontend test suite exists ---
+        pr015_test_file = os.path.join(frontend_dir, "tests", "master_data_editing.test.ts")
+        self.assertTrue(os.path.isfile(pr015_test_file), "master_data_editing.test.ts must exist")
+        with open(pr015_test_file, "r", encoding="utf-8") as f:
+            test_content = f.read()
+        it_count = test_content.count("it(")
+        self.assertGreaterEqual(it_count, 8, f"master_data_editing.test.ts must contain >= 8 assertions, got {it_count}")
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

@@ -14,6 +14,8 @@ import {
   AlertCircle,
   LayoutGrid,
   ListTree,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { Drawer } from '../../components/Drawer';
 import { CategoryTree, CategoryNode } from '../../components/CategoryTree';
@@ -112,22 +114,23 @@ export default function CategoriesPage() {
   const allFlatCategories = flattenCategories(categoryTree);
 
   // Fetch from backend API
-  useEffect(() => {
+  const fetchCategories = () => {
     fetch('/api/categories')
       .then((res) => {
         if (!res.ok) throw new Error('API unavailable');
         return res.json();
       })
       .then((data) => {
-        if (Array.isArray(data)) {
+        const list = data.categories || (Array.isArray(data) ? data : []);
+        if (list.length > 0) {
           const idMap: Record<number, CategoryNode> = {};
           const roots: CategoryNode[] = [];
 
-          data.forEach((c: any) => {
+          list.forEach((c: any) => {
             idMap[c.id] = {
               id: c.id,
               name: c.name,
-              code: c.code || `CAT-${c.id}`,
+              code: c.code || c.icon || `CAT-${c.id}`,
               description: c.description || '',
               parentId: c.parent_id || c.parentId || null,
               productCount: c.product_count || c.productCount || 0,
@@ -135,7 +138,7 @@ export default function CategoriesPage() {
             };
           });
 
-          data.forEach((c: any) => {
+          list.forEach((c: any) => {
             const node = idMap[c.id];
             const pId = c.parent_id || c.parentId;
             if (pId && idMap[pId]) {
@@ -149,14 +152,33 @@ export default function CategoriesPage() {
         }
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchCategories();
   }, []);
 
+  const [editingCategory, setEditingCategory] = useState<CategoryNode | null>(null);
+
   const openCreateDrawer = (parent?: CategoryNode) => {
+    setEditingCategory(null);
     setFormData({
       name: '',
       code: '',
       parentId: parent ? String(parent.id) : '',
       description: '',
+    });
+    setFormErrors({});
+    setDrawerOpen(true);
+  };
+
+  const openEditDrawer = (cat: CategoryNode) => {
+    setEditingCategory(cat);
+    setFormData({
+      name: cat.name,
+      code: cat.code,
+      parentId: cat.parentId ? String(cat.parentId) : '',
+      description: cat.description || '',
     });
     setFormErrors({});
     setDrawerOpen(true);
@@ -174,48 +196,66 @@ export default function CategoriesPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     const parentIdNum = formData.parentId ? parseInt(formData.parentId, 10) : null;
-    const newNode: CategoryNode = {
-      id: Date.now(),
+    const payload = {
       name: formData.name.trim(),
-      code: formData.code.trim().toUpperCase(),
+      icon: formData.code.trim().toUpperCase(),
+      parent_id: parentIdNum,
       description: formData.description.trim(),
-      parentId: parentIdNum,
-      productCount: 0,
-      children: [],
     };
 
-    if (parentIdNum) {
-      // Add as child
-      const insertChild = (nodes: CategoryNode[]): CategoryNode[] => {
-        return nodes.map((node) => {
-          if (node.id === parentIdNum) {
-            return {
-              ...node,
-              children: [...(node.children || []), newNode],
-            };
-          }
-          if (node.children) {
-            return {
-              ...node,
-              children: insertChild(node.children),
-            };
-          }
-          return node;
+    try {
+      if (editingCategory) {
+        // UPDATE existing category
+        const res = await fetch(`/api/categories/${editingCategory.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
         });
-      };
-      setCategoryTree(insertChild(categoryTree));
-    } else {
-      // Add as root
-      setCategoryTree([...categoryTree, newNode]);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: 'Update failed' }));
+          throw new Error(errData.error || 'Update failed');
+        }
+        addNotification('success', `Category "${formData.name.trim()}" updated successfully.`);
+      } else {
+        // CREATE new category
+        const res = await fetch('/api/categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: 'Create failed' }));
+          throw new Error(errData.error || 'Create failed');
+        }
+        addNotification('success', `Category "${formData.name.trim()}" created successfully.`);
+      }
+      setDrawerOpen(false);
+      setEditingCategory(null);
+      fetchCategories();
+    } catch (err: any) {
+      addNotification('error', err.message || 'Operation failed');
     }
+  };
 
-    addNotification('success', `Category "${formData.name.trim()}" created successfully.`);
-    setDrawerOpen(false);
+  const handleDelete = async (cat: CategoryNode) => {
+    if (!confirm(`Delete category "${cat.name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/categories/${cat.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Delete failed' }));
+        throw new Error(errData.error || 'Delete failed');
+      }
+      addNotification('success', `Category "${cat.name}" deleted.`);
+      if (selectedCategory?.id === cat.id) setSelectedCategory(null);
+      fetchCategories();
+    } catch (err: any) {
+      addNotification('error', err.message || 'Delete failed');
+    }
   };
 
   // Metrics
@@ -473,7 +513,15 @@ export default function CategoriesPage() {
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => openEditDrawer(selectedCategory)}
+                  className="w-full py-2 px-3 rounded-xl bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-blue-500/20"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>Edit {selectedCategory.name}</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => openCreateDrawer(selectedCategory)}
@@ -481,6 +529,14 @@ export default function CategoriesPage() {
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Subcategory to {selectedCategory.name}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(selectedCategory)}
+                  className="w-full py-2 px-3 rounded-xl bg-destructive/10 text-destructive hover:bg-destructive/20 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-destructive/20"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Category</span>
                 </button>
               </div>
             </div>
@@ -500,8 +556,8 @@ export default function CategoriesPage() {
       <Drawer
         isOpen={isDrawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title={formData.parentId ? 'Add Subcategory' : 'Add Root Category'}
-        description="Define category nomenclature, taxonomy hierarchy, and description."
+        title={editingCategory ? `Edit Category: ${editingCategory.name}` : formData.parentId ? 'Add Subcategory' : 'Add Root Category'}
+        description={editingCategory ? 'Modify category details and taxonomy hierarchy.' : 'Define category nomenclature, taxonomy hierarchy, and description.'}
         footer={
           <>
             <button

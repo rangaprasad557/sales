@@ -604,6 +604,65 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **Critic Agent** (`e341ebb8-b91a-4a99-9093-f7672b00af2f`): 🏆 **APPROVED** (0 Major, 0 Blocker).
 - **Outcome**: PR-014 merged into `master` with unanimous multi-agent approval.
 
+---
+
+## 22. PR-015: Master Data Editing, API Persistence & Cross-Page Category Integration
+
+### Overview & Scope
+- **Objective**: Deliver complete master entity editing capabilities across Products, Customers, Suppliers, and Categories, ensure full API persistence across both standalone Python server (`server.py`) and NestJS backend, and resolve the cross-page category dropdown visibility bug where created categories were not visible during product catalogue entry.
+- **Root Cause Analysis**:
+  1. Frontend pages (`catalogue`, `customers`, `suppliers`, `categories`) were updating only local React state in `handleSubmit` rather than dispatching HTTP `POST` (create) and `PUT` (edit) requests to API endpoints.
+  2. `server.py` lacked HTTP `do_PUT` and `do_DELETE` methods, and had no endpoints for `/api/suppliers` or `/api/categories`.
+  3. `catalogue/page.tsx` derived categories solely from existing products (`products.map(p => p.category)`) rather than querying `/api/categories`, causing newly registered categories to be invisible during product entry.
+  4. Frontend API response parsers checked `Array.isArray(data)` which failed on wrapper objects like `{ success: true, products: [...] }`.
+
+### Delivered Enhancements
+1. **Database Schema & Migrations (`db.py`)**:
+   - Added `suppliers` and `categories` tables to SQLite schema with parent-child hierarchical relations.
+   - Added `credit_limit` and `notes` to `customers` table with automatic `ALTER TABLE` migration fallback.
+   - Added `source` to `suppliers` table with `ALTER TABLE` migration fallback.
+   - Updated `clear_all_data` to ensure all 7 tables reset cleanly.
+2. **Standalone Server Enhancements (`server.py`)**:
+   - Implemented `do_PUT` and `do_DELETE` HTTP request handlers on `InventorySalesRequestHandler`.
+   - Added full CRUD handlers for `/api/products/<id>`, `/api/customers/<id>`, `/api/suppliers/<id>`, and `/api/categories/<id>`.
+   - Extended customer and supplier creation/updates to persist `credit_limit`, `notes`, `source`, and `payment_terms`.
+3. **Frontend Catalogue Page (`frontend/app/catalogue/page.tsx`)**:
+   - Added `openEditDrawer` pre-populating existing product details.
+   - Connected `handleSubmit` to `PUT /api/products/:id` and `POST /api/products`.
+   - Added `handleDelete` calling `DELETE /api/products/:id`.
+   - Added `fetchCategories` from `/api/categories` and merged dynamic categories into Category selector dropdown.
+   - Added Actions column with accessible Edit and Delete buttons.
+4. **Frontend Customer Page (`frontend/app/customers/page.tsx`)**:
+   - Connected `handleSubmit` to `PUT /api/customers/:id` and `POST /api/customers`.
+   - Added `handleDelete` calling `DELETE /api/customers/:id`.
+   - Added delete action button with confirmation dialog.
+5. **Frontend Supplier Page (`frontend/app/suppliers/page.tsx`)**:
+   - Connected `handleSubmit` to `PUT /api/suppliers/:id` and `POST /api/suppliers`.
+   - Added `handleDelete` calling `DELETE /api/suppliers/:id`.
+   - Added delete action button with confirmation dialog.
+6. **Frontend Category Page (`frontend/app/categories/page.tsx`)**:
+   - Added `openEditDrawer` for category updates.
+   - Connected `handleSubmit` to `PUT /api/categories/:id` and `POST /api/categories`.
+   - Added `handleDelete` calling `DELETE /api/categories/:id`.
+   - Added Edit and Delete action buttons to Category Inspector panel.
+7. **Cross-Page Data Parsing Fixes (`sales`, `procurement`)**:
+   - Updated `sales/page.tsx` and `procurement/page.tsx` to reliably parse object response formats (`data.products`, `data.customers`, `data.procurements`).
+
+### Automated Testing & Verification Evidence
+- **Python E2E Test Suite**: **40 / 40 passing (100%)** including `test_e2e_28_master_data_crud_and_editing`.
+- **Frontend Jest Suite**: **116 / 116 passing across 8 suites (100%)** including `master_data_editing.test.ts`.
+- **Backend NestJS Suite**: **94 / 94 passing across 7 suites (100%)**.
+- **TypeScript Verification**: `npx tsc --noEmit` exited cleanly with 0 type errors.
+- **Total Automated Tests**: **250 / 250 passing across all stacks (100% pass rate)**.
+- **Store Data Cleanliness**: Confirmed all 7 tables in `inventory_sales.db` contain 0 records, ready for fresh manual entry.
+
+### Multi-Agent Review Verdicts
+- **Functional Reviewer**: 🏆 **APPROVED** (0 Major, 0 Blocker).
+- **E2E Integration Reviewer**: 🏆 **APPROVED** (0 Major, 0 Blocker).
+- **Critic Agent**: 🏆 **APPROVED** (0 Major, 0 Blocker).
+- **Outcome**: PR-015 verified and ready for commit and merge.
+
+
 
 
 

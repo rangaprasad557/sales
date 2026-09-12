@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Building,
+  Trash2,
 } from 'lucide-react';
 import { Drawer } from '../../components/Drawer';
 import { useUIStore } from '../../store/useUIStore';
@@ -87,27 +88,30 @@ export default function CustomersPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Fetch from API
-  useEffect(() => {
+  const fetchCustomers = () => {
     fetch('/api/customers')
       .then((res) => {
         if (!res.ok) throw new Error('API unavailable');
         return res.json();
       })
       .then((data) => {
-        if (Array.isArray(data)) {
-          const mapped = data.map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            email: c.email || '',
-            phone: c.phone || '',
-            address: c.address || '',
-            creditLimit: parseFloat(c.credit_limit || c.creditLimit || '0'),
-            notes: c.notes || '',
-          }));
-          setCustomers(mapped);
-        }
+        const list = data.customers || (Array.isArray(data) ? data : []);
+        const mapped = list.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          email: c.email || '',
+          phone: c.phone || '',
+          address: c.address || '',
+          creditLimit: parseFloat(c.credit_limit || c.creditLimit || '0'),
+          notes: c.notes || '',
+        }));
+        setCustomers(mapped);
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchCustomers();
   }, []);
 
   const filteredCustomers = customers.filter((c) => {
@@ -165,45 +169,68 @@ export default function CustomersPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     const creditLimitVal = parseFloat(formData.creditLimit);
+    const payload = {
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      phone: formData.phone.trim(),
+      address: formData.address.trim(),
+      creditLimit: creditLimitVal,
+      notes: formData.notes.trim(),
+    };
 
-    if (editingCustomer) {
-      // Update existing
-      const updated = customers.map((c) =>
-        c.id === editingCustomer.id
-          ? {
-              ...c,
-              name: formData.name.trim(),
-              email: formData.email.trim(),
-              phone: formData.phone.trim(),
-              address: formData.address.trim(),
-              creditLimit: creditLimitVal,
-              notes: formData.notes.trim(),
-            }
-          : c
-      );
-      setCustomers(updated);
-      addNotification('success', `Customer "${formData.name.trim()}" updated successfully.`);
-    } else {
-      // Create new
-      const newCustomer: Customer = {
-        id: Date.now(),
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        phone: formData.phone.trim(),
-        address: formData.address.trim(),
-        creditLimit: creditLimitVal,
-        notes: formData.notes.trim(),
-      };
-      setCustomers([newCustomer, ...customers]);
-      addNotification('success', `Customer "${formData.name.trim()}" created successfully.`);
+    try {
+      if (editingCustomer) {
+        // Update existing customer via PUT
+        const res = await fetch(`/api/customers/${editingCustomer.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: 'Update failed' }));
+          throw new Error(errData.error || 'Update failed');
+        }
+        addNotification('success', `Customer "${formData.name.trim()}" updated successfully.`);
+      } else {
+        // Create new customer via POST
+        const res = await fetch('/api/customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: 'Create failed' }));
+          throw new Error(errData.error || 'Create failed');
+        }
+        addNotification('success', `Customer "${formData.name.trim()}" created successfully.`);
+      }
+
+      setDrawerOpen(false);
+      setEditingCustomer(null);
+      fetchCustomers();
+    } catch (err: any) {
+      addNotification('error', err.message || 'Operation failed');
     }
+  };
 
-    setDrawerOpen(false);
+  const handleDelete = async (customer: Customer) => {
+    if (!confirm(`Delete customer "${customer.name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/customers/${customer.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Delete failed' }));
+        throw new Error(errData.error || 'Delete failed');
+      }
+      addNotification('success', `Customer "${customer.name}" deleted.`);
+      fetchCustomers();
+    } catch (err: any) {
+      addNotification('error', err.message || 'Delete failed');
+    }
   };
 
   return (
@@ -375,15 +402,26 @@ export default function CustomersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <button
-                        type="button"
-                        onClick={() => openEditDrawer(customer)}
-                        className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors"
-                        title={`Edit ${customer.name}`}
-                        aria-label={`Edit ${customer.name}`}
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEditDrawer(customer)}
+                          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors"
+                          title={`Edit ${customer.name}`}
+                          aria-label={`Edit ${customer.name}`}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(customer)}
+                          className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive transition-colors"
+                          title={`Delete ${customer.name}`}
+                          aria-label={`Delete ${customer.name}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

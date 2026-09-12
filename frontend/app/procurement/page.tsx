@@ -91,20 +91,20 @@ export default function ProcurementPage() {
     fetch('/api/procurements')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (Array.isArray(data)) {
-          setProcurements(
-            data.map((p: any) => ({
-              id: p.id,
-              invoiceNo: p.invoice_no || p.invoiceNo,
-              supplierName: p.supplier_name || p.supplierName || 'Primary Supplier',
-              source: p.source || 'Wholesale Shop',
-              procurementDate: p.procurement_date || p.procurementDate,
-              totalAmount: parseFloat(p.total_amount || p.totalAmount || '0'),
-              itemCount: p.items ? p.items.length : 1,
-              notes: p.notes,
-            }))
-          );
-        }
+        if (!data) return;
+        const list = data.procurements || data.data || (Array.isArray(data) ? data : []);
+        setProcurements(
+          list.map((p: any) => ({
+            id: p.id,
+            invoiceNo: p.invoice_no || p.invoiceNo,
+            supplierName: p.supplier_name || p.supplierName || 'Primary Supplier',
+            source: p.source || 'Wholesale Shop',
+            procurementDate: p.procurement_date || p.procurementDate,
+            totalAmount: parseFloat(p.total_amount || p.totalAmount || '0'),
+            itemCount: p.items ? p.items.length : 1,
+            notes: p.notes,
+          }))
+        );
       })
       .catch(() => {});
   }, []);
