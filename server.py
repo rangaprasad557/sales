@@ -413,6 +413,224 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
 
         self.handle_api_post(path, body)
 
+    def do_PUT(self):
+        """Handle API PUT requests for updating master entities."""
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+
+        if not path.startswith("/api/"):
+            error_response(self, "Not found", 404)
+            return
+
+        content_length = int(self.headers.get("Content-Length", 0))
+        put_data = self.rfile.read(content_length) if content_length > 0 else b"{}"
+
+        try:
+            body = json.loads(put_data.decode("utf-8")) if put_data else {}
+        except Exception as e:
+            error_response(self, f"Invalid JSON payload: {str(e)}", 400)
+            return
+
+        self.handle_api_put(path, body)
+
+    def do_DELETE(self):
+        """Handle API DELETE requests for removing master entities."""
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+
+        if not path.startswith("/api/"):
+            error_response(self, "Not found", 404)
+            return
+
+        self.handle_api_delete(path)
+
+    def handle_api_put(self, path, body):
+        """Route PUT requests to the correct entity update handler."""
+        conn = db.get_connection()
+        cur = conn.cursor()
+        try:
+            # PUT /api/products/<id>
+            if path.startswith("/api/products/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid product ID", 400)
+                    return
+                cur.execute("SELECT id FROM products WHERE id = ?", (int(entity_id),))
+                if not cur.fetchone():
+                    error_response(self, "Product not found", 404)
+                    return
+                name = body.get("name", "").strip()
+                sku = body.get("sku", "").strip()
+                category = body.get("category", "General").strip()
+                unit = body.get("unit", "pcs").strip()
+                min_stock = int(body.get("min_stock", 5))
+                if not name or not sku:
+                    error_response(self, "Product name and SKU are required", 400)
+                    return
+                cur.execute(
+                    "UPDATE products SET name = ?, sku = ?, category = ?, unit = ?, min_stock = ? WHERE id = ?",
+                    (name, sku, category, unit, min_stock, int(entity_id))
+                )
+                conn.commit()
+                json_response(self, {"success": True, "id": int(entity_id), "message": "Product updated"})
+
+            # PUT /api/customers/<id>
+            elif path.startswith("/api/customers/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid customer ID", 400)
+                    return
+                cur.execute("SELECT id FROM customers WHERE id = ?", (int(entity_id),))
+                if not cur.fetchone():
+                    error_response(self, "Customer not found", 404)
+                    return
+                name = body.get("name", "").strip()
+                phone = body.get("phone", "").strip()
+                email = body.get("email", "").strip()
+                address = body.get("address", "").strip()
+                credit_limit = float(body.get("credit_limit", body.get("creditLimit", 0.0)))
+                notes = body.get("notes", "").strip()
+                if not name:
+                    error_response(self, "Customer name is required", 400)
+                    return
+                cur.execute(
+                    "UPDATE customers SET name = ?, phone = ?, email = ?, address = ?, credit_limit = ?, notes = ? WHERE id = ?",
+                    (name, phone, email, address, credit_limit, notes, int(entity_id))
+                )
+                conn.commit()
+                json_response(self, {"success": True, "id": int(entity_id), "message": "Customer updated"})
+
+            # PUT /api/suppliers/<id>
+            elif path.startswith("/api/suppliers/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid supplier ID", 400)
+                    return
+                cur.execute("SELECT id FROM suppliers WHERE id = ?", (int(entity_id),))
+                if not cur.fetchone():
+                    error_response(self, "Supplier not found", 404)
+                    return
+                name = body.get("name", "").strip()
+                contact_person = body.get("contact_person", body.get("contactPerson", "")).strip()
+                phone = body.get("phone", "").strip()
+                email = body.get("email", "").strip()
+                address = body.get("address", "").strip()
+                source = body.get("source", "Wholesale Shop").strip()
+                payment_terms = body.get("payment_terms", body.get("paymentTerms", "30 days")).strip()
+                notes = body.get("notes", "").strip()
+                if not name:
+                    error_response(self, "Supplier name is required", 400)
+                    return
+                cur.execute(
+                    "UPDATE suppliers SET name = ?, contact_person = ?, phone = ?, email = ?, address = ?, source = ?, payment_terms = ?, notes = ? WHERE id = ?",
+                    (name, contact_person, phone, email, address, source, payment_terms, notes, int(entity_id))
+                )
+                conn.commit()
+                json_response(self, {"success": True, "id": int(entity_id), "message": "Supplier updated"})
+
+            # PUT /api/categories/<id>
+            elif path.startswith("/api/categories/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid category ID", 400)
+                    return
+                cur.execute("SELECT id FROM categories WHERE id = ?", (int(entity_id),))
+                if not cur.fetchone():
+                    error_response(self, "Category not found", 404)
+                    return
+                name = body.get("name", "").strip()
+                parent_id = body.get("parent_id")
+                icon = body.get("icon", "📦").strip()
+                description = body.get("description", "").strip()
+                if not name:
+                    error_response(self, "Category name is required", 400)
+                    return
+                cur.execute(
+                    "UPDATE categories SET name = ?, parent_id = ?, icon = ?, description = ? WHERE id = ?",
+                    (name, parent_id, icon, description, int(entity_id))
+                )
+                conn.commit()
+                json_response(self, {"success": True, "id": int(entity_id), "message": "Category updated"})
+
+            else:
+                error_response(self, "Endpoint not found", 404)
+
+        except Exception as e:
+            conn.rollback()
+            error_response(self, str(e), 500)
+        finally:
+            conn.close()
+
+    def handle_api_delete(self, path):
+        """Route DELETE requests to the correct entity removal handler."""
+        conn = db.get_connection()
+        cur = conn.cursor()
+        try:
+            # DELETE /api/products/<id>
+            if path.startswith("/api/products/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid product ID", 400)
+                    return
+                cur.execute("SELECT id FROM products WHERE id = ?", (int(entity_id),))
+                if not cur.fetchone():
+                    error_response(self, "Product not found", 404)
+                    return
+                cur.execute("DELETE FROM products WHERE id = ?", (int(entity_id),))
+                conn.commit()
+                json_response(self, {"success": True, "message": "Product deleted"})
+
+            # DELETE /api/customers/<id>
+            elif path.startswith("/api/customers/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid customer ID", 400)
+                    return
+                cur.execute("SELECT id FROM customers WHERE id = ?", (int(entity_id),))
+                if not cur.fetchone():
+                    error_response(self, "Customer not found", 404)
+                    return
+                cur.execute("DELETE FROM customers WHERE id = ?", (int(entity_id),))
+                conn.commit()
+                json_response(self, {"success": True, "message": "Customer deleted"})
+
+            # DELETE /api/suppliers/<id>
+            elif path.startswith("/api/suppliers/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid supplier ID", 400)
+                    return
+                cur.execute("SELECT id FROM suppliers WHERE id = ?", (int(entity_id),))
+                if not cur.fetchone():
+                    error_response(self, "Supplier not found", 404)
+                    return
+                cur.execute("DELETE FROM suppliers WHERE id = ?", (int(entity_id),))
+                conn.commit()
+                json_response(self, {"success": True, "message": "Supplier deleted"})
+
+            # DELETE /api/categories/<id>
+            elif path.startswith("/api/categories/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid category ID", 400)
+                    return
+                cur.execute("SELECT id FROM categories WHERE id = ?", (int(entity_id),))
+                if not cur.fetchone():
+                    error_response(self, "Category not found", 404)
+                    return
+                cur.execute("DELETE FROM categories WHERE id = ?", (int(entity_id),))
+                conn.commit()
+                json_response(self, {"success": True, "message": "Category deleted"})
+
+            else:
+                error_response(self, "Endpoint not found", 404)
+
+        except Exception as e:
+            conn.rollback()
+            error_response(self, str(e), 500)
+        finally:
+            conn.close()
+
     def handle_static_file(self, path):
         if path == "/" or path == "":
             path = "/index.html"
@@ -470,6 +688,40 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 cur.execute("SELECT * FROM customers ORDER BY name ASC")
                 customers = [dict(r) for r in cur.fetchall()]
                 json_response(self, {"success": True, "customers": customers})
+
+            elif path == "/api/suppliers":
+                cur.execute("SELECT * FROM suppliers ORDER BY name ASC")
+                suppliers = [dict(r) for r in cur.fetchall()]
+                json_response(self, {"success": True, "suppliers": suppliers})
+
+            elif path.startswith("/api/suppliers/"):
+                sup_id = path.split("/")[-1]
+                if sup_id.isdigit():
+                    cur.execute("SELECT * FROM suppliers WHERE id = ?", (int(sup_id),))
+                    row = cur.fetchone()
+                    if not row:
+                        error_response(self, "Supplier not found", 404)
+                        return
+                    json_response(self, {"success": True, "supplier": dict(row)})
+                else:
+                    error_response(self, "Invalid supplier ID", 400)
+
+            elif path == "/api/categories":
+                cur.execute("SELECT * FROM categories ORDER BY name ASC")
+                categories = [dict(r) for r in cur.fetchall()]
+                json_response(self, {"success": True, "categories": categories})
+
+            elif path.startswith("/api/categories/"):
+                cat_id = path.split("/")[-1]
+                if cat_id.isdigit():
+                    cur.execute("SELECT * FROM categories WHERE id = ?", (int(cat_id),))
+                    row = cur.fetchone()
+                    if not row:
+                        error_response(self, "Category not found", 404)
+                        return
+                    json_response(self, {"success": True, "category": dict(row)})
+                else:
+                    error_response(self, "Invalid category ID", 400)
 
             elif path == "/api/inventory":
                 cur.execute("""
@@ -790,17 +1042,57 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 phone = body.get("phone", "").strip()
                 email = body.get("email", "").strip()
                 address = body.get("address", "").strip()
+                credit_limit = float(body.get("credit_limit", body.get("creditLimit", 0.0)))
+                notes = body.get("notes", "").strip()
 
                 if not name:
                     error_response(self, "Customer name is required", 400)
                     return
 
                 cur.execute(
-                    "INSERT INTO customers (name, phone, email, address) VALUES (?, ?, ?, ?)",
-                    (name, phone, email, address)
+                    "INSERT INTO customers (name, phone, email, address, credit_limit, notes) VALUES (?, ?, ?, ?, ?, ?)",
+                    (name, phone, email, address, credit_limit, notes)
                 )
                 conn.commit()
                 json_response(self, {"success": True, "id": cur.lastrowid, "message": "Customer created"}, 201)
+
+            elif path == "/api/suppliers":
+                name = body.get("name", "").strip()
+                contact_person = body.get("contact_person", body.get("contactPerson", "")).strip()
+                phone = body.get("phone", "").strip()
+                email = body.get("email", "").strip()
+                address = body.get("address", "").strip()
+                source = body.get("source", "Wholesale Shop").strip()
+                payment_terms = body.get("payment_terms", body.get("paymentTerms", "30 days")).strip()
+                notes = body.get("notes", "").strip()
+
+                if not name:
+                    error_response(self, "Supplier name is required", 400)
+                    return
+
+                cur.execute(
+                    "INSERT INTO suppliers (name, contact_person, phone, email, address, source, payment_terms, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (name, contact_person, phone, email, address, source, payment_terms, notes)
+                )
+                conn.commit()
+                json_response(self, {"success": True, "id": cur.lastrowid, "message": "Supplier created"}, 201)
+
+            elif path == "/api/categories":
+                name = body.get("name", "").strip()
+                parent_id = body.get("parent_id")
+                icon = body.get("icon", "📦").strip()
+                description = body.get("description", "").strip()
+
+                if not name:
+                    error_response(self, "Category name is required", 400)
+                    return
+
+                cur.execute(
+                    "INSERT INTO categories (name, parent_id, icon, description) VALUES (?, ?, ?, ?)",
+                    (name, parent_id, icon, description)
+                )
+                conn.commit()
+                json_response(self, {"success": True, "id": cur.lastrowid, "message": "Category created"}, 201)
 
             elif path == "/api/procurements":
                 res, status = execute_procurement(conn, cur, body)

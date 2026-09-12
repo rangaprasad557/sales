@@ -19,6 +19,8 @@ import {
   Archive,
   AlertCircle,
   RefreshCw,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 import { Drawer } from '../../components/Drawer';
 import { useUIStore } from '../../store/useUIStore';
@@ -109,18 +111,20 @@ const SEED_CATALOGUE: CatalogueProduct[] = [
 
 export default function CataloguePage() {
   const [products, setProducts] = useState<CatalogueProduct[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedUnit, setSelectedUnit] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'LOW' | 'DEPLETED'>('ALL');
   const [isDrawerOpen, setDrawerOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<CatalogueProduct | null>(null);
   const { addNotification } = useUIStore();
 
   // Form State
   const [formData, setFormData] = useState({
     name: '',
     sku: '',
-    category: 'Grains & Cereals',
+    category: 'General',
     unit: 'pcs',
     minStock: '10',
     barcode: '',
@@ -129,34 +133,65 @@ export default function CataloguePage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Fetch from backend API
-  useEffect(() => {
+  const fetchProducts = () => {
     fetch('/api/products')
       .then((res) => {
         if (!res.ok) throw new Error('API unavailable');
         return res.json();
       })
       .then((data) => {
-        if (Array.isArray(data)) {
-          const mapped = data.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            sku: p.sku,
-            category: p.category_name || p.category || 'General',
-            categoryId: p.category_id || p.categoryId,
-            unit: p.unit || 'pcs',
-            currentStock: parseFloat(p.stock || p.current_stock || '0'),
-            minStock: parseInt(p.min_stock || p.minStock || '5', 10),
-            lowestCost: parseFloat(p.lowest_cost || p.lowestCost || '0'),
-            barcode: p.barcode || '',
-            description: p.description || '',
-          }));
-          setProducts(mapped);
+        const list = data.products || data.data || (Array.isArray(data) ? data : []);
+        const mapped = list.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          category: p.category_name || p.category || 'General',
+          categoryId: p.category_id || p.categoryId,
+          unit: p.unit || 'pcs',
+          currentStock: parseFloat(p.stock || p.current_stock || p.total_stock || '0'),
+          minStock: parseInt(p.min_stock || p.minStock || '5', 10),
+          lowestCost: parseFloat(p.lowest_cost || p.lowestCost || '0'),
+          barcode: p.barcode || '',
+          description: p.description || '',
+        }));
+        setProducts(mapped);
+      })
+      .catch(() => {});
+  };
+
+  const fetchCategories = () => {
+    fetch('/api/categories')
+      .then((res) => {
+        if (!res.ok) throw new Error('API unavailable');
+        return res.json();
+      })
+      .then((data) => {
+        const list = data.categories || data.data || (Array.isArray(data) ? data : []);
+        const names = list.map((c: any) => c.name).filter(Boolean);
+        if (names.length > 0) {
+          setAvailableCategories(names);
         }
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchProducts();
+    fetchCategories();
   }, []);
 
-  const categories = Array.from(new Set(products.map((p) => p.category)));
+  const categories = Array.from(
+    new Set([
+      ...availableCategories,
+      ...products.map((p) => p.category),
+      'Grains & Cereals',
+      'Oils & Condiments',
+      'Packaged Foods & Snacks',
+      'Electronics',
+      'Beverages',
+      'General',
+    ])
+  ).filter(Boolean);
 
   // Stock status derivation
   const getProductStatus = (p: CatalogueProduct): 'ACTIVE' | 'LOW_STOCK' | 'DEPLETED' => {
@@ -189,14 +224,30 @@ export default function CataloguePage() {
   });
 
   const openCreateDrawer = () => {
+    setEditingProduct(null);
     setFormData({
       name: '',
       sku: '',
-      category: categories[0] || 'Grains & Cereals',
+      category: categories[0] || 'General',
       unit: 'pcs',
       minStock: '10',
       barcode: '',
       description: '',
+    });
+    setFormErrors({});
+    setDrawerOpen(true);
+  };
+
+  const openEditDrawer = (product: CatalogueProduct) => {
+    setEditingProduct(product);
+    setFormData({
+      name: product.name,
+      sku: product.sku,
+      category: product.category,
+      unit: product.unit,
+      minStock: String(product.minStock),
+      barcode: product.barcode || '',
+      description: product.description || '',
     });
     setFormErrors({});
     setDrawerOpen(true);
@@ -225,26 +276,71 @@ export default function CataloguePage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    const newProduct: CatalogueProduct = {
-      id: Date.now(),
+    const minVal = parseInt(formData.minStock, 10);
+    const payload = {
       name: formData.name.trim(),
       sku: formData.sku.trim().toUpperCase(),
       category: formData.category,
       unit: formData.unit,
-      currentStock: 0, // Freshly added product has 0 intake lots initially
-      minStock: parseInt(formData.minStock, 10),
-      lowestCost: 0,
-      barcode: formData.barcode.trim() || undefined,
-      description: formData.description.trim() || undefined,
+      min_stock: minVal,
+      minStock: minVal,
+      barcode: formData.barcode.trim(),
+      description: formData.description.trim(),
     };
 
-    setProducts([newProduct, ...products]);
-    addNotification('success', `Product "${newProduct.name}" added to catalogue.`);
-    setDrawerOpen(false);
+    try {
+      if (editingProduct) {
+        // Update existing product via PUT
+        const res = await fetch(`/api/products/${editingProduct.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: 'Update failed' }));
+          throw new Error(errData.error || 'Update failed');
+        }
+        addNotification('success', `Product "${formData.name.trim()}" updated successfully.`);
+      } else {
+        // Create new product via POST
+        const res = await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: 'Creation failed' }));
+          throw new Error(errData.error || 'Creation failed');
+        }
+        addNotification('success', `Product "${formData.name.trim()}" added to catalogue.`);
+      }
+
+      setDrawerOpen(false);
+      setEditingProduct(null);
+      fetchProducts();
+      fetchCategories();
+    } catch (err: any) {
+      addNotification('error', err.message || 'Operation failed');
+    }
+  };
+
+  const handleDelete = async (product: CatalogueProduct) => {
+    if (!confirm(`Delete product "${product.name}" (${product.sku})? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/products/${product.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Delete failed' }));
+        throw new Error(errData.error || 'Delete failed');
+      }
+      addNotification('success', `Product "${product.name}" deleted.`);
+      fetchProducts();
+    } catch (err: any) {
+      addNotification('error', err.message || 'Delete failed');
+    }
   };
 
   // Stock status badges with icon + label + border (color-blind safe)
@@ -454,12 +550,13 @@ export default function CataloguePage() {
                 <th className="px-6 py-4">Category & Unit</th>
                 <th className="px-6 py-4">Stock Status</th>
                 <th className="px-6 py-4 text-right">Lowest Batch Cost</th>
+                <th className="px-6 py-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
                     <Package className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                     <p className="font-medium text-foreground">No products match your criteria</p>
                     <p className="text-xs mt-1">Try relaxing filters or add new items to the catalogue.</p>
@@ -530,6 +627,28 @@ export default function CataloguePage() {
                           <span className="text-xs text-muted-foreground/60 italic">No batches</span>
                         )}
                       </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditDrawer(product)}
+                            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors"
+                            title={`Edit ${product.name}`}
+                            aria-label={`Edit ${product.name}`}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(product)}
+                            className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive transition-colors"
+                            title={`Delete ${product.name}`}
+                            aria-label={`Delete ${product.name}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })
@@ -539,12 +658,12 @@ export default function CataloguePage() {
         </div>
       </div>
 
-      {/* Slide-over Drawer for Add to Catalogue */}
+      {/* Slide-over Drawer for Add/Edit Product */}
       <Drawer
         isOpen={isDrawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title="Add Product to Catalogue"
-        description="Configure master SKU, category mapping, unit of measure, and replenishment threshold."
+        title={editingProduct ? `Edit Product: ${editingProduct.name}` : 'Add Product to Catalogue'}
+        description={editingProduct ? 'Modify master SKU, category mapping, unit of measure, and replenishment threshold.' : 'Configure master SKU, category mapping, unit of measure, and replenishment threshold.'}
         footer={
           <>
             <button
@@ -559,7 +678,7 @@ export default function CataloguePage() {
               onClick={handleSubmit}
               className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
             >
-              Save Product
+              {editingProduct ? 'Update Product' : 'Save Product'}
             </button>
           </>
         }

@@ -41,7 +41,50 @@ def init_db(seed_if_empty=True):
         phone TEXT,
         email TEXT,
         address TEXT,
+        credit_limit REAL NOT NULL DEFAULT 0.0,
+        notes TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )
+    """)
+    try:
+        cur.execute("ALTER TABLE customers ADD COLUMN credit_limit REAL NOT NULL DEFAULT 0.0")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cur.execute("ALTER TABLE customers ADD COLUMN notes TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    # 2b. Suppliers / Vendors
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS suppliers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        contact_person TEXT,
+        phone TEXT,
+        email TEXT,
+        address TEXT,
+        source TEXT DEFAULT 'Wholesale Shop',
+        payment_terms TEXT DEFAULT '30 days',
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )
+    """)
+    try:
+        cur.execute("ALTER TABLE suppliers ADD COLUMN source TEXT DEFAULT 'Wholesale Shop'")
+    except sqlite3.OperationalError:
+        pass
+
+    # 2c. Categories (hierarchical with parent_id)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        parent_id INTEGER,
+        icon TEXT DEFAULT '📦',
+        description TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+        FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL
     )
     """)
 
@@ -181,7 +224,9 @@ def clear_all_data(conn=None):
     cur.execute("DELETE FROM procurements")
     cur.execute("DELETE FROM customers")
     cur.execute("DELETE FROM products")
-    cur.execute("DELETE FROM sqlite_sequence WHERE name IN ('sale_item_lots', 'sale_items', 'sales', 'inventory_lots', 'procurements', 'customers', 'products')")
+    cur.execute("DELETE FROM suppliers")
+    cur.execute("DELETE FROM categories")
+    cur.execute("DELETE FROM sqlite_sequence WHERE name IN ('sale_item_lots', 'sale_items', 'sales', 'inventory_lots', 'procurements', 'customers', 'products', 'suppliers', 'categories')")
     cur.execute("CREATE TABLE IF NOT EXISTS system_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     cur.execute("INSERT OR REPLACE INTO system_meta (key, value) VALUES ('initialized', 'clean')")
     cur.execute("PRAGMA foreign_keys = ON")

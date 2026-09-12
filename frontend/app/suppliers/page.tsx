@@ -17,6 +17,7 @@ import {
   ShoppingBag,
   Store,
   Globe,
+  Trash2,
 } from 'lucide-react';
 import { Drawer } from '../../components/Drawer';
 import { useUIStore } from '../../store/useUIStore';
@@ -105,29 +106,32 @@ export default function SuppliersPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Fetch from backend API
-  useEffect(() => {
+  const fetchSuppliers = () => {
     fetch('/api/suppliers')
       .then((res) => {
         if (!res.ok) throw new Error('API unavailable');
         return res.json();
       })
       .then((data) => {
-        if (Array.isArray(data)) {
-          const mapped = data.map((s: any) => ({
-            id: s.id,
-            name: s.name,
-            contactPerson: s.contact_person || s.contactPerson || '',
-            email: s.email || '',
-            phone: s.phone || '',
-            address: s.address || '',
-            source: s.source || 'Wholesale Shop',
-            paymentTerms: s.payment_terms || s.paymentTerms || 'Net 30 Days',
-            notes: s.notes || '',
-          }));
-          setSuppliers(mapped);
-        }
+        const list = data.suppliers || data.data || (Array.isArray(data) ? data : []);
+        const mapped = list.map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          contactPerson: s.contact_person || s.contactPerson || '',
+          email: s.email || '',
+          phone: s.phone || '',
+          address: s.address || '',
+          source: s.source || 'Wholesale Shop',
+          paymentTerms: s.payment_terms || s.paymentTerms || 'Net 30 Days',
+          notes: s.notes || '',
+        }));
+        setSuppliers(mapped);
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchSuppliers();
   }, []);
 
   const filteredSuppliers = suppliers.filter((s) => {
@@ -185,45 +189,69 @@ export default function SuppliersPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    if (editingSupplier) {
-      const updated = suppliers.map((s) =>
-        s.id === editingSupplier.id
-          ? {
-              ...s,
-              name: formData.name.trim(),
-              contactPerson: formData.contactPerson.trim(),
-              email: formData.email.trim(),
-              phone: formData.phone.trim(),
-              address: formData.address.trim(),
-              source: formData.source,
-              paymentTerms: formData.paymentTerms,
-              notes: formData.notes.trim(),
-            }
-          : s
-      );
-      setSuppliers(updated);
-      addNotification('success', `Supplier "${formData.name.trim()}" updated successfully.`);
-    } else {
-      const newSupplier: Supplier = {
-        id: Date.now(),
-        name: formData.name.trim(),
-        contactPerson: formData.contactPerson.trim(),
-        email: formData.email.trim(),
-        phone: formData.phone.trim(),
-        address: formData.address.trim(),
-        source: formData.source,
-        paymentTerms: formData.paymentTerms,
-        notes: formData.notes.trim(),
-      };
-      setSuppliers([newSupplier, ...suppliers]);
-      addNotification('success', `Supplier "${formData.name.trim()}" registered successfully.`);
-    }
+    const payload = {
+      name: formData.name.trim(),
+      contact_person: formData.contactPerson.trim(),
+      email: formData.email.trim(),
+      phone: formData.phone.trim(),
+      address: formData.address.trim(),
+      source: formData.source,
+      payment_terms: formData.paymentTerms,
+      notes: formData.notes.trim(),
+    };
 
-    setDrawerOpen(false);
+    try {
+      if (editingSupplier) {
+        // Update existing supplier via PUT
+        const res = await fetch(`/api/suppliers/${editingSupplier.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: 'Update failed' }));
+          throw new Error(errData.error || 'Update failed');
+        }
+        addNotification('success', `Supplier "${formData.name.trim()}" updated successfully.`);
+      } else {
+        // Create new supplier via POST
+        const res = await fetch('/api/suppliers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: 'Registration failed' }));
+          throw new Error(errData.error || 'Registration failed');
+        }
+        addNotification('success', `Supplier "${formData.name.trim()}" registered successfully.`);
+      }
+
+      setDrawerOpen(false);
+      setEditingSupplier(null);
+      fetchSuppliers();
+    } catch (err: any) {
+      addNotification('error', err.message || 'Operation failed');
+    }
+  };
+
+  const handleDelete = async (supplier: Supplier) => {
+    if (!confirm(`Delete supplier "${supplier.name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/suppliers/${supplier.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Delete failed' }));
+        throw new Error(errData.error || 'Delete failed');
+      }
+      addNotification('success', `Supplier "${supplier.name}" deleted.`);
+      fetchSuppliers();
+    } catch (err: any) {
+      addNotification('error', err.message || 'Delete failed');
+    }
   };
 
   const getSourceBadge = (source: string) => {
@@ -453,15 +481,26 @@ export default function SuppliersPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => openEditDrawer(supplier)}
-                          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors"
-                          title={`Edit ${supplier.name}`}
-                          aria-label={`Edit ${supplier.name}`}
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditDrawer(supplier)}
+                            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors"
+                            title={`Edit ${supplier.name}`}
+                            aria-label={`Edit ${supplier.name}`}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(supplier)}
+                            className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive transition-colors"
+                            title={`Delete ${supplier.name}`}
+                            aria-label={`Delete ${supplier.name}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

@@ -195,40 +195,40 @@ export default function SalesPOSPage() {
   // Load backend products and customers
   useEffect(() => {
     fetch('/api/products')
-      .then((res) => (res.ok ? res.json() : []))
+      .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (Array.isArray(data)) {
-          setCatalogue(
-            data.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              sku: p.sku,
-              category: p.category_name || p.category || 'General',
-              unit: p.unit || 'pcs',
-              currentStock: parseFloat(p.stock || p.current_stock || '0'),
-              minStock: parseInt(p.min_stock || p.minStock || '5', 10),
-              lowestCost: parseFloat(p.lowest_cost || p.lowestCost || '0'),
-              barcode: p.barcode || '',
-            }))
-          );
-        }
+        if (!data) return;
+        const list = data.products || data.data || (Array.isArray(data) ? data : []);
+        setCatalogue(
+          list.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+            category: p.category_name || p.category || 'General',
+            unit: p.unit || 'pcs',
+            currentStock: parseFloat(p.stock || p.current_stock || p.total_stock || '0'),
+            minStock: parseInt(p.min_stock || p.minStock || '5', 10),
+            lowestCost: parseFloat(p.lowest_cost || p.lowestCost || '0'),
+            barcode: p.barcode || '',
+          }))
+        );
       })
       .catch(() => {});
 
     fetch('/api/customers')
-      .then((res) => (res.ok ? res.json() : []))
+      .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (Array.isArray(data)) {
-          setCustomers(
-            data.map((c: any) => ({
-              id: c.id,
-              name: c.name,
-              email: c.email,
-              phone: c.phone,
-              creditLimit: parseFloat(c.credit_limit || c.creditLimit || '0'),
-            }))
-          );
-        }
+        if (!data) return;
+        const list = data.customers || data.data || (Array.isArray(data) ? data : []);
+        setCustomers(
+          list.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            email: c.email,
+            phone: c.phone,
+            creditLimit: parseFloat(c.credit_limit || c.creditLimit || '0'),
+          }))
+        );
       })
       .catch(() => {});
   }, []);
