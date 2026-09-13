@@ -279,6 +279,7 @@ def _init_postgres_db(seed_if_empty=False):
         total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.0,
         total_cogs NUMERIC(12, 2) NOT NULL DEFAULT 0.0,
         total_profit NUMERIC(12, 2) NOT NULL DEFAULT 0.0,
+        sold_by VARCHAR(255) DEFAULT 'Store Staff',
         notes TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -313,6 +314,12 @@ def _init_postgres_db(seed_if_empty=False):
     CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sale_date);
     CREATE INDEX IF NOT EXISTS idx_procurements_date ON procurements(procurement_date);
     """)
+    try:
+        cur.execute("ALTER TABLE sales ADD COLUMN IF NOT EXISTS sold_by VARCHAR(255) DEFAULT 'Store Staff'")
+        conn.commit()
+    except Exception:
+        pass
+
     conn.commit()
 
     # Check if products already exist
@@ -455,11 +462,17 @@ def _init_sqlite_db(seed_if_empty=False):
         total_amount REAL NOT NULL DEFAULT 0.0,
         total_cogs REAL NOT NULL DEFAULT 0.0,
         total_profit REAL NOT NULL DEFAULT 0.0,
+        sold_by TEXT DEFAULT 'Store Staff',
         notes TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
         FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
     )
     """)
+    try:
+        cur.execute("ALTER TABLE sales ADD COLUMN sold_by TEXT DEFAULT 'Store Staff'")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
 
     # 6. Sale Items (Line items on sale invoice)
     cur.execute("""
@@ -725,14 +738,14 @@ def seed_data(conn):
     conn.commit()
     print("Database seeding completed successfully.")
 
-def seed_sale(cur, invoice_no, customer_id, sale_date, notes, items):
+def seed_sale(cur, invoice_no, customer_id, sale_date, notes, items, sold_by="Store Staff"):
     """Helper to simulate sale with Lowest-Cost-First allocation."""
     total_sale = 0.0
     total_cogs = 0.0
 
     cur.execute(
-        "INSERT INTO sales (invoice_no, customer_id, sale_date, total_amount, total_cogs, total_profit, notes) VALUES (?, ?, ?, 0, 0, 0, ?)",
-        (invoice_no, customer_id, sale_date, notes)
+        "INSERT INTO sales (invoice_no, customer_id, sale_date, total_amount, total_cogs, total_profit, sold_by, notes) VALUES (?, ?, ?, 0, 0, 0, ?, ?)",
+        (invoice_no, customer_id, sale_date, sold_by, notes)
     )
     sale_id = cur.lastrowid
 

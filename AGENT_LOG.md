@@ -893,3 +893,44 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
 - **Outcome**: PR-022 fully satisfies all repository rules and quality gates.
 
+---
+
+## 29. PR-023: First-Class `sold_by` Seller Tracking & Excel Sales Ledger Import
+
+### Context & Implementation Scope
+- **PR Document**: [`docs/prs/PR-023-sold-by-seller-tracking-and-excel-import.md`](file:///c:/Build_With_AI_Google/docs/prs/PR-023-sold-by-seller-tracking-and-excel-import.md)
+- **Branch**: master / main
+- **Scope Delivered**:
+  1. Dedicated Seller Tracking (`db.py` & `server.py`):
+     - Added first-class `sold_by VARCHAR(255)` / `TEXT DEFAULT 'Store Staff'` column to `sales` table in both PostgreSQL and SQLite.
+     - Non-destructive, zero-downtime auto-migrations executed automatically upon startup (`ALTER TABLE sales ADD COLUMN IF NOT EXISTS sold_by ...`).
+     - Exposed in `server.py` (`execute_sale`, `PUT /api/sales/:id`, `GET /api/sales`, `GET /api/sales/:id`).
+  2. Frontend POS Billing (`frontend/app/sales/page.tsx`):
+     - Integrated `currentUser` from `useUIStore()`.
+     - Automatically passes `sold_by: currentUser?.name || 'Store Staff'` in checkout payload.
+  3. Frontend Orders & Invoice Receipt (`frontend/app/orders/page.tsx` & `frontend/components/InvoiceReceiptModal.tsx`):
+     - Added dedicated **Sold By** column in Orders Table with user icon and accessible badge.
+     - Added search filtering by seller name (allowing instant queries for "Surendra" or "Ranga Prasad").
+     - Added **Sold By** field in Order Edit Drawer.
+     - Displayed `Sold By: <name>` in Invoice Receipt modal metadata grid.
+  4. Excel Sales Ledger Import Mapping (`scripts/import_excel_sales.py`):
+     - Mapped `Sold By` from `C:\Users\singarirangaprasad\Downloads\Cigrattes.xlsx` directly into `sales.sold_by`.
+     - Applied business rules: `Slk` -> `Gold Flake SLK Sleeks`, conditional `Fine Touch` (< 100 -> `Flake Galaxy`, >= 100 -> `Fine Touch`).
+     - Executed local import reconciliation: 961 orders ingested, Rs. 4,444,895.01 revenue, Rs. 4,059,984.92 COGS, Rs. 384,910.09 profit.
+     - Seller breakdown verified: `Surendra` (609 orders), `Ranga Prasad` (352 orders).
+  5. Test Coverage (`frontend/tests/orders_history_a11y.test.ts` & `test_suite.py`):
+     - Added `test_sold_by_seller_tracking_and_persistence` in `test_suite.py`.
+     - Added sold_by and search filtering test cases in `orders_history_a11y.test.ts`.
+
+### Automated Testing & Verification Evidence
+- **Backend Test Suite**: 43 / 43 passing (100% pass rate).
+- **Frontend Jest Suite**: 136 / 136 passing across 10 suites (100% pass rate).
+- **TypeScript Verification**: `npx tsc --noEmit` exited with 0 compile/type errors.
+- **Excel Reconciled Ledger**: Exactly 961 orders, Rs. 4,444,895.01 revenue, 100% matching Excel records.
+
+### Multi-Agent Review Verdicts
+- **Critic Agent**: APPROVED (0 Major, 0 Blocker).
+- **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **Outcome**: PR-023 fully satisfies all repository rules and quality gates.
+

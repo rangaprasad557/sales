@@ -251,6 +251,7 @@ def execute_sale(conn, cur, body):
             customer_id = None
 
     sale_date = body.get("sale_date", "").strip() or datetime.now().strftime("%Y-%m-%d")
+    sold_by = body.get("sold_by", "").strip() or "Store Staff"
     notes = body.get("notes", "").strip()
     items = body.get("items", [])
 
@@ -264,8 +265,8 @@ def execute_sale(conn, cur, body):
 
     # Insert parent sale record
     cur.execute(
-        "INSERT INTO sales (invoice_no, customer_id, sale_date, total_amount, total_cogs, total_profit, notes) VALUES (?, ?, ?, 0, 0, 0, ?)",
-        (invoice_no, customer_id, sale_date, notes)
+        "INSERT INTO sales (invoice_no, customer_id, sale_date, total_amount, total_cogs, total_profit, sold_by, notes) VALUES (?, ?, ?, 0, 0, 0, ?, ?)",
+        (invoice_no, customer_id, sale_date, sold_by, notes)
     )
     sale_id = cur.lastrowid
 
@@ -371,6 +372,7 @@ def execute_sale(conn, cur, body):
         "success": True,
         "sale_id": sale_id,
         "invoice_no": invoice_no,
+        "sold_by": sold_by,
         "total_amount": round(total_sale_amount, 2),
         "total_cogs": round(total_cogs_amount, 2),
         "total_profit": round(total_profit, 2),
@@ -640,6 +642,7 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
 
                 customer_id = body.get("customer_id", existing_sale["customer_id"])
                 sale_date = body.get("sale_date", existing_sale["sale_date"])
+                sold_by = body.get("sold_by", existing_sale["sold_by"] if "sold_by" in existing_sale.keys() else "Store Staff")
                 notes = body.get("notes", existing_sale["notes"] or "").strip()
 
                 if "items" in body and isinstance(body["items"], list):
@@ -712,15 +715,15 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
 
                     cur.execute("""
                         UPDATE sales 
-                        SET customer_id = ?, sale_date = ?, total_amount = ?, total_cogs = ?, net_profit = ?, margin_pct = ?, notes = ?
+                        SET customer_id = ?, sale_date = ?, total_amount = ?, total_cogs = ?, total_profit = ?, sold_by = ?, notes = ?
                         WHERE id = ?
-                    """, (customer_id, sale_date, total_amount, total_cogs, net_profit, margin_pct, notes, sale_id))
+                    """, (customer_id, sale_date, total_amount, total_cogs, net_profit, sold_by, notes, sale_id))
                 else:
                     cur.execute("""
                         UPDATE sales 
-                        SET customer_id = ?, sale_date = ?, notes = ?
+                        SET customer_id = ?, sale_date = ?, sold_by = ?, notes = ?
                         WHERE id = ?
-                    """, (customer_id, sale_date, notes, sale_id))
+                    """, (customer_id, sale_date, sold_by, notes, sale_id))
 
                 conn.commit()
                 json_response(self, {"success": True, "id": sale_id, "message": "Sale order updated successfully"})

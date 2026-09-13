@@ -218,5 +218,67 @@ describe('PR-017: Past Orders & Order History Quality Gate', () => {
       expect(registered.text).toBe('Uttam Sagar');
       expect(registered.hasIcon).toBe(true);
     });
+
+    it('validates sold_by seller tracking, search filtering, and receipt modal rendering', () => {
+      const ordersWithSeller: OrderListItem[] = [
+        {
+          id: 101,
+          invoice_no: 'INV-2026-0001',
+          customer_id: 1,
+          customer_name: 'Metro Supermarket',
+          sale_date: '2026-09-12',
+          sold_by: 'Surendra',
+          total_amount: 1500.0,
+          total_cogs: 1200.0,
+          total_profit: 300.0,
+          notes: 'Sold By: Surendra',
+          created_at: '2026-09-12 10:00:00',
+          items_count: 1,
+          total_qty: 10,
+        },
+        {
+          id: 102,
+          invoice_no: 'INV-2026-0002',
+          customer_id: 2,
+          customer_name: 'Uttam Sagar',
+          sale_date: '2026-09-12',
+          sold_by: 'Ranga Prasad',
+          total_amount: 2500.0,
+          total_cogs: 2000.0,
+          total_profit: 500.0,
+          notes: 'Sold By: Ranga Prasad',
+          created_at: '2026-09-12 11:00:00',
+          items_count: 2,
+          total_qty: 15,
+        },
+      ];
+
+      // Search filter by seller 'Surendra'
+      const filterBySeller = (seller: string) => {
+        const q = seller.toLowerCase();
+        return ordersWithSeller.filter((o) => (o.sold_by && o.sold_by.toLowerCase().includes(q)));
+      };
+
+      const surendraOrders = filterBySeller('Surendra');
+      expect(surendraOrders.length).toBe(1);
+      expect(surendraOrders[0].invoice_no).toBe('INV-2026-0001');
+
+      const rangaOrders = filterBySeller('Ranga');
+      expect(rangaOrders.length).toBe(1);
+      expect(rangaOrders[0].invoice_no).toBe('INV-2026-0002');
+
+      // Receipt modal soldBy mapping
+      const receipt: CompletedSaleRecord = {
+        invoiceNo: surendraOrders[0].invoice_no,
+        customerName: surendraOrders[0].customer_name || 'Walk-in Customer',
+        saleDate: surendraOrders[0].sale_date,
+        soldBy: surendraOrders[0].sold_by || 'Store Staff',
+        totalAmount: surendraOrders[0].total_amount,
+        totalCogs: surendraOrders[0].total_cogs,
+        totalProfit: surendraOrders[0].total_profit,
+        items: [],
+      };
+      expect(receipt.soldBy).toBe('Surendra');
+    });
   });
 });

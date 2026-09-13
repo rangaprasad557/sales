@@ -9,6 +9,7 @@ import {
   Layers,
   TrendingUp,
   Users,
+  User,
   RefreshCw,
   Eye,
   ShoppingCart,
@@ -30,6 +31,7 @@ export interface OrderListItem {
   customer_id: number | null;
   customer_name: string | null;
   sale_date: string;
+  sold_by?: string;
   total_amount: number;
   total_cogs: number;
   total_profit: number;
@@ -88,6 +90,7 @@ export default function OrdersPage() {
             invoiceNo: s.invoice_no,
             customerName: s.customer_name || 'Walk-in Customer',
             saleDate: s.sale_date || s.created_at?.split(' ')[0] || '',
+            soldBy: s.sold_by || 'Store Staff',
             totalAmount: s.total_amount,
             totalCogs: s.total_cogs,
             totalProfit: s.total_profit,
@@ -127,6 +130,7 @@ export default function OrdersPage() {
   const [editFormData, setEditFormData] = useState({
     customerId: '',
     saleDate: '',
+    soldBy: '',
     notes: '',
     items: [] as Array<{
       productId: number;
@@ -159,6 +163,7 @@ export default function OrdersPage() {
           setEditFormData({
             customerId: s.customer_id ? String(s.customer_id) : '',
             saleDate: s.sale_date || s.created_at?.split(' ')[0] || new Date().toISOString().slice(0, 10),
+            soldBy: s.sold_by || 'Store Staff',
             notes: s.notes || '',
             items: (s.items || []).map((it: any) => ({
               productId: it.product_id,
@@ -189,6 +194,7 @@ export default function OrdersPage() {
       const payload = {
         customer_id: editFormData.customerId ? parseInt(editFormData.customerId, 10) : null,
         sale_date: editFormData.saleDate,
+        sold_by: editFormData.soldBy.trim() || 'Store Staff',
         notes: editFormData.notes.trim(),
         items: editFormData.items.map((it) => ({
           product_id: it.productId,
@@ -235,6 +241,7 @@ export default function OrdersPage() {
         (o) =>
           o.invoice_no.toLowerCase().includes(q) ||
           (o.customer_name && o.customer_name.toLowerCase().includes(q)) ||
+          (o.sold_by && o.sold_by.toLowerCase().includes(q)) ||
           (o.notes && o.notes.toLowerCase().includes(q)) ||
           o.sale_date.includes(q)
       );
@@ -393,6 +400,7 @@ export default function OrdersPage() {
                 <th className="px-6 py-3.5">Invoice #</th>
                 <th className="px-4 py-3.5">Date & Time</th>
                 <th className="px-4 py-3.5">Customer</th>
+                <th className="px-4 py-3.5">Sold By</th>
                 <th className="px-4 py-3.5 text-center">Items & Units</th>
                 <th className="px-4 py-3.5 text-right">Order Total</th>
                 <th className="px-4 py-3.5 text-right">COGS</th>
@@ -403,14 +411,14 @@ export default function OrdersPage() {
             <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
                     <p className="text-xs font-semibold">Loading past orders...</p>
                   </td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">
                     <Receipt className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                     <p className="font-semibold text-foreground">No orders found</p>
                     <p className="text-xs mt-1">
@@ -472,6 +480,16 @@ export default function OrdersPage() {
                             Walk-in Customer
                           </span>
                         )}
+                      </td>
+
+                      {/* Sold By */}
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-1.5 text-xs text-foreground">
+                          <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                          <span className="font-medium text-foreground">
+                            {order.sold_by || 'Store Staff'}
+                          </span>
+                        </div>
                       </td>
 
                       {/* Items & Units */}
@@ -615,6 +633,19 @@ export default function OrdersPage() {
               type="date"
               value={editFormData.saleDate}
               onChange={(e) => setEditFormData({ ...editFormData, saleDate: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+              Sold By (Seller Name)
+            </label>
+            <input
+              type="text"
+              value={editFormData.soldBy}
+              onChange={(e) => setEditFormData({ ...editFormData, soldBy: e.target.value })}
+              placeholder="e.g. Surendra, Ranga Prasad, Store Staff"
               className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>

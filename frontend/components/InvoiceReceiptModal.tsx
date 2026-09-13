@@ -16,6 +16,7 @@ export interface CompletedSaleRecord {
   invoiceNo: string;
   customerName: string;
   saleDate: string;
+  soldBy?: string;
   totalAmount: number;
   totalCogs: number;
   totalProfit: number;
@@ -128,7 +129,7 @@ export function InvoiceReceiptModal({
           </div>
 
           {/* Customer & Billing Info */}
-          <div className="grid grid-cols-2 gap-4 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
             <div>
               <span className="font-semibold text-muted-foreground uppercase tracking-wider block">
                 Billed To:
@@ -137,7 +138,15 @@ export function InvoiceReceiptModal({
                 {sale.customerName}
               </span>
             </div>
-            <div className="text-right">
+            <div>
+              <span className="font-semibold text-muted-foreground uppercase tracking-wider block">
+                Sold By:
+              </span>
+              <span className="text-sm font-bold text-foreground mt-0.5 block">
+                {sale.soldBy || 'Store Staff'}
+              </span>
+            </div>
+            <div className="text-right sm:text-right">
               <span className="font-semibold text-muted-foreground uppercase tracking-wider block">
                 Payment Status:
               </span>

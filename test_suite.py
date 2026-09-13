@@ -2231,6 +2231,57 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertGreaterEqual(row["cnt"], 0)
         conn.close()
 
+    def test_sold_by_seller_tracking_and_persistence(self):
+        """PR-023: Test sold_by column tracking, default fallback, and persistence."""
+        conn = db.get_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT id FROM products LIMIT 1")
+            prod = cur.fetchone()
+            if not prod:
+                cur.execute("INSERT INTO products (name, sku, category, unit, min_stock) VALUES ('Test Item', 'TST-ITEM-01', 'Test', 'pcs', 5)")
+                prod_id = cur.lastrowid
+            else:
+                prod_id = prod["id"]
+
+            # Ensure we have inventory
+            cur.execute(
+                "INSERT INTO inventory_lots (product_id, batch_code, unit_cost, initial_qty, remaining_qty, procurement_date, source, status) "
+                "VALUES (?, 'LOT-SELLER-01', 50.0, 10, 10, '2026-09-12', 'Wholesale Shop', 'active')",
+                (prod_id,)
+            )
+            conn.commit()
+
+            # 1. Sale with explicit seller 'Surendra'
+            sale_res, status = server.execute_sale(conn, cur, {
+                "invoice_no": "TEST-SELLER-01",
+                "sale_date": "2026-09-12",
+                "sold_by": "Surendra",
+                "notes": "Testing seller tracking",
+                "items": [{"product_id": prod_id, "qty": 2, "unit_sale_price": 80.0}]
+            })
+            self.assertEqual(status, 201)
+            self.assertEqual(sale_res["sold_by"], "Surendra")
+
+            # Verify in database
+            cur.execute("SELECT sold_by FROM sales WHERE invoice_no = 'TEST-SELLER-01'")
+            row = cur.fetchone()
+            self.assertEqual(row["sold_by"], "Surendra")
+
+            # 2. Sale without sold_by (should default to 'Store Staff')
+            sale_res2, status2 = server.execute_sale(conn, cur, {
+                "invoice_no": "TEST-SELLER-02",
+                "sale_date": "2026-09-12",
+                "items": [{"product_id": prod_id, "qty": 1, "unit_sale_price": 80.0}]
+            })
+            self.assertEqual(status2, 201)
+            self.assertEqual(sale_res2["sold_by"], "Store Staff")
+
+            cur.execute("SELECT sold_by FROM sales WHERE invoice_no = 'TEST-SELLER-02'")
+            self.assertEqual(cur.fetchone()["sold_by"], "Store Staff")
+        finally:
+            conn.close()
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
 

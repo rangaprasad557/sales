@@ -130,7 +130,7 @@ export default function SalesPOSPage() {
   // Available lots mock/cache (initially clean/empty)
   const [lotsMap, setLotsMap] = useState<Record<number, LotItem[]>>({});
 
-  const { addNotification } = useUIStore();
+  const { currentUser, addNotification } = useUIStore();
 
   // Close search dropdown on click outside
   useEffect(() => {
@@ -418,6 +418,7 @@ export default function SalesPOSPage() {
       invoiceNo,
       customerName: selectedCustomer ? selectedCustomer.name : 'Walk-in Retail Customer',
       saleDate: saleDate || new Date().toISOString().slice(0, 10),
+      soldBy: currentUser?.name || 'Store Staff',
       totalAmount: cartSummary.subtotal,
       totalCogs: cartSummary.totalCogs,
       totalProfit: cartSummary.netProfit,
@@ -429,6 +430,7 @@ export default function SalesPOSPage() {
       invoice_no: invoiceNo,
       customer_id: selectedCustomerId || null,
       sale_date: saleDate || new Date().toISOString().slice(0, 10),
+      sold_by: currentUser?.name || 'Store Staff',
       notes: `POS Sale. Customer: ${selectedCustomer ? selectedCustomer.name : 'Walk-in'}`,
       items: cart.map((item) => ({
         product_id: item.product.id,
