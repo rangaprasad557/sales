@@ -16,6 +16,8 @@ import {
   LogOut,
   Layers,
   Receipt,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { useUIStore } from '../store/useUIStore';
 import { ThemeToggle } from './ThemeToggle';
@@ -25,11 +27,14 @@ export function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
   const {
     currentUser,
     logout,
     isMobileSidebarOpen,
     setMobileSidebarOpen,
+    addNotification,
   } = useUIStore();
 
   useEffect(() => {
@@ -40,6 +45,25 @@ export function Navigation() {
     logout();
     setMobileSidebarOpen(false);
     router.replace('/login');
+  };
+
+  const handleConfirmClear = async () => {
+    setIsClearing(true);
+    try {
+      const res = await fetch('/api/system/clear-data', { method: 'POST' });
+      if (res.ok) {
+        addNotification('success', 'All store data has been reset to zero.');
+        setShowClearModal(false);
+        // Refresh page
+        window.location.reload();
+      } else {
+        addNotification('error', 'Failed to clear store data.');
+      }
+    } catch {
+      addNotification('error', 'Network error connecting to clear-data service.');
+    } finally {
+      setIsClearing(false);
+    }
   };
 
   // If on login page, render clean minimal header without protected store navigation tabs
@@ -128,6 +152,19 @@ export function Navigation() {
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* Theme Toggle */}
             <ThemeToggle />
+
+            {/* Clear All Store Data Button (Admin/Authorized User) */}
+            {currentUser && (
+              <button
+                type="button"
+                onClick={() => setShowClearModal(true)}
+                className="p-2 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
+                title="Reset All Store Data to Zero"
+                aria-label="Reset All Store Data to Zero"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
 
             {/* Authentication State & Profile Pill */}
             {!mounted ? (
@@ -272,6 +309,55 @@ export function Navigation() {
                   <span>Google Sign In</span>
                 </Link>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal to Clear All Data */}
+      {showClearModal && (
+        <div
+          className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="clear-dialog-title"
+        >
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => !isClearing && setShowClearModal(false)}
+          />
+          <div className="relative w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-4 z-10 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 text-destructive">
+              <div className="p-3 rounded-2xl bg-destructive/10">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 id="clear-dialog-title" className="text-base font-bold text-foreground">
+                  Reset Store Data to Zero?
+                </h3>
+                <p className="text-xs text-muted-foreground">Permanent store wipe</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              This action will permanently delete all <strong>products</strong>, <strong>categories</strong>, <strong>suppliers</strong>, <strong>customers</strong>, <strong>inventory lots</strong>, and <strong>past orders</strong> so you can start from a completely clean slate. This cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setShowClearModal(false)}
+                disabled={isClearing}
+                className="px-4 py-2 rounded-xl border border-border text-xs font-semibold text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClear}
+                disabled={isClearing}
+                className="px-4 py-2 rounded-xl bg-destructive text-destructive-foreground text-xs font-bold hover:bg-destructive/90 focus-visible:ring-2 focus-visible:ring-destructive shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isClearing ? 'Clearing Store...' : 'Yes, Reset to Zero'}
+              </button>
             </div>
           </div>
         </div>

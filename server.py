@@ -1152,7 +1152,7 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
             conn.close()
 
 def run_server(port=PORT):
-    db.init_db()
+    db.init_db(seed_if_empty=False)
     server_address = ("", port)
     httpd = socketserver.ThreadingTCPServer(server_address, InventorySalesRequestHandler)
     print(f"============================================================")

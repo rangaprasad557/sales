@@ -15,8 +15,8 @@ def get_connection():
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
-def init_db(seed_if_empty=True):
-    """Initialize database tables, indices, and seed data if empty."""
+def init_db(seed_if_empty=False):
+    """Initialize database tables and indices without seeding (starts from zero)."""
     conn = get_connection()
     cur = conn.cursor()
 

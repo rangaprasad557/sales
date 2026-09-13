@@ -21,7 +21,7 @@ class TestMultiBatchInventoryAndSales(unittest.TestCase):
     def setUpClass(cls):
         cls.test_db_fd, cls.test_db_path = tempfile.mkstemp(suffix=".db")
         db.DB_FILE = cls.test_db_path
-        db.init_db()
+        db.init_db(seed_if_empty=True)
 
     @classmethod
     def tearDownClass(cls):
@@ -498,7 +498,7 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
     def setUpClass(cls):
         cls.test_db_fd, cls.test_db_path = tempfile.mkstemp(suffix=".db")
         db.DB_FILE = cls.test_db_path
-        db.init_db()
+        db.init_db(seed_if_empty=True)
 
         cls.httpd = socketserver.ThreadingTCPServer(("127.0.0.1", 0), server.InventorySalesRequestHandler)
         cls.port = cls.httpd.server_address[1]
