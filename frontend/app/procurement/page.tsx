@@ -12,6 +12,7 @@ import {
   AlertCircle,
   FileText,
   ExternalLink,
+  Edit2,
 } from 'lucide-react';
 import { Drawer } from '../../components/Drawer';
 import { useUIStore } from '../../store/useUIStore';
@@ -53,6 +54,7 @@ export default function ProcurementPage() {
   const [selectedSource, setSelectedSource] = useState('ALL');
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingProcurement, setEditingProcurement] = useState<ProcurementRecord | null>(null);
   const { addNotification } = useUIStore();
 
   // Form State
@@ -153,6 +155,7 @@ export default function ProcurementPage() {
   const openCreateDrawer = () => {
     fetchProducts();
     fetchSuppliers();
+    setEditingProcurement(null);
     const inv = `PROC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
     const defaultProduct = products.length > 0 ? products[0] : null;
     const defaultSupplier = suppliers.length > 0 ? suppliers[0] : null;
@@ -169,6 +172,53 @@ export default function ProcurementPage() {
       quantity: '50',
       batchCode: '', // Not required
       notes: '',
+    });
+    setFormErrors({});
+    setDrawerOpen(true);
+  };
+
+  const openEditDrawer = async (proc: ProcurementRecord) => {
+    fetchProducts();
+    fetchSuppliers();
+    setEditingProcurement(proc);
+
+    let itemProdId = '';
+    let itemProdName = '';
+    let itemUnitCost = '10.00';
+    let itemQty = String(proc.itemCount || '50');
+    let itemBatchCode = '';
+    let itemNotes = proc.notes || '';
+
+    try {
+      const res = await fetch(`/api/procurements/${proc.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        const p = data.procurement || data;
+        if (p.items && p.items.length > 0) {
+          const it = p.items[0];
+          itemProdId = String(it.product_id || '');
+          itemProdName = it.product_name || '';
+          itemUnitCost = String(it.unit_cost || '10.00');
+          itemQty = String(it.initial_qty || it.qty || '50');
+          itemBatchCode = it.batch_code || '';
+        }
+      }
+    } catch {
+      // Fallback
+    }
+
+    setFormData({
+      invoiceNo: proc.invoiceNo,
+      supplierId: '',
+      supplierName: proc.supplierName,
+      source: proc.source,
+      procurementDate: proc.procurementDate,
+      productId: itemProdId,
+      productName: itemProdName,
+      unitCost: itemUnitCost,
+      quantity: itemQty,
+      batchCode: itemBatchCode,
+      notes: itemNotes,
     });
     setFormErrors({});
     setDrawerOpen(true);
@@ -207,7 +257,6 @@ export default function ProcurementPage() {
     const prodId = parseInt(formData.productId, 10);
     const qtyVal = parseFloat(formData.quantity);
     const costVal = parseFloat(formData.unitCost);
-    // Batch code is not required; if empty, let backend or frontend auto-generate
     const batchCode = formData.batchCode.trim() || `LOT-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const chosenSupplier = suppliers.find((s) => String(s.id) === formData.supplierId);
@@ -220,6 +269,9 @@ export default function ProcurementPage() {
       invoice_no: formData.invoiceNo.trim(),
       source: formData.source,
       procurement_date: formData.procurementDate,
+      unit_cost: costVal,
+      quantity: qtyVal,
+      product_id: prodId,
       notes: `Supplier: ${finalSupplierName}. Product: ${finalProductName}. ${formData.notes}`.trim(),
       items: [
         {
@@ -232,19 +284,29 @@ export default function ProcurementPage() {
     };
 
     try {
-      const res = await fetch('/api/procurements', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({ error: 'Procurement intake failed' }));
-        throw new Error(errData.error || 'Procurement intake failed');
+      let res;
+      if (editingProcurement) {
+        res = await fetch(`/api/procurements/${editingProcurement.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        res = await fetch('/api/procurements', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
       }
 
-      addNotification('success', `Stock intake committed! Invoice ${formData.invoiceNo} saved with batch ${batchCode}.`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: 'Procurement operation failed' }));
+        throw new Error(errData.error || 'Procurement operation failed');
+      }
+
+      addNotification('success', editingProcurement ? `Procurement invoice ${formData.invoiceNo} updated successfully!` : `Stock intake committed! Invoice ${formData.invoiceNo} saved with batch ${batchCode}.`);
       setDrawerOpen(false);
+      setEditingProcurement(null);
       fetchProcurements();
     } catch (err: any) {
       addNotification('error', err.message || 'Failed to record intake');
@@ -384,12 +446,13 @@ export default function ProcurementPage() {
                 <th className="px-6 py-4">Supplier & Channel</th>
                 <th className="px-6 py-4">Consignment Details</th>
                 <th className="px-6 py-4 text-right">Total Cost</th>
+                <th className="px-6 py-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {filteredProcurements.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
                     <Package className="w-10 h-10 mx-auto mb-2 text-muted-foreground/50" />
                     <p className="font-medium text-foreground">No procurement intakes recorded</p>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -421,6 +484,17 @@ export default function ProcurementPage() {
                     <td className="px-6 py-4 text-right font-mono text-sm font-bold text-foreground">
                       ₹{proc.totalAmount.toFixed(2)}
                     </td>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => openEditDrawer(proc)}
+                        className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors cursor-pointer"
+                        title={`Edit Invoice ${proc.invoiceNo}`}
+                        aria-label={`Edit Invoice ${proc.invoiceNo}`}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -429,17 +503,23 @@ export default function ProcurementPage() {
         </div>
       </div>
 
-      {/* Slide-over Drawer for New Stock Intake */}
+      {/* Slide-over Drawer for Stock Intake (New or Edit) */}
       <Drawer
         isOpen={isDrawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        title="Record New Stock Intake"
-        description="Register arrival of inventory lots with fluctuating acquisition costs."
+        onClose={() => {
+          setDrawerOpen(false);
+          setEditingProcurement(null);
+        }}
+        title={editingProcurement ? 'Edit Stock Intake' : 'Record New Stock Intake'}
+        description={editingProcurement ? 'Update procurement details, unit cost, or batch allocation.' : 'Register arrival of inventory lots with fluctuating acquisition costs.'}
         footer={
           <>
             <button
               type="button"
-              onClick={() => setDrawerOpen(false)}
+              onClick={() => {
+                setDrawerOpen(false);
+                setEditingProcurement(null);
+              }}
               className="px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
             >
               Cancel
@@ -450,7 +530,7 @@ export default function ProcurementPage() {
               disabled={isSubmitting}
               className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-sm disabled:opacity-50"
             >
-              {isSubmitting ? 'Recording Intake...' : 'Commit Intake & Create Lots'}
+              {isSubmitting ? 'Saving...' : editingProcurement ? 'Save Changes' : 'Commit Intake & Create Lots'}
             </button>
           </>
         }

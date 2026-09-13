@@ -1426,7 +1426,7 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         with open(os.path.join(app_dir, "customers", "page.tsx"), "r", encoding="utf-8") as f:
             cust_page = f.read()
         self.assertIn("Customer Directory", cust_page)
-        self.assertIn("Credit Limit", cust_page)
+        self.assertIn("Account Notes", cust_page)
         self.assertIn("validateForm", cust_page)
         self.assertIn("Drawer", cust_page)
 
@@ -2096,6 +2096,91 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
             test_content = f.read()
         it_count = test_content.count("it(")
         self.assertGreaterEqual(it_count, 8, f"master_data_editing.test.ts must contain >= 8 assertions, got {it_count}")
+
+    def test_e2e_18_backup_restore_and_editing_procurements_orders(self):
+        """Test backup/restore system endpoints and editing procurements & sales orders."""
+        # 1. Test Backup endpoint
+        status, _, body = self._http_get("/api/system/backup")
+        self.assertEqual(status, 200)
+        backup_data = json.loads(body)
+        self.assertTrue(backup_data["success"])
+        self.assertIn("backup", backup_data)
+        b = backup_data["backup"]
+        self.assertIn("products", b)
+        self.assertIn("procurements", b)
+        self.assertIn("sales", b)
+
+        # 2. Test Editing a Procurement
+        status, _, body = self._http_get("/api/procurements")
+        procs = json.loads(body).get("procurements", [])
+        if procs:
+            proc_id = procs[0]["id"]
+            update_payload = {
+                "invoice_no": "UPD-PROC-999",
+                "source": "E-Commerce",
+                "procurement_date": "2026-09-12",
+                "notes": "Updated procurement via test suite"
+            }
+            u_status, _, u_res = self._http_put(f"/api/procurements/{proc_id}", update_payload)
+            self.assertEqual(u_status, 200)
+            self.assertTrue(u_res["success"])
+
+            # Verify update persisted
+            v_status, _, v_body = self._http_get(f"/api/procurements/{proc_id}")
+            self.assertEqual(v_status, 200)
+            v_proc = json.loads(v_body).get("procurement", {})
+            self.assertEqual(v_proc["invoice_no"], "UPD-PROC-999")
+            self.assertEqual(v_proc["source"], "E-Commerce")
+
+        # 3. Test Editing a Sale Order
+        status, _, body = self._http_get("/api/sales")
+        sales = json.loads(body).get("sales", [])
+        if sales:
+            sale_id = sales[0]["id"]
+            sale_update_payload = {
+                "notes": "Updated sale notes via test suite",
+                "sale_date": "2026-09-13"
+            }
+            s_status, _, s_res = self._http_put(f"/api/sales/{sale_id}", sale_update_payload)
+            self.assertEqual(s_status, 200)
+            self.assertTrue(s_res["success"])
+
+            # Verify update persisted
+            sv_status, _, sv_body = self._http_get(f"/api/sales/{sale_id}")
+            self.assertEqual(sv_status, 200)
+            sv_sale = json.loads(sv_body).get("sale", {})
+            self.assertEqual(sv_sale["notes"], "Updated sale notes via test suite")
+
+        # 4. Test Customer without credit limit
+        new_cust = {
+            "name": "Zero Credit Store",
+            "phone": "+91 9876543210",
+            "email": "zerocredit@store.com",
+            "address": "MG Road, Bangalore",
+            "notes": "Cash on Delivery only"
+        }
+        c_status, _, c_res = self._http_post("/api/customers", new_cust)
+        self.assertEqual(c_status, 201)
+        self.assertTrue(c_res["success"])
+        new_cust_id = c_res["id"]
+
+        # Update customer without credit limit
+        cu_status, _, cu_res = self._http_put(f"/api/customers/{new_cust_id}", {
+            "name": "Zero Credit Store Updated",
+            "phone": "+91 9876543211",
+            "email": "zerocredit2@store.com",
+            "address": "Brigade Road, Bangalore",
+            "notes": "Updated cash account"
+        })
+        self.assertEqual(cu_status, 200)
+
+        # Cleanup test customer
+        self._http_delete(f"/api/customers/{new_cust_id}")
+
+        # 5. Test Restore endpoint with original backup
+        r_status, _, r_res = self._http_post("/api/system/restore", backup_data)
+        self.assertEqual(r_status, 200)
+        self.assertTrue(r_res["success"])
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

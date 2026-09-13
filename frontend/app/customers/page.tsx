@@ -25,7 +25,6 @@ export interface Customer {
   email?: string;
   phone?: string;
   address?: string;
-  creditLimit: number;
   notes?: string;
   createdAt?: string;
 }
@@ -37,8 +36,7 @@ const SEED_CUSTOMERS: Customer[] = [
     email: 'purchasing@metrosuper.com',
     phone: '+1 (555) 234-5678',
     address: '450 Industrial Parkway, Suite 10, Metro City',
-    creditLimit: 25000.0,
-    notes: 'Premium commercial account. Net 30 terms.',
+    notes: 'Premium commercial account.',
   },
   {
     id: 2,
@@ -46,7 +44,6 @@ const SEED_CUSTOMERS: Customer[] = [
     email: 'orders@greengrocers.org',
     phone: '+1 (555) 876-5432',
     address: '12 Farmhouse Lane, Green Valley',
-    creditLimit: 12000.0,
     notes: 'Organic produce retail partner.',
   },
   {
@@ -55,7 +52,6 @@ const SEED_CUSTOMERS: Customer[] = [
     email: 'chef@downtowndeli.com',
     phone: '+1 (555) 432-1098',
     address: '88 Market Street, Downtown',
-    creditLimit: 5000.0,
     notes: 'Daily delivery schedule required.',
   },
   {
@@ -64,7 +60,6 @@ const SEED_CUSTOMERS: Customer[] = [
     email: 'owner@sunriseconv.com',
     phone: '+1 (555) 654-9870',
     address: '302 Coastal Highway',
-    creditLimit: 3000.0,
     notes: 'Weekly cash-and-carry replenishment.',
   },
 ];
@@ -82,7 +77,6 @@ export default function CustomersPage() {
     email: '',
     phone: '',
     address: '',
-    creditLimit: '1000.00',
     notes: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -103,7 +97,6 @@ export default function CustomersPage() {
           email: c.email || '',
           phone: c.phone || '',
           address: c.address || '',
-          creditLimit: parseFloat(c.credit_limit || c.creditLimit || '0'),
           notes: c.notes || '',
         }));
         setCustomers(mapped);
@@ -124,8 +117,6 @@ export default function CustomersPage() {
     );
   });
 
-  const totalCreditLimit = customers.reduce((acc, c) => acc + c.creditLimit, 0);
-
   const openCreateDrawer = () => {
     setEditingCustomer(null);
     setFormData({
@@ -133,7 +124,6 @@ export default function CustomersPage() {
       email: '',
       phone: '',
       address: '',
-      creditLimit: '1000.00',
       notes: '',
     });
     setFormErrors({});
@@ -147,7 +137,6 @@ export default function CustomersPage() {
       email: customer.email || '',
       phone: customer.phone || '',
       address: customer.address || '',
-      creditLimit: customer.creditLimit.toFixed(2),
       notes: customer.notes || '',
     });
     setFormErrors({});
@@ -164,11 +153,6 @@ export default function CustomersPage() {
       errors.email = 'Please enter a valid email address';
       addNotification('error', 'Please enter a valid email address');
     }
-    const limit = parseFloat(formData.creditLimit);
-    if (isNaN(limit) || limit < 0) {
-      errors.creditLimit = 'Credit limit must be a positive number';
-      addNotification('error', 'Credit limit must be a positive number');
-    }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -178,13 +162,11 @@ export default function CustomersPage() {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
-    const creditLimitVal = parseFloat(formData.creditLimit);
     const payload = {
       name: formData.name.trim(),
       email: formData.email.trim(),
       phone: formData.phone.trim(),
       address: formData.address.trim(),
-      creditLimit: creditLimitVal,
       notes: formData.notes.trim(),
     };
 
@@ -275,38 +257,40 @@ export default function CustomersPage() {
             <Users className="w-4 h-4 text-primary" />
           </div>
           <div className="text-2xl font-black text-foreground">{customers.length}</div>
-          <p className="text-xs text-muted-foreground mt-1">Active billing profiles</p>
+          <p className="text-xs text-muted-foreground mt-1">Active customer profiles</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Credit Limit</span>
-            <IndianRupee className="w-4 h-4 text-emerald-500" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Phone Contacts</span>
+            <Phone className="w-4 h-4 text-emerald-500" />
           </div>
           <div className="text-2xl font-black text-foreground">
-            ₹{totalCreditLimit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            {customers.filter((c) => c.phone).length}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Authorized credit line</p>
+          <p className="text-xs text-muted-foreground mt-1">Verified phone numbers</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Commercial Accounts</span>
-            <Building className="w-4 h-4 text-primary" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Email Profiles</span>
+            <Mail className="w-4 h-4 text-blue-500" />
           </div>
           <div className="text-2xl font-black text-foreground">
-            {customers.filter((c) => c.creditLimit >= 10000).length}
+            {customers.filter((c) => c.email).length}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">High-volume wholesale tier</p>
+          <p className="text-xs text-muted-foreground mt-1">Direct invoice recipients</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Credit Compliance</span>
-            <ShieldCheck className="w-4 h-4 text-primary" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Delivery Addresses</span>
+            <MapPin className="w-4 h-4 text-primary" />
           </div>
-          <div className="text-2xl font-black text-foreground">100%</div>
-          <p className="text-xs text-muted-foreground mt-1">Zero delinquent overdues</p>
+          <div className="text-2xl font-black text-foreground">
+            {customers.filter((c) => c.address).length}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Documented shipping destinations</p>
         </div>
       </div>
 
@@ -333,14 +317,13 @@ export default function CustomersPage() {
                 <th className="px-6 py-4">Customer / Organization</th>
                 <th className="px-6 py-4">Contact Info</th>
                 <th className="px-6 py-4">Billing Address</th>
-                <th className="px-6 py-4 text-right">Credit Limit</th>
                 <th className="px-6 py-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {filteredCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
                     <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                     <p className="font-medium text-foreground">No customers found</p>
                     <p className="text-xs mt-1">Try adjusting your search criteria or add a new customer.</p>
@@ -399,14 +382,6 @@ export default function CustomersPage() {
                       ) : (
                         <span className="text-xs text-muted-foreground/50 italic">No address recorded</span>
                       )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary font-mono font-bold text-xs border border-primary/20">
-                        <IndianRupee className="w-3 h-3" />
-                        {customer.creditLimit.toLocaleString('en-IN', {
-                          minimumFractionDigits: 2,
-                        })}
-                      </span>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex items-center justify-center gap-1">
@@ -520,37 +495,6 @@ export default function CustomersPage() {
                 className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
-              Credit Limit (₹)
-            </label>
-            <div className="relative">
-              <IndianRupee className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                inputMode="decimal"
-                value={formData.creditLimit}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/[^0-9.]/g, '');
-                  // Ensure only single decimal point
-                  const parts = val.split('.');
-                  const clean = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : val;
-                  setFormData({ ...formData, creditLimit: clean });
-                }}
-                placeholder="5000.00"
-                className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary ${
-                  formErrors.creditLimit ? 'border-destructive' : 'border-border'
-                }`}
-              />
-            </div>
-            {formErrors.creditLimit && (
-              <p className="mt-1 text-xs text-destructive flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                {formErrors.creditLimit}
-              </p>
-            )}
           </div>
 
           <div>

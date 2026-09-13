@@ -190,7 +190,7 @@ export function GlobalSearchBar() {
             id: `cust-${c.id}`,
             type: 'customer',
             title: c.name,
-            subtitle: `${c.email || c.phone || 'Customer Account'} • Credit: ₹${parseFloat(c.credit_limit || c.creditLimit || '0').toLocaleString('en-IN')}`,
+            subtitle: c.email || c.phone || 'Customer Account',
             badge: 'Customer',
             url: '/customers',
           });

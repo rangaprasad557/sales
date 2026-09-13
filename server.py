@@ -12,6 +12,7 @@ import os
 import sys
 import mimetypes
 import uuid
+import traceback
 from datetime import datetime, timedelta
 import db
 
@@ -552,6 +553,170 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 conn.commit()
                 json_response(self, {"success": True, "id": int(entity_id), "message": "Category updated"})
 
+            # PUT /api/procurements/<id>
+            elif path.startswith("/api/procurements/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid procurement ID", 400)
+                    return
+                proc_id = int(entity_id)
+                cur.execute("SELECT * FROM procurements WHERE id = ?", (proc_id,))
+                existing_proc = cur.fetchone()
+                if not existing_proc:
+                    error_response(self, "Procurement not found", 404)
+                    return
+
+                invoice_no = body.get("invoice_no", existing_proc["invoice_no"]).strip()
+                source = body.get("source", existing_proc["source"]).strip()
+                procurement_date = body.get("procurement_date", existing_proc["procurement_date"]).strip()
+                notes = body.get("notes", existing_proc["notes"] or "").strip()
+                supplier_id = body.get("supplier_id")
+
+                unit_cost = body.get("unit_cost")
+                quantity = body.get("quantity")
+                product_id = body.get("product_id")
+
+                if unit_cost is not None and quantity is not None:
+                    new_cost = float(unit_cost)
+                    new_qty = float(quantity)
+                    if new_qty <= 0 or new_cost < 0:
+                        error_response(self, "Quantity must be > 0 and unit cost >= 0", 400)
+                        return
+
+                    cur.execute("SELECT * FROM inventory_lots WHERE procurement_id = ?", (proc_id,))
+                    existing_lots = cur.fetchall()
+                    if existing_lots:
+                        first_lot = existing_lots[0]
+                        already_sold = first_lot["initial_qty"] - first_lot["remaining_qty"]
+                        if new_qty < already_sold:
+                            error_response(self, f"Cannot reduce quantity below already sold quantity ({already_sold:.1f} units sold)", 400)
+                            return
+                        new_remaining = new_qty - already_sold
+                        new_status = 'depleted' if new_remaining <= 0 else 'active'
+                        target_prod_id = int(product_id) if product_id else first_lot["product_id"]
+
+                        cur.execute("""
+                            UPDATE inventory_lots 
+                            SET product_id = ?, initial_qty = ?, remaining_qty = ?, unit_cost = ?, procurement_date = ?, source = ?, status = ?
+                            WHERE id = ?
+                        """, (target_prod_id, new_qty, new_remaining, new_cost, procurement_date, source, new_status, first_lot["id"]))
+
+                    total_amount = new_qty * new_cost
+                    cur.execute("""
+                        UPDATE procurements
+                        SET invoice_no = ?, source = ?, procurement_date = ?, total_amount = ?, notes = ?
+                        WHERE id = ?
+                    """, (invoice_no, source, procurement_date, total_amount, notes, proc_id))
+                else:
+                    cur.execute("""
+                        UPDATE procurements
+                        SET invoice_no = ?, source = ?, procurement_date = ?, notes = ?
+                        WHERE id = ?
+                    """, (invoice_no, source, procurement_date, notes, proc_id))
+
+                conn.commit()
+                json_response(self, {"success": True, "id": proc_id, "message": "Procurement updated successfully"})
+
+            # PUT /api/sales/<id>
+            elif path.startswith("/api/sales/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid sale ID", 400)
+                    return
+                sale_id = int(entity_id)
+                cur.execute("SELECT * FROM sales WHERE id = ?", (sale_id,))
+                existing_sale = cur.fetchone()
+                if not existing_sale:
+                    error_response(self, "Sale not found", 404)
+                    return
+
+                customer_id = body.get("customer_id", existing_sale["customer_id"])
+                sale_date = body.get("sale_date", existing_sale["sale_date"])
+                notes = body.get("notes", existing_sale["notes"] or "").strip()
+
+                if "items" in body and isinstance(body["items"], list):
+                    # 1. Restore all drawn lots for this sale
+                    cur.execute("SELECT lot_id, qty_drawn FROM sale_item_lots sil JOIN sale_items si ON sil.sale_item_id = si.id WHERE si.sale_id = ?", (sale_id,))
+                    drawn_lots = cur.fetchall()
+                    for dl in drawn_lots:
+                        cur.execute("""
+                            UPDATE inventory_lots 
+                            SET remaining_qty = remaining_qty + ?, status = 'active'
+                            WHERE id = ?
+                        """, (dl["qty_drawn"], dl["lot_id"]))
+
+                    # 2. Delete old sale_items and sale_item_lots
+                    cur.execute("DELETE FROM sale_item_lots WHERE sale_item_id IN (SELECT id FROM sale_items WHERE sale_id = ?)", (sale_id,))
+                    cur.execute("DELETE FROM sale_items WHERE sale_id = ?", (sale_id,))
+
+                    # 3. Re-allocate new items
+                    new_items = body["items"]
+                    total_amount = 0.0
+                    total_cogs = 0.0
+
+                    for item in new_items:
+                        p_id = int(item["product_id"])
+                        qty_needed = float(item["qty"])
+                        unit_sale_price = float(item["unit_sale_price"])
+                        subtotal_amount = qty_needed * unit_sale_price
+                        total_amount += subtotal_amount
+
+                        cur.execute("SELECT COALESCE(SUM(remaining_qty), 0) as available FROM inventory_lots WHERE product_id = ? AND remaining_qty > 0", (p_id,))
+                        avail = cur.fetchone()["available"]
+                        if avail < qty_needed:
+                            conn.rollback()
+                            error_response(self, f"Insufficient stock for product {p_id}. Available: {avail}, Requested: {qty_needed}", 400)
+                            return
+
+                        cur.execute("""
+                            INSERT INTO sale_items (sale_id, product_id, qty, unit_sale_price, subtotal_amount, subtotal_cogs, subtotal_profit)
+                            VALUES (?, ?, ?, ?, ?, 0, 0)
+                        """, (sale_id, p_id, qty_needed, unit_sale_price, subtotal_amount))
+                        sale_item_id = cur.lastrowid
+
+                        cur.execute("""
+                            SELECT id, remaining_qty, unit_cost 
+                            FROM inventory_lots 
+                            WHERE product_id = ? AND remaining_qty > 0 
+                            ORDER BY unit_cost ASC, procurement_date ASC
+                        """, (p_id,))
+                        available_lots = cur.fetchall()
+
+                        item_cogs = 0.0
+                        remaining_to_draw = qty_needed
+                        for lot in available_lots:
+                            if remaining_to_draw <= 0:
+                                break
+                            lot_draw = min(lot["remaining_qty"], remaining_to_draw)
+                            item_cogs += lot_draw * lot["unit_cost"]
+                            remaining_to_draw -= lot_draw
+                            new_rem = lot["remaining_qty"] - lot_draw
+                            new_st = 'depleted' if new_rem <= 0 else 'active'
+                            cur.execute("UPDATE inventory_lots SET remaining_qty = ?, status = ? WHERE id = ?", (new_rem, new_st, lot["id"]))
+                            cur.execute("INSERT INTO sale_item_lots (sale_item_id, lot_id, qty_drawn, unit_lot_cost) VALUES (?, ?, ?, ?)", (sale_item_id, lot["id"], lot_draw, lot["unit_cost"]))
+
+                        total_cogs += item_cogs
+                        item_profit = subtotal_amount - item_cogs
+                        cur.execute("UPDATE sale_items SET subtotal_cogs = ?, subtotal_profit = ? WHERE id = ?", (item_cogs, item_profit, sale_item_id))
+
+                    net_profit = total_amount - total_cogs
+                    margin_pct = (net_profit / total_amount * 100.0) if total_amount > 0 else 0.0
+
+                    cur.execute("""
+                        UPDATE sales 
+                        SET customer_id = ?, sale_date = ?, total_amount = ?, total_cogs = ?, net_profit = ?, margin_pct = ?, notes = ?
+                        WHERE id = ?
+                    """, (customer_id, sale_date, total_amount, total_cogs, net_profit, margin_pct, notes, sale_id))
+                else:
+                    cur.execute("""
+                        UPDATE sales 
+                        SET customer_id = ?, sale_date = ?, notes = ?
+                        WHERE id = ?
+                    """, (customer_id, sale_date, notes, sale_id))
+
+                conn.commit()
+                json_response(self, {"success": True, "id": sale_id, "message": "Sale order updated successfully"})
+
             else:
                 error_response(self, "Endpoint not found", 404)
 
@@ -877,6 +1042,41 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 sales = [dict(r) for r in cur.fetchall()]
                 json_response(self, {"success": True, "sales": sales})
 
+            elif path == "/api/system/backup":
+                cur.execute("SELECT * FROM products ORDER BY id")
+                prods = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT * FROM categories ORDER BY id")
+                cats = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT * FROM suppliers ORDER BY id")
+                supps = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT * FROM customers ORDER BY id")
+                custs = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT * FROM inventory_lots ORDER BY id")
+                lots = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT * FROM procurements ORDER BY id")
+                procs = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT * FROM sales ORDER BY id")
+                sales_list = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT * FROM sale_items ORDER BY id")
+                sitems = [dict(r) for r in cur.fetchall()]
+                cur.execute("SELECT * FROM sale_item_lots ORDER BY id")
+                slots = [dict(r) for r in cur.fetchall()]
+
+                backup_payload = {
+                    "version": "1.0",
+                    "exported_at": datetime.now().isoformat(),
+                    "products": prods,
+                    "categories": cats,
+                    "suppliers": supps,
+                    "customers": custs,
+                    "inventory_lots": lots,
+                    "procurements": procs,
+                    "sales": sales_list,
+                    "sale_items": sitems,
+                    "sale_item_lots": slots,
+                }
+                json_response(self, {"success": True, "backup": backup_payload})
+
             elif path == "/api/analytics":
                 self.handle_analytics_get(cur, query)
 
@@ -1142,10 +1342,65 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 db.clear_all_data(conn)
                 json_response(self, {"success": True, "message": "All application data cleared successfully. Ready for fresh entries."}, 200)
 
+            elif path == "/api/system/restore":
+                backup = body if isinstance(body, dict) else {}
+                if not isinstance(backup, dict) or not backup:
+                    error_response(self, "Invalid backup payload format", 400)
+                    return
+                data = backup.get("backup", backup)
+                cur.execute("PRAGMA foreign_keys = OFF")
+                for tbl in ['sale_item_lots', 'sale_items', 'sales', 'inventory_lots', 'procurements', 'customers', 'products', 'suppliers', 'categories']:
+                    cur.execute(f"DELETE FROM {tbl}")
+                    cur.execute(f"DELETE FROM sqlite_sequence WHERE name = '{tbl}'")
+
+                for p in data.get("products", []):
+                    cur.execute("INSERT INTO products (id, name, sku, category, unit, min_stock, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                (p["id"], p["name"], p["sku"], p.get("category", "General"), p.get("unit", "pcs"), p.get("min_stock", 1), p.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))))
+                for c in data.get("categories", []):
+                    cur.execute("INSERT INTO categories (id, name, parent_id, icon, description, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                (c["id"], c["name"], c.get("parent_id"), c.get("icon", "📦"), c.get("description", ""), c.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))))
+                for cu in data.get("customers", []):
+                    cur.execute("INSERT INTO customers (id, name, phone, email, address, credit_limit, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                                (cu["id"], cu["name"], cu.get("phone", ""), cu.get("email", ""), cu.get("address", ""), cu.get("credit_limit", 0.0), cu.get("notes", ""), cu.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))))
+                for su in data.get("suppliers", []):
+                    cur.execute("INSERT INTO suppliers (id, name, contact_person, phone, email, address, source, payment_terms, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (su["id"], su["name"], su.get("contact_person", ""), su.get("phone", ""), su.get("email", ""), su.get("address", ""), su.get("source", "Wholesale Shop"), su.get("payment_terms", "30 days"), su.get("notes", ""), su.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))))
+                for lot in data.get("inventory_lots", []):
+                    cur.execute("INSERT INTO inventory_lots (id, procurement_id, product_id, batch_code, unit_cost, initial_qty, remaining_qty, procurement_date, source, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (lot["id"], lot.get("procurement_id"), lot["product_id"], lot.get("batch_code", ""), lot.get("unit_cost", 0.0), lot.get("initial_qty", 0), lot.get("remaining_qty", 0), lot.get("procurement_date", ""), lot.get("source", "Wholesale Shop"), lot.get("status", "active"), lot.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))))
+                for pr in data.get("procurements", []):
+                    cur.execute("INSERT INTO procurements (id, invoice_no, source, procurement_date, total_amount, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                (pr["id"], pr["invoice_no"], pr.get("source", ""), pr.get("procurement_date", ""), pr.get("total_amount", 0.0), pr.get("notes", ""), pr.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))))
+                for sl in data.get("sales", []):
+                    cur.execute("INSERT INTO sales (id, invoice_no, customer_id, sale_date, total_amount, total_cogs, total_profit, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (sl["id"], sl["invoice_no"], sl.get("customer_id"), sl.get("sale_date", ""), sl.get("total_amount", 0.0), sl.get("total_cogs", 0.0), sl.get("total_profit", sl.get("net_profit", 0.0)), sl.get("notes", ""), sl.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))))
+                
+                s_items = data.get("sale_items") if data.get("sale_items") is not None else data.get("sales_items", [])
+                for si in s_items:
+                    cur.execute("INSERT INTO sale_items (id, sale_id, product_id, qty, unit_sale_price, total_sale_price, total_cost, profit, allocation_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (si["id"], si["sale_id"], si["product_id"], si.get("qty", 0), si.get("unit_sale_price", 0.0), si.get("total_sale_price", si.get("subtotal_amount", 0.0)), si.get("total_cost", si.get("subtotal_cogs", 0.0)), si.get("profit", si.get("subtotal_profit", 0.0)), si.get("allocation_type", "AUTO_LOWEST_COST")))
+                for sil in data.get("sale_item_lots", []):
+                    cur.execute("INSERT INTO sale_item_lots (id, sale_item_id, lot_id, qty, unit_cost, lot_profit) VALUES (?, ?, ?, ?, ?, ?)",
+                                (sil["id"], sil["sale_item_id"], sil["lot_id"], sil.get("qty", sil.get("qty_drawn", 0)), sil.get("unit_cost", sil.get("unit_lot_cost", 0.0)), sil.get("lot_profit", 0.0)))
+
+                for tbl in ['sale_item_lots', 'sale_items', 'sales', 'inventory_lots', 'procurements', 'customers', 'products', 'suppliers', 'categories']:
+                    cur.execute(f"SELECT MAX(id) as max_id FROM {tbl}")
+                    row = cur.fetchone()
+                    max_id = row['max_id'] if row and row['max_id'] else 0
+                    if max_id > 0:
+                        cur.execute("INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES (?, ?)", (tbl, max_id))
+
+                cur.execute("CREATE TABLE IF NOT EXISTS system_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+                cur.execute("INSERT OR REPLACE INTO system_meta (key, value) VALUES ('initialized', 'restored')")
+                cur.execute("PRAGMA foreign_keys = ON")
+                conn.commit()
+                json_response(self, {"success": True, "message": "Database restored successfully.", "products_count": len(data.get("products", []))})
+
             else:
                 error_response(self, "Endpoint not found", 404)
 
         except Exception as e:
+            traceback.print_exc()
             conn.rollback()
             error_response(self, str(e), 500)
         finally:

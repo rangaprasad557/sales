@@ -776,3 +776,44 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 
 
 
+---
+
+## 25. PR-019: Zero-Data Production Reset & Disable Auto-Seeding
+
+### Context & Implementation Scope
+- **PR Document**: docs/prs/PR-019-disable-auto-seeding-and-zero-data-reset.md
+- **Branch**: master / main
+- **Scope Delivered**:
+  1. Disabled default auto-seeding of mock dummy inventory in production (db.py init_db(seed_if_empty=False)).
+  2. Added POST /api/system/clear-data endpoint in server.py with system_meta tracking to allow starting fresh from zero.
+  3. Added frontend Clear Data dialog in Navigation.tsx for clean operational state.
+
+### Automated Testing & Verification Evidence
+- **Backend Test Suite**: 40 / 40 passing.
+- **Frontend Jest Suite**: 126 / 126 passing.
+
+---
+
+## 26. PR-020: Persistent Real Store Data Safeguard, Backup/Restore, Procurement & Orders Editing, and Credit Limit Removal
+
+### Context & Implementation Scope
+- **PR Document**: docs/prs/PR-020-persistence-edit-procurement-orders-and-remove-credit-limit.md
+- **Branch**: master / main
+- **Scope Delivered**:
+  1. Store Catalog Snapshot: Captured 22 real products in data/store_catalog.json and auto-loaded via db.load_store_catalog() on fresh empty databases.
+  2. Persistent Volume Mount Ready: db.get_db_path() detects /data/inventory_sales.db when Cloud Storage or disk volume is mounted at /data.
+  3. 1-Click Backup & Restore: GET /api/system/backup and POST /api/system/restore with Navigation UI download and upload.
+  4. Procurement Editing: PUT /api/procurements/:id and frontend slide-over drawer in procurement/page.tsx.
+  5. Past Sales Order Editing: PUT /api/sales/:id with line item lot restitution and Lowest-Cost-First re-allocation, plus editing drawer in orders/page.tsx.
+  6. Credit Limit Removal: Completely eliminated creditLimit across customers, sales POS, search bar, forms, and validation.
+
+### Automated Testing & Verification Evidence
+- **Frontend Jest Suite**: 126 / 126 passing across 9 suites (100% pass rate).
+- **Python Backend Test Suite**: 41 / 41 passing (100% pass rate).
+- **TypeScript Verification**: npx tsc --noEmit exited with 0 compile/type errors.
+
+### Multi-Agent Review Verdicts
+- **Critic Agent**: APPROVED (0 Major, 0 Blocker).
+- **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **Outcome**: PR-020 fully satisfies all repository rules and quality gates.

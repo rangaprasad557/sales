@@ -42,8 +42,9 @@ ENV BACKEND_PORT=8000
 ENV PORT=8080
 ENV HOSTNAME="0.0.0.0"
 
-# Copy Python Backend
+# Copy Python Backend & Store Data
 COPY server.py db.py ./
+COPY data ./data
 
 # Copy Next.js Standalone Build & Static Assets
 COPY --from=frontend-builder /app/frontend/.next/standalone ./

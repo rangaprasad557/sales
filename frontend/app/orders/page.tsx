@@ -15,9 +15,12 @@ import {
   Clock,
   ArrowUpDown,
   Filter,
-  CheckCircle2,
   Calendar,
+  Edit2,
+  Trash2,
+  AlertCircle,
 } from 'lucide-react';
+import { Drawer } from '../../components/Drawer';
 import { InvoiceReceiptModal, CompletedSaleRecord } from '../../components/InvoiceReceiptModal';
 import { useUIStore } from '../../store/useUIStore';
 
@@ -116,6 +119,103 @@ export default function OrdersPage() {
       addNotification('error', 'Network error fetching order details.');
     } finally {
       setFetchingDetailId(null);
+    }
+  };
+
+  const [isEditDrawerOpen, setEditDrawerOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<any | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    customerId: '',
+    saleDate: '',
+    notes: '',
+    items: [] as Array<{
+      productId: number;
+      productName: string;
+      sku: string;
+      qty: string;
+      unitPrice: string;
+    }>,
+  });
+  const [customers, setCustomers] = useState<Array<{ id: number; name: string }>>([]);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
+
+  const handleEditOrder = async (order: OrderListItem) => {
+    setFetchingDetailId(order.id);
+    try {
+      if (customers.length === 0) {
+        const cRes = await fetch('/api/customers');
+        if (cRes.ok) {
+          const cData = await cRes.json();
+          setCustomers(cData.customers || []);
+        }
+      }
+
+      const res = await fetch(`/api/sales/${order.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.sale) {
+          const s = data.sale;
+          setEditingOrder(s);
+          setEditFormData({
+            customerId: s.customer_id ? String(s.customer_id) : '',
+            saleDate: s.sale_date || s.created_at?.split(' ')[0] || new Date().toISOString().slice(0, 10),
+            notes: s.notes || '',
+            items: (s.items || []).map((it: any) => ({
+              productId: it.product_id,
+              productName: it.product_name || 'Product',
+              sku: it.sku || '',
+              qty: String(it.qty),
+              unitPrice: String(it.unit_sale_price),
+            })),
+          });
+          setEditDrawerOpen(true);
+        } else {
+          addNotification('error', 'Could not load order details for editing.');
+        }
+      } else {
+        addNotification('error', 'Failed to retrieve order.');
+      }
+    } catch {
+      addNotification('error', 'Network error retrieving order.');
+    } finally {
+      setFetchingDetailId(null);
+    }
+  };
+
+  const handleSaveOrder = async () => {
+    if (!editingOrder) return;
+    setIsSavingOrder(true);
+    try {
+      const payload = {
+        customer_id: editFormData.customerId ? parseInt(editFormData.customerId, 10) : null,
+        sale_date: editFormData.saleDate,
+        notes: editFormData.notes.trim(),
+        items: editFormData.items.map((it) => ({
+          product_id: it.productId,
+          qty: parseFloat(it.qty) || 1,
+          unit_sale_price: parseFloat(it.unitPrice) || 0,
+        })),
+      };
+
+      const res = await fetch(`/api/sales/${editingOrder.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Update failed' }));
+        throw new Error(err.error || 'Failed to update order');
+      }
+
+      addNotification('success', `Order ${editingOrder.invoice_no} updated successfully!`);
+      setEditDrawerOpen(false);
+      setEditingOrder(null);
+      fetchOrders();
+    } catch (err: any) {
+      addNotification('error', err.message || 'Failed to update order');
+    } finally {
+      setIsSavingOrder(false);
     }
   };
 
@@ -404,23 +504,36 @@ export default function OrdersPage() {
                         </span>
                       </td>
 
-                      {/* Action: View Receipt & Batch Breakdown */}
+                      {/* Action: View Receipt & Edit */}
                       <td className="px-6 py-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleViewReceipt(order)}
-                          disabled={isFetchingThis}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-primary/30 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground text-xs font-semibold transition-all focus-visible:ring-2 focus-visible:ring-primary cursor-pointer disabled:opacity-50 shadow-xs"
-                          title="View printable invoice receipt and batch allocations"
-                          aria-label={`View receipt for ${order.invoice_no}`}
-                        >
-                          {isFetchingThis ? (
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Eye className="w-3.5 h-3.5" />
-                          )}
-                          <span>View Receipt</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleViewReceipt(order)}
+                            disabled={isFetchingThis}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-primary/30 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground text-xs font-semibold transition-all focus-visible:ring-2 focus-visible:ring-primary cursor-pointer disabled:opacity-50 shadow-xs"
+                            title="View printable invoice receipt and batch allocations"
+                            aria-label={`View receipt for ${order.invoice_no}`}
+                          >
+                            {isFetchingThis ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Eye className="w-3.5 h-3.5" />
+                            )}
+                            <span>Receipt</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleEditOrder(order)}
+                            disabled={isFetchingThis}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted text-xs font-semibold transition-all focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
+                            title={`Edit order ${order.invoice_no}`}
+                            aria-label={`Edit order ${order.invoice_no}`}
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                            <span>Edit</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -442,6 +555,138 @@ export default function OrdersPage() {
           sale={selectedSaleRecord}
         />
       )}
+
+      {/* Edit Order Drawer */}
+      <Drawer
+        isOpen={isEditDrawerOpen}
+        onClose={() => {
+          setEditDrawerOpen(false);
+          setEditingOrder(null);
+        }}
+        title={`Edit Order: ${editingOrder?.invoice_no || ''}`}
+        description="Modify customer assignment, sale date, notes, and line item quantities."
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setEditDrawerOpen(false);
+                setEditingOrder(null);
+              }}
+              className="px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveOrder}
+              disabled={isSavingOrder}
+              className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-sm disabled:opacity-50"
+            >
+              {isSavingOrder ? 'Saving Order...' : 'Save Changes'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+              Customer Assignment
+            </label>
+            <select
+              value={editFormData.customerId}
+              onChange={(e) => setEditFormData({ ...editFormData, customerId: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+            >
+              <option value="">Walk-in Customer (Unassigned)</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+              Sale Date
+            </label>
+            <input
+              type="text"
+              value={editFormData.saleDate}
+              onChange={(e) => setEditFormData({ ...editFormData, saleDate: e.target.value })}
+              placeholder="YYYY-MM-DD"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+              Order Notes
+            </label>
+            <textarea
+              rows={2}
+              value={editFormData.notes}
+              onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+              placeholder="Optional notes or instructions..."
+              className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-2">
+              Order Items
+            </label>
+            <div className="space-y-3">
+              {editFormData.items.map((it, idx) => {
+                const subtotal = (parseFloat(it.qty) || 0) * (parseFloat(it.unitPrice) || 0);
+                return (
+                  <div key={idx} className="p-3.5 rounded-2xl border border-border bg-muted/20 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-foreground">{it.productName}</span>
+                      <span className="font-mono text-xs font-bold text-primary">₹{subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground uppercase font-semibold mb-0.5">
+                          Quantity
+                        </label>
+                        <input
+                          type="text"
+                          value={it.qty}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            const updated = [...editFormData.items];
+                            updated[idx].qty = val;
+                            setEditFormData({ ...editFormData, items: updated });
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-muted-foreground uppercase font-semibold mb-0.5">
+                          Unit Price (₹)
+                        </label>
+                        <input
+                          type="text"
+                          value={it.unitPrice}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9.]/g, '');
+                            const updated = [...editFormData.items];
+                            updated[idx].unitPrice = val;
+                            setEditFormData({ ...editFormData, items: updated });
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </Drawer>
     </div>
   );
 }

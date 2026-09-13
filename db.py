@@ -6,14 +6,60 @@ import sqlite3
 import os
 from datetime import datetime, timedelta
 
-DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "inventory_sales.db")
+def get_db_path():
+    """Determine database file path with persistent volume mount support."""
+    if os.environ.get("DB_FILE"):
+        return os.environ.get("DB_FILE")
+    # Check if /data persistent volume is mounted (Cloud Storage FUSE or Docker volume)
+    if os.path.exists("/data") and os.access("/data", os.W_OK):
+        return "/data/inventory_sales.db"
+    if os.environ.get("DATA_DIR"):
+        return os.path.join(os.environ.get("DATA_DIR"), "inventory_sales.db")
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "inventory_sales.db")
+
+DB_FILE = get_db_path()
 
 def get_connection():
     """Return a connection with Row factory enabled."""
-    conn = sqlite3.connect(DB_FILE)
+    db_path = get_db_path() if DB_FILE == "" else DB_FILE
+    parent_dir = os.path.dirname(os.path.abspath(db_path))
+    if parent_dir and not os.path.exists(parent_dir):
+        os.makedirs(parent_dir, exist_ok=True)
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+def load_store_catalog(conn):
+    """Load real store catalog snapshot from data/store_catalog.json if database is empty."""
+    cur = conn.cursor()
+    cat_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "store_catalog.json")
+    if not os.path.exists(cat_file):
+        return
+    try:
+        import json
+        with open(cat_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        prods = data.get("products", [])
+        for p in prods:
+            cur.execute(
+                "INSERT OR IGNORE INTO products (id, name, sku, category, unit, min_stock, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (p["id"], p["name"], p["sku"], p.get("category", "General"), p.get("unit", "pcs"), p.get("min_stock", 1), p.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            )
+        for c in data.get("categories", []):
+            cur.execute("INSERT OR IGNORE INTO categories (id, name, description, icon) VALUES (?, ?, ?, ?)",
+                        (c["id"], c["name"], c.get("description", ""), c.get("icon", "")))
+        for cu in data.get("customers", []):
+            cur.execute("INSERT OR IGNORE INTO customers (id, name, phone, email, address, credit_limit, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (cu["id"], cu["name"], cu.get("phone", ""), cu.get("email", ""), cu.get("address", ""), cu.get("credit_limit", 0.0), cu.get("notes", "")))
+        for su in data.get("suppliers", []):
+            cur.execute("INSERT OR IGNORE INTO suppliers (id, name, contact_person, phone, email, address, payment_terms) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (su["id"], su["name"], su.get("contact_person", ""), su.get("phone", ""), su.get("email", ""), su.get("address", ""), su.get("payment_terms", "")))
+        conn.commit()
+        if prods:
+            print(f"Bootstrapped {len(prods)} real catalog products from store_catalog.json")
+    except Exception as e:
+        print(f"Notice: store_catalog.json load skipped: {e}")
 
 def init_db(seed_if_empty=False):
     """Initialize database tables and indices without seeding (starts from zero)."""
@@ -186,11 +232,15 @@ def init_db(seed_if_empty=False):
     meta = cur.fetchone()
 
     if meta is None:
-        # First-time initialization: seed if empty and permitted
+        # First-time initialization
         cur.execute("SELECT COUNT(*) as count FROM products")
-        if cur.fetchone()["count"] == 0 and seed_if_empty:
-            seed_data(conn)
-            cur.execute("INSERT OR REPLACE INTO system_meta (key, value) VALUES ('initialized', 'seeded')")
+        if cur.fetchone()["count"] == 0:
+            if seed_if_empty:
+                seed_data(conn)
+                cur.execute("INSERT OR REPLACE INTO system_meta (key, value) VALUES ('initialized', 'seeded')")
+            else:
+                load_store_catalog(conn)
+                cur.execute("INSERT OR REPLACE INTO system_meta (key, value) VALUES ('initialized', 'ready')")
             conn.commit()
         else:
             cur.execute("INSERT OR REPLACE INTO system_meta (key, value) VALUES ('initialized', 'ready')")

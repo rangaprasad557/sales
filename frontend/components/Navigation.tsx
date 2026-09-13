@@ -18,6 +18,8 @@ import {
   Receipt,
   Trash2,
   AlertTriangle,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { useUIStore } from '../store/useUIStore';
 import { ThemeToggle } from './ThemeToggle';
@@ -63,6 +65,69 @@ export function Navigation() {
       addNotification('error', 'Network error connecting to clear-data service.');
     } finally {
       setIsClearing(false);
+    }
+  };
+
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  const handleDownloadBackup = async () => {
+    setIsBackingUp(true);
+    try {
+      const res = await fetch('/api/system/backup');
+      if (res.ok) {
+        const data = await res.json();
+        const jsonStr = JSON.stringify(data.backup || data, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `retail_sales_backup_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        addNotification('success', 'Store backup downloaded successfully.');
+      } else {
+        addNotification('error', 'Failed to generate store backup.');
+      }
+    } catch {
+      addNotification('error', 'Network error during backup generation.');
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  const handleFileRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!confirm(`Restore store data from "${file.name}"? This will replace all existing store data with the backup contents.`)) {
+      e.target.value = '';
+      return;
+    }
+
+    setIsRestoring(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const res = await fetch('/api/system/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed),
+      });
+      if (res.ok) {
+        addNotification('success', 'Store data restored successfully from backup!');
+        setTimeout(() => window.location.reload(), 800);
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Restore failed' }));
+        addNotification('error', err.error || 'Failed to restore store data.');
+      }
+    } catch {
+      addNotification('error', 'Invalid JSON backup file or network error.');
+    } finally {
+      setIsRestoring(false);
+      e.target.value = '';
     }
   };
 
@@ -152,6 +217,43 @@ export function Navigation() {
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* Theme Toggle */}
             <ThemeToggle />
+
+            {/* Hidden Backup File Input */}
+            <input
+              id="backup-file-input"
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={handleFileRestore}
+            />
+
+            {/* Download Store Backup Button */}
+            {currentUser && (
+              <button
+                type="button"
+                onClick={handleDownloadBackup}
+                disabled={isBackingUp}
+                className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                title="Download Store Backup (JSON)"
+                aria-label="Download Store Backup"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Restore Store Backup Button */}
+            {currentUser && (
+              <button
+                type="button"
+                onClick={() => document.getElementById('backup-file-input')?.click()}
+                disabled={isRestoring}
+                className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                title="Restore Store from Backup (JSON)"
+                aria-label="Restore Store from Backup"
+              >
+                <Upload className="w-4 h-4" />
+              </button>
+            )}
 
             {/* Clear All Store Data Button (Admin/Authorized User) */}
             {currentUser && (

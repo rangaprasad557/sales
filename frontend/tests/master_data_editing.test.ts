@@ -151,13 +151,12 @@ describe('PR-015: Master Data Editing & Cross-Page Persistence Quality Gate', ()
   });
 
   describe('4. Customer Master Editing & Persistence', () => {
-    it('builds full payload with creditLimit and notes on customer edit', () => {
+    it('builds full customer payload with contact info and notes on edit', () => {
       const formData = {
         name: 'Acme Supermarkets Corp',
         email: 'billing@acme.com',
         phone: '+1 555-123-4567',
         address: '100 Commerce Way, Suite 400',
-        creditLimit: '50000.00',
         notes: 'Preferred commercial terms. Net 45.'
       };
 
@@ -166,12 +165,11 @@ describe('PR-015: Master Data Editing & Cross-Page Persistence Quality Gate', ()
         email: formData.email.trim(),
         phone: formData.phone.trim(),
         address: formData.address.trim(),
-        creditLimit: parseFloat(formData.creditLimit),
         notes: formData.notes.trim()
       };
 
       expect(payload.name).toBe('Acme Supermarkets Corp');
-      expect(payload.creditLimit).toBe(50000.0);
+      expect(payload.email).toBe('billing@acme.com');
       expect(payload.notes).toBe('Preferred commercial terms. Net 45.');
     });
   });

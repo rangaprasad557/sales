@@ -91,21 +91,18 @@ const SEED_CUSTOMERS_DATA: Customer[] = [
     name: 'Metro Supermarket',
     email: 'purchasing@metrosuper.com',
     phone: '+1 (555) 234-5678',
-    creditLimit: 25000.0,
   },
   {
     id: 2,
     name: 'Green Grocers Co.',
     email: 'orders@greengrocers.org',
     phone: '+1 (555) 876-5432',
-    creditLimit: 12000.0,
   },
   {
     id: 3,
     name: 'Downtown Gourmet Deli',
     email: 'chef@downtowndeli.com',
     phone: '+1 (555) 432-1098',
-    creditLimit: 5000.0,
   },
 ];
 
@@ -229,7 +226,6 @@ export default function SalesPOSPage() {
             name: c.name,
             email: c.email,
             phone: c.phone,
-            creditLimit: parseFloat(c.credit_limit || c.creditLimit || '0'),
           }))
         );
       })
@@ -389,7 +385,6 @@ export default function SalesPOSPage() {
 
   // Selected customer info
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId) || null;
-  const isCreditExceeded = selectedCustomer && cartSummary.subtotal > selectedCustomer.creditLimit;
 
   // Checkout Execution
   const handleCheckout = async () => {
@@ -504,30 +499,13 @@ export default function SalesPOSPage() {
               <option value="">-- Walk-in Retail Customer --</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} (Credit: ₹{c.creditLimit.toLocaleString()})
+                  {c.name}
                 </option>
               ))}
             </select>
           </div>
         </div>
       </div>
-
-      {/* Credit Warning Banner if exceeded */}
-      {isCreditExceeded && selectedCustomer && (
-        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
-            <div>
-              <strong>Credit Limit Warning:</strong> Order subtotal (₹
-              {cartSummary.subtotal.toFixed(2)}) exceeds authorized credit line of ₹
-              {selectedCustomer.creditLimit.toLocaleString()} for {selectedCustomer.name}.
-            </div>
-          </div>
-          <span className="font-bold text-amber-700 dark:text-amber-400 uppercase text-[11px] tracking-wider">
-            Approval Required
-          </span>
-        </div>
-      )}
 
       {/* Quick Search & Advanced Picker Trigger */}
       <div className="relative p-3.5 bg-card rounded-3xl border border-border shadow-xs">
@@ -828,12 +806,12 @@ export default function SalesPOSPage() {
                   <span className="text-muted-foreground">Customer:</span>
                   <span className="font-bold text-foreground">{selectedCustomer.name}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Credit Line:</span>
-                  <span className="font-mono font-semibold text-foreground">
-                    ₹{selectedCustomer.creditLimit.toLocaleString()}
-                  </span>
-                </div>
+                {selectedCustomer.phone && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Contact:</span>
+                    <span className="font-mono text-muted-foreground">{selectedCustomer.phone}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
