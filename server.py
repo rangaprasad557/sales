@@ -591,23 +591,24 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 procurement_date = body.get("procurement_date", existing_proc["procurement_date"]).strip()
                 notes = body.get("notes", existing_proc["notes"] or "").strip()
                 supplier_id = body.get("supplier_id")
-
                 unit_cost = body.get("unit_cost")
                 quantity = body.get("quantity")
                 product_id = body.get("product_id")
 
-                if unit_cost is not None and quantity is not None:
+                is_multi = body.get("is_multi_item", False)
+                cur.execute("SELECT * FROM inventory_lots WHERE procurement_id = ?", (proc_id,))
+                existing_lots = cur.fetchall()
+
+                if not is_multi and len(existing_lots) <= 1 and unit_cost is not None and quantity is not None:
                     new_cost = float(unit_cost)
                     new_qty = float(quantity)
                     if new_qty <= 0 or new_cost < 0:
                         error_response(self, "Quantity must be > 0 and unit cost >= 0", 400)
                         return
 
-                    cur.execute("SELECT * FROM inventory_lots WHERE procurement_id = ?", (proc_id,))
-                    existing_lots = cur.fetchall()
                     if existing_lots:
                         first_lot = existing_lots[0]
-                        already_sold = first_lot["initial_qty"] - first_lot["remaining_qty"]
+                        already_sold = float(first_lot["initial_qty"]) - float(first_lot["remaining_qty"])
                         if new_qty < already_sold:
                             error_response(self, f"Cannot reduce quantity below already sold quantity ({already_sold:.1f} units sold)", 400)
                             return
@@ -633,6 +634,11 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                         SET invoice_no = ?, source = ?, procurement_date = ?, notes = ?
                         WHERE id = ?
                     """, (invoice_no, source, procurement_date, notes, proc_id))
+                    cur.execute("""
+                        UPDATE inventory_lots
+                        SET procurement_date = ?, source = ?
+                        WHERE procurement_id = ?
+                    """, (procurement_date, source, proc_id))
 
                 conn.commit()
                 json_response(self, {"success": True, "id": proc_id, "message": "Procurement updated successfully"})

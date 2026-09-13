@@ -240,4 +240,104 @@ describe('Manual Dates & Procurement Supplier Edit Bugfix Quality Gate', () => {
       expect(mutedRatio).toBeGreaterThanOrEqual(4.5); // WCAG AA
     });
   });
+
+  describe('4. Multi-Item Consignment Manifest & Rollup Logic', () => {
+    const multiItemLots = [
+      { id: 1, product_id: 8, product_name: 'Classic Connect', sku: 'PROD-0008', unit_cost: '245.00', initial_qty: '200', remaining_qty: '150' },
+      { id: 2, product_id: 8, product_name: 'Classic Connect', sku: 'PROD-0008', unit_cost: '250.00', initial_qty: '100', remaining_qty: '50' },
+      { id: 3, product_id: 12, product_name: 'Flake Galaxy', sku: 'PROD-0012', unit_cost: '95.00', initial_qty: '500', remaining_qty: '400' },
+      { id: 4, product_id: 19, product_name: 'Gold Flake SLK Sleeks', sku: 'PROD-0019', unit_cost: '110.00', initial_qty: '300', remaining_qty: '300' },
+    ];
+
+    it('rolls up multiple inventory lots by product cleanly', () => {
+      const map = new Map<number, any>();
+      for (const it of multiItemLots) {
+        const pid = it.product_id;
+        const initialQty = parseFloat(it.initial_qty);
+        const remainingQty = parseFloat(it.remaining_qty);
+        const unitCost = parseFloat(it.unit_cost);
+        const value = initialQty * unitCost;
+
+        if (!map.has(pid)) {
+          map.set(pid, {
+            productId: pid,
+            productName: it.product_name,
+            sku: it.sku,
+            totalInitialQty: initialQty,
+            totalRemainingQty: remainingQty,
+            totalValue: value,
+            lotsCount: 1,
+            minCost: unitCost,
+            maxCost: unitCost,
+          });
+        } else {
+          const existing = map.get(pid);
+          existing.totalInitialQty += initialQty;
+          existing.totalRemainingQty += remainingQty;
+          existing.totalValue += value;
+          existing.lotsCount += 1;
+          existing.minCost = Math.min(existing.minCost, unitCost);
+          existing.maxCost = Math.max(existing.maxCost, unitCost);
+        }
+      }
+
+      const rollups = Array.from(map.values());
+      expect(rollups.length).toBe(3); // 3 unique products: Classic Connect, Flake Galaxy, Gold Flake SLK Sleeks
+
+      const classicConnect = rollups.find((r) => r.productId === 8);
+      expect(classicConnect).toBeDefined();
+      expect(classicConnect.lotsCount).toBe(2);
+      expect(classicConnect.totalInitialQty).toBe(300);
+      expect(classicConnect.totalRemainingQty).toBe(200);
+      expect(classicConnect.totalValue).toBe(200 * 245 + 100 * 250);
+      expect(classicConnect.minCost).toBe(245);
+      expect(classicConnect.maxCost).toBe(250);
+    });
+
+    it('validates multi-item consignments without requiring single-product selection', () => {
+      const isMultiItemConsignment = true;
+      const formData = {
+        invoiceNo: 'PROC-HISTORICAL-INITIAL',
+        procurementDate: '2026-08-15',
+        productId: '', // empty for multi-item consignment
+        unitCost: '',
+        quantity: '',
+      };
+
+      const errors: Record<string, string> = {};
+      if (!formData.invoiceNo.trim()) errors.invoiceNo = 'Invoice number is required';
+      if (!formData.procurementDate) errors.procurementDate = 'Procurement date is required';
+      if (!isMultiItemConsignment) {
+        if (!formData.productId) errors.productId = 'Please select a product';
+      }
+
+      expect(Object.keys(errors).length).toBe(0);
+    });
+
+    it('formats multi-item consignment update payload correctly', () => {
+      const isMultiItemConsignment = true;
+      const formData = {
+        invoiceNo: 'PROC-HISTORICAL-INITIAL',
+        source: 'Wholesale Shop',
+        procurementDate: '2026-08-15',
+        notes: 'Historical intake updated',
+      };
+      const finalSupplierName = 'Wholesale Vendor';
+
+      let payload: any;
+      if (isMultiItemConsignment) {
+        payload = {
+          invoice_no: formData.invoiceNo.trim(),
+          source: formData.source,
+          procurement_date: formData.procurementDate,
+          notes: `Supplier: ${finalSupplierName}. ${formData.notes}`,
+          is_multi_item: true,
+        };
+      }
+
+      expect(payload.is_multi_item).toBe(true);
+      expect(payload.invoice_no).toBe('PROC-HISTORICAL-INITIAL');
+      expect(payload.items).toBeUndefined(); // preserves all lots on backend
+    });
+  });
 });

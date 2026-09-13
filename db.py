@@ -356,8 +356,26 @@ def _init_postgres_db(seed_if_empty=False):
     );
 
     CREATE INDEX IF NOT EXISTS idx_lots_product_cost ON inventory_lots(product_id, unit_cost, remaining_qty);
+    CREATE INDEX IF NOT EXISTS idx_lots_procurement_id ON inventory_lots(procurement_id);
+    CREATE INDEX IF NOT EXISTS idx_lots_product_rem ON inventory_lots(product_id, remaining_qty);
+    CREATE INDEX IF NOT EXISTS idx_lots_status ON inventory_lots(status);
+
     CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sale_date);
+    CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_sold_by ON sales(sold_by);
+    CREATE INDEX IF NOT EXISTS idx_sales_date_id ON sales(sale_date DESC, id DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id);
+    CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items(product_id);
+
+    CREATE INDEX IF NOT EXISTS idx_sale_item_lots_item_id ON sale_item_lots(sale_item_id);
+    CREATE INDEX IF NOT EXISTS idx_sale_item_lots_lot_id ON sale_item_lots(lot_id);
+
     CREATE INDEX IF NOT EXISTS idx_procurements_date ON procurements(procurement_date);
+    CREATE INDEX IF NOT EXISTS idx_procurements_source ON procurements(source);
+    CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
+    CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+    CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
     """)
     try:
         cur.execute("ALTER TABLE sales ADD COLUMN IF NOT EXISTS sold_by VARCHAR(255) DEFAULT 'Store Staff'")
@@ -552,8 +570,26 @@ def _init_sqlite_db(seed_if_empty=False):
 
     # Indices for high performance
     cur.execute("CREATE INDEX IF NOT EXISTS idx_lots_product_cost ON inventory_lots(product_id, unit_cost, remaining_qty)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_lots_procurement_id ON inventory_lots(procurement_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_lots_product_rem ON inventory_lots(product_id, remaining_qty)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_lots_status ON inventory_lots(status)")
+
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sale_date)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales(customer_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sales_sold_by ON sales(sold_by)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sales_date_id ON sales(sale_date DESC, id DESC)")
+
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items(product_id)")
+
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sale_item_lots_item_id ON sale_item_lots(sale_item_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sale_item_lots_lot_id ON sale_item_lots(lot_id)")
+
     cur.execute("CREATE INDEX IF NOT EXISTS idx_procurements_date ON procurements(procurement_date)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_procurements_source ON procurements(source)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)")
 
     # System metadata table to remember explicit clean state
     cur.execute("""

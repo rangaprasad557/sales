@@ -2137,6 +2137,63 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
             self.assertEqual(v_proc["invoice_no"], "UPD-PROC-999")
             self.assertEqual(v_proc["source"], "E-Commerce")
 
+        # 2b. Test Multi-Item Consignment Update (preserves all lots)
+        st_p1, _, r_p1 = self._http_post("/api/products", {
+            "name": "Test Consignment Product A",
+            "sku": "TCPA-001",
+            "category": "Grains",
+            "unit": "kg",
+            "min_price": 40.0,
+            "max_price": 60.0,
+        })
+        p1 = r_p1["id"] if st_p1 == 201 and "id" in r_p1 else 1
+
+        st_p2, _, r_p2 = self._http_post("/api/products", {
+            "name": "Test Consignment Product B",
+            "sku": "TCPB-002",
+            "category": "Grains",
+            "unit": "kg",
+            "min_price": 70.0,
+            "max_price": 90.0,
+        })
+        p2 = r_p2["id"] if st_p2 == 201 and "id" in r_p2 else p1
+
+        c_status, _, c_res = self._http_post("/api/procurements", {
+            "invoice_no": "MULTI-CONSIGN-01",
+            "source": "Wholesale Shop",
+            "procurement_date": "2026-09-01",
+            "notes": "Consignment with multiple items",
+            "items": [
+                {"product_id": p1, "qty": 100, "unit_cost": 50.0, "batch_code": "LOT-MC-1"},
+                {"product_id": p2, "qty": 200, "unit_cost": 80.0, "batch_code": "LOT-MC-2"}
+            ]
+        })
+        self.assertEqual(c_status, 201)
+        multi_proc_id = c_res["procurement_id"]
+
+        # Verify initial 2 lots
+        v_status, _, v_body = self._http_get(f"/api/procurements/{multi_proc_id}")
+        multi_proc = json.loads(v_body).get("procurement", {})
+        self.assertEqual(len(multi_proc.get("items", [])), 2)
+
+        # Update multi-item consignment header
+        u_status, _, _ = self._http_put(f"/api/procurements/{multi_proc_id}", {
+            "invoice_no": "MULTI-CONSIGN-01-UPD",
+            "source": "Quick Commerce",
+            "procurement_date": "2026-09-02",
+            "notes": "Updated multi consignment",
+            "is_multi_item": True
+        })
+        self.assertEqual(u_status, 200)
+
+        # Verify header updated and both lots preserved
+        v_status, _, v_body = self._http_get(f"/api/procurements/{multi_proc_id}")
+        updated_multi_proc = json.loads(v_body).get("procurement", {})
+        self.assertEqual(updated_multi_proc["invoice_no"], "MULTI-CONSIGN-01-UPD")
+        self.assertEqual(updated_multi_proc["source"], "Quick Commerce")
+        self.assertEqual(len(updated_multi_proc.get("items", [])), 2)
+        self.assertEqual(updated_multi_proc["items"][0]["source"], "Quick Commerce")
+
         # 3. Test Editing a Sale Order
         status, _, body = self._http_get("/api/sales")
         sales = json.loads(body).get("sales", [])

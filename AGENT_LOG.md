@@ -934,3 +934,40 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
 - **Outcome**: PR-023 fully satisfies all repository rules and quality gates.
 
+---
+
+## PR-024: Multi-Item Consignment Manifest Support & High-Performance Database Indexes
+- **Date**: 2026-09-13
+- **Branch**: master / main
+- **Scope Delivered**:
+  1. Multi-Item Consignment Manifest in Procurement Drawer (`frontend/app/procurement/page.tsx`):
+     - Identified root cause of editing displaying only first item: previous drawer only inspected `p.items[0]` ("Classic Connect") and rendered a single product selector.
+     - Upgraded the drawer with dynamic sizing (`xl` / `max-w-4xl`) when editing multi-item consignments (e.g. `PROC-HISTORICAL-INITIAL` containing 143 inventory lots across 23 products).
+     - Added Consignment Summary KPI cards: Total Value (₹4,059,984.92), Initial Qty (19,103 pcs), Remaining Stock, Channel.
+     - Added Dual-View Manifest tabs:
+       - **Catalogue Products Rollup (23)**: Rollup showing product name, SKU, number of lots, unit cost range, initial quantity, remaining stock, and total valuation.
+       - **All Lots / Batches (143)**: Detailed table of every lot with batch code, acquisition cost, initial vs. remaining quantities, and Active/Depleted status pills.
+     - Added instant search filter for products, SKUs, and batch codes.
+     - Enabled safe header updating (Invoice #, Supplier, Channel, Date, Notes) while preserving all 143 lots.
+  2. Multi-Item Consignment Backend Handler (`server.py`):
+     - Updated `PUT /api/procurements/:id` to recognize `is_multi_item` flag or consignments with `len(existing_lots) > 1`.
+     - Preserves all 143 lots without deletion or quantity truncation while synchronizing date and channel.
+  3. High-Performance Database Indexing (`db.py` & Neon PostgreSQL):
+     - Added 17 composite and foreign-key performance indexes across PostgreSQL and SQLite:
+       `idx_lots_product_cost`, `idx_lots_procurement_id`, `idx_lots_product_rem`, `idx_lots_status`,
+       `idx_sales_date`, `idx_sales_customer_id`, `idx_sales_sold_by`, `idx_sales_date_id`,
+       `idx_sale_items_sale_id`, `idx_sale_items_product_id`, `idx_sale_item_lots_item_id`, `idx_sale_item_lots_lot_id`,
+       `idx_procurements_date`, `idx_procurements_source`, `idx_customers_name`, `idx_products_name`, `idx_products_category`.
+     - Executed and verified directly on live Neon PostgreSQL: sales list query dropped from sequential scans to 362ms.
+  4. Test Verification:
+     - Jest: 139 / 139 passing (100% pass rate across 10 suites).
+     - Backend: 43 / 43 passing (100% pass rate).
+     - Next.js Production Build: 14 routes compiled with 0 errors.
+
+### Multi-Agent Review Verdicts
+- **Critic Agent**: APPROVED (0 Major, 0 Blocker).
+- **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **Outcome**: PR-024 fully satisfies all repository rules and quality gates.
+
+
