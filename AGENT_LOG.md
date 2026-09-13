@@ -817,3 +817,40 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
 - **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
 - **Outcome**: PR-020 fully satisfies all repository rules and quality gates.
+---
+
+## 27. PR-021: Neon PostgreSQL Database Driver, Connection Pooling & Dual-Engine Persistence
+
+### Context & Implementation Scope
+- **PR Document**: docs/prs/PR-021-neon-postgresql-persistence-engine.md
+- **Branch**: master / main
+- **Scope Delivered**:
+  1. Dual-Engine Connection Architecture (db.py):
+     - Added is_postgres() and get_pg_pool() managing a thread-safe connection pool with psycopg2-binary.
+     - Created PgConnectionWrapper and PgCursorWrapper:
+       * Transparently adapts ? placeholders to %s.
+       * Auto-translates INSERT OR IGNORE INTO to ON CONFLICT DO NOTHING.
+       * Auto-translates datetime('now', 'localtime') to CURRENT_TIMESTAMP.
+       * Converts PRAGMA commands to harmless no-ops.
+       * Captures cur.lastrowid on inserts via automatic RETURNING id handling.
+       * Provides dictionary row indexing identical to sqlite3.Row via RealDictCursor.
+  2. Zero-Wipe Production Database Initialization (_init_postgres_db):
+     - Uses CREATE TABLE IF NOT EXISTS with PostgreSQL types (SERIAL PRIMARY KEY, NUMERIC(12, 2), TIMESTAMPTZ).
+     - Only bootstraps store_catalog.json on initial blank database.
+     - Never drops tables or overwrites existing records on deployments.
+     - Automatically resynchronizes PostgreSQL sequences post-startup.
+  3. Dockerfile Container Support:
+     - Installed psycopg2-binary in runner stage for cloud execution.
+  4. Server & Restore Upgrades (server.py):
+     - Updated /api/system/restore to branch into TRUNCATE ... RESTART IDENTITY CASCADE and setval() sequence resynchronization for PostgreSQL.
+
+### Automated Testing & Verification Evidence
+- **Backend Test Suite**: 42 / 42 passing (100% pass rate).
+- **Frontend Jest Suite**: 126 / 126 passing across 9 suites (100% pass rate).
+- **TypeScript Verification**: npx tsc --noEmit exited with 0 compile/type errors.
+
+### Multi-Agent Review Verdicts
+- **Critic Agent**: APPROVED (0 Major, 0 Blocker).
+- **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **Outcome**: PR-021 fully satisfies all repository rules and quality gates.

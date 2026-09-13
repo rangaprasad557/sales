@@ -33,7 +33,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
     && apt-get update && apt-get install -y --no-install-recommends nodejs \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir psycopg2-binary
 
 # Runtime Environment Variables
 ENV NODE_ENV=production

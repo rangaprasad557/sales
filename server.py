@@ -1348,10 +1348,13 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                     error_response(self, "Invalid backup payload format", 400)
                     return
                 data = backup.get("backup", backup)
-                cur.execute("PRAGMA foreign_keys = OFF")
-                for tbl in ['sale_item_lots', 'sale_items', 'sales', 'inventory_lots', 'procurements', 'customers', 'products', 'suppliers', 'categories']:
-                    cur.execute(f"DELETE FROM {tbl}")
-                    cur.execute(f"DELETE FROM sqlite_sequence WHERE name = '{tbl}'")
+                if db.is_postgres():
+                    cur.execute("TRUNCATE TABLE sale_item_lots, sale_items, sales, inventory_lots, procurements, customers, products, suppliers, categories RESTART IDENTITY CASCADE")
+                else:
+                    cur.execute("PRAGMA foreign_keys = OFF")
+                    for tbl in ['sale_item_lots', 'sale_items', 'sales', 'inventory_lots', 'procurements', 'customers', 'products', 'suppliers', 'categories']:
+                        cur.execute(f"DELETE FROM {tbl}")
+                        cur.execute(f"DELETE FROM sqlite_sequence WHERE name = '{tbl}'")
 
                 for p in data.get("products", []):
                     cur.execute("INSERT INTO products (id, name, sku, category, unit, min_stock, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -1383,16 +1386,25 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                     cur.execute("INSERT INTO sale_item_lots (id, sale_item_id, lot_id, qty, unit_cost, lot_profit) VALUES (?, ?, ?, ?, ?, ?)",
                                 (sil["id"], sil["sale_item_id"], sil["lot_id"], sil.get("qty", sil.get("qty_drawn", 0)), sil.get("unit_cost", sil.get("unit_lot_cost", 0.0)), sil.get("lot_profit", 0.0)))
 
-                for tbl in ['sale_item_lots', 'sale_items', 'sales', 'inventory_lots', 'procurements', 'customers', 'products', 'suppliers', 'categories']:
-                    cur.execute(f"SELECT MAX(id) as max_id FROM {tbl}")
-                    row = cur.fetchone()
-                    max_id = row['max_id'] if row and row['max_id'] else 0
-                    if max_id > 0:
-                        cur.execute("INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES (?, ?)", (tbl, max_id))
+                if db.is_postgres():
+                    for tbl in ['sale_item_lots', 'sale_items', 'sales', 'inventory_lots', 'procurements', 'customers', 'products', 'suppliers', 'categories']:
+                        try:
+                            cur.execute(f"SELECT setval(pg_get_serial_sequence('{tbl}', 'id'), COALESCE((SELECT MAX(id) FROM {tbl}), 1))")
+                        except Exception:
+                            pass
+                    cur.execute("CREATE TABLE IF NOT EXISTS system_meta (key VARCHAR(100) PRIMARY KEY, value TEXT NOT NULL)")
+                    cur.execute("INSERT INTO system_meta (key, value) VALUES ('initialized', 'restored') ON CONFLICT (key) DO UPDATE SET value = 'restored'")
+                else:
+                    for tbl in ['sale_item_lots', 'sale_items', 'sales', 'inventory_lots', 'procurements', 'customers', 'products', 'suppliers', 'categories']:
+                        cur.execute(f"SELECT MAX(id) as max_id FROM {tbl}")
+                        row = cur.fetchone()
+                        max_id = row['max_id'] if row and row['max_id'] else 0
+                        if max_id > 0:
+                            cur.execute("INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES (?, ?)", (tbl, max_id))
+                    cur.execute("CREATE TABLE IF NOT EXISTS system_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+                    cur.execute("INSERT OR REPLACE INTO system_meta (key, value) VALUES ('initialized', 'restored')")
+                    cur.execute("PRAGMA foreign_keys = ON")
 
-                cur.execute("CREATE TABLE IF NOT EXISTS system_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-                cur.execute("INSERT OR REPLACE INTO system_meta (key, value) VALUES ('initialized', 'restored')")
-                cur.execute("PRAGMA foreign_keys = ON")
                 conn.commit()
                 json_response(self, {"success": True, "message": "Database restored successfully.", "products_count": len(data.get("products", []))})
 

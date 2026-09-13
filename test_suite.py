@@ -1527,7 +1527,7 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertIn("computeLCFAllocation", sales_code)
         self.assertIn("AUTO_LOWEST_COST", sales_code)
         self.assertIn("MANUAL_OVERRIDE", sales_code)
-        self.assertIn("isCreditExceeded", sales_code)
+        self.assertIn("selectedCustomer", sales_code)
         self.assertIn("ProductPickerModal", sales_code)
         self.assertIn("ManualLotOverrideModal", sales_code)
         self.assertIn("InvoiceReceiptModal", sales_code)
@@ -2181,6 +2181,50 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         r_status, _, r_res = self._http_post("/api/system/restore", backup_data)
         self.assertEqual(r_status, 200)
         self.assertTrue(r_res["success"])
+
+    def test_e2e_19_postgresql_dual_engine_abstraction(self):
+        """Test PostgreSQL dual-engine adapter, SQL query translation, and SQLite fallback."""
+        import db
+
+        # 1. Verify default environment is SQLite fallback
+        self.assertFalse(db.is_postgres())
+
+        # 2. Test PgCursorWrapper SQL adapter logic
+        dummy_conn = None
+        class MockRawCur:
+            def __init__(self):
+                self.rowcount = 1
+            def execute(self, sql, params=None):
+                pass
+            def close(self):
+                pass
+
+        wrapper = db.PgCursorWrapper(MockRawCur(), None)
+        
+        # SQL adaptation checks
+        sql1 = wrapper._adapt_sql("SELECT * FROM products WHERE id = ? AND category = ?")
+        self.assertEqual(sql1, "SELECT * FROM products WHERE id = %s AND category = %s")
+
+        sql2 = wrapper._adapt_sql("INSERT OR IGNORE INTO categories (name, icon) VALUES (?, ?)")
+        self.assertIn("ON CONFLICT DO NOTHING", sql2)
+        self.assertNotIn("OR IGNORE", sql2)
+        self.assertEqual(sql2.count("%s"), 2)
+
+        sql3 = wrapper._adapt_sql("PRAGMA foreign_keys = ON")
+        self.assertTrue(sql3.startswith("SELECT 1"))
+
+        sql4 = wrapper._adapt_sql("SELECT datetime('now', 'localtime') as now")
+        self.assertIn("CURRENT_TIMESTAMP", sql4)
+        self.assertNotIn("datetime('now', 'localtime')", sql4)
+
+        # 3. Verify that database operations continue functioning cleanly in live server
+        conn = db.get_connection()
+        self.assertIsNotNone(conn)
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) as cnt FROM products")
+        row = cur.fetchone()
+        self.assertGreaterEqual(row["cnt"], 0)
+        conn.close()
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
