@@ -60,7 +60,13 @@ export default function OrdersPage() {
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.sales)) {
-          setOrders(data.sales);
+          const parsed = data.sales.map((s: any) => ({
+            ...s,
+            total_amount: parseFloat(s.total_amount) || 0,
+            total_cogs: parseFloat(s.total_cogs) || 0,
+            total_profit: parseFloat(s.total_profit) || 0,
+          }));
+          setOrders(parsed);
         } else {
           setOrders([]);
         }
@@ -226,9 +232,18 @@ export default function OrdersPage() {
   };
 
   // KPI Calculations
-  const totalRevenue = useMemo(() => orders.reduce((acc, o) => acc + (o.total_amount || 0), 0), [orders]);
-  const totalCogs = useMemo(() => orders.reduce((acc, o) => acc + (o.total_cogs || 0), 0), [orders]);
-  const totalProfit = useMemo(() => orders.reduce((acc, o) => acc + (o.total_profit || 0), 0), [orders]);
+  const totalRevenue = useMemo(
+    () => orders.reduce((acc, o) => acc + (parseFloat(o.total_amount as any) || 0), 0),
+    [orders]
+  );
+  const totalCogs = useMemo(
+    () => orders.reduce((acc, o) => acc + (parseFloat(o.total_cogs as any) || 0), 0),
+    [orders]
+  );
+  const totalProfit = useMemo(
+    () => orders.reduce((acc, o) => acc + (parseFloat(o.total_profit as any) || 0), 0),
+    [orders]
+  );
   const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
   // Search and Sorting Filter
@@ -252,9 +267,9 @@ export default function OrdersPage() {
       if (sortField === 'date') {
         comparison = (b.created_at || b.sale_date).localeCompare(a.created_at || a.sale_date);
       } else if (sortField === 'amount') {
-        comparison = a.total_amount - b.total_amount;
+        comparison = (parseFloat(a.total_amount as any) || 0) - (parseFloat(b.total_amount as any) || 0);
       } else if (sortField === 'profit') {
-        comparison = a.total_profit - b.total_profit;
+        comparison = (parseFloat(a.total_profit as any) || 0) - (parseFloat(b.total_profit as any) || 0);
       }
       return sortOrder === 'asc' ? comparison : -comparison;
     });

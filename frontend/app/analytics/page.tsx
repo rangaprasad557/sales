@@ -102,25 +102,27 @@ export default function AnalyticsPage() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && data.summary) {
+          const sum = data.summary;
           setSummary({
-            totalRevenue: parseFloat(data.summary.total_revenue || '0'),
-            totalCogs: parseFloat(data.summary.total_cogs || '0'),
-            totalProfit: parseFloat(data.summary.total_profit || '0'),
-            marginPct: parseFloat(data.summary.margin_pct || '0'),
-            orderCount: data.summary.order_count || 0,
-            unitsSold: data.summary.units_sold || 0,
+            totalRevenue: parseFloat(sum.total_revenue ?? sum.revenue ?? 0) || 0,
+            totalCogs: parseFloat(sum.total_cogs ?? sum.cogs ?? 0) || 0,
+            totalProfit: parseFloat(sum.total_profit ?? sum.profit ?? 0) || 0,
+            marginPct: parseFloat(sum.margin_pct ?? 0) || 0,
+            orderCount: parseInt(sum.order_count ?? sum.total_orders ?? 0, 10) || 0,
+            unitsSold: parseFloat(sum.units_sold ?? sum.total_units_sold ?? 0) || 0,
           });
         }
-        if (data && Array.isArray(data.products)) {
+        const prodList = data?.products || data?.items_breakdown;
+        if (Array.isArray(prodList)) {
           setProducts(
-            data.products.map((p: any) => ({
-              name: p.name,
-              sku: p.sku,
-              unitsSold: parseFloat(p.units_sold || '0'),
-              revenue: parseFloat(p.revenue || '0'),
-              cogs: parseFloat(p.cogs || '0'),
-              profit: parseFloat(p.profit || '0'),
-              marginPct: parseFloat(p.margin_pct || '0'),
+            prodList.map((p: any) => ({
+              name: p.name || p.product_name || 'Product',
+              sku: p.sku || '',
+              unitsSold: parseFloat(p.units_sold ?? p.total_units_sold ?? 0) || 0,
+              revenue: parseFloat(p.revenue ?? p.total_sale_price ?? 0) || 0,
+              cogs: parseFloat(p.cogs ?? p.total_cost ?? 0) || 0,
+              profit: parseFloat(p.profit ?? 0) || 0,
+              marginPct: parseFloat(p.margin_pct ?? 0) || 0,
             }))
           );
         }

@@ -16,8 +16,6 @@ import {
   LogOut,
   Layers,
   Receipt,
-  Trash2,
-  AlertTriangle,
   Download,
   Upload,
 } from 'lucide-react';
@@ -29,8 +27,6 @@ export function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
-  const [showClearModal, setShowClearModal] = useState(false);
   const {
     currentUser,
     logout,
@@ -47,25 +43,6 @@ export function Navigation() {
     logout();
     setMobileSidebarOpen(false);
     router.replace('/login');
-  };
-
-  const handleConfirmClear = async () => {
-    setIsClearing(true);
-    try {
-      const res = await fetch('/api/system/clear-data', { method: 'POST' });
-      if (res.ok) {
-        addNotification('success', 'All store data has been reset to zero.');
-        setShowClearModal(false);
-        // Refresh page
-        window.location.reload();
-      } else {
-        addNotification('error', 'Failed to clear store data.');
-      }
-    } catch {
-      addNotification('error', 'Network error connecting to clear-data service.');
-    } finally {
-      setIsClearing(false);
-    }
   };
 
   const [isBackingUp, setIsBackingUp] = useState(false);
@@ -165,9 +142,9 @@ export function Navigation() {
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-border bg-card/80 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+        <div className="w-full max-w-[1600px] mx-auto px-3 sm:px-4 lg:px-6 h-16 flex items-center justify-between gap-2 lg:gap-4">
           {/* Brand & Desktop Navigation */}
-          <div className="flex items-center gap-3 lg:gap-6 shrink-0">
+          <div className="flex items-center gap-2 lg:gap-4 shrink-0 min-w-0">
             <button
               type="button"
               onClick={() => setMobileSidebarOpen(true)}
@@ -188,7 +165,7 @@ export function Navigation() {
             </Link>
 
             {/* Desktop Nav Links */}
-            <nav className="hidden lg:flex items-center gap-1" aria-label="Main Navigation">
+            <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5" aria-label="Main Navigation">
               {navLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive =
@@ -199,13 +176,13 @@ export function Navigation() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                    className={`flex items-center gap-1.5 px-2 py-1.5 xl:px-2.5 xl:py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                       isActive
                         ? 'bg-primary/10 text-primary border border-primary/20 shadow-xs'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
+                    <Icon className="w-3.5 h-3.5 xl:w-4 xl:h-4 shrink-0" />
                     <span>{link.label}</span>
                   </Link>
                 );
@@ -214,7 +191,7 @@ export function Navigation() {
           </div>
 
           {/* Right Action Bar (Properly aligned with equal heights) */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Theme Toggle */}
             <ThemeToggle />
 
@@ -255,35 +232,22 @@ export function Navigation() {
               </button>
             )}
 
-            {/* Clear All Store Data Button (Admin/Authorized User) */}
-            {currentUser && (
-              <button
-                type="button"
-                onClick={() => setShowClearModal(true)}
-                className="p-2 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
-                title="Reset All Store Data to Zero"
-                aria-label="Reset All Store Data to Zero"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
-
             {/* Authentication State & Profile Pill */}
             {!mounted ? (
               <div
-                className="w-20 sm:w-24 h-9 rounded-lg bg-muted border border-border animate-pulse"
+                className="w-20 sm:w-24 h-9 rounded-lg bg-muted border border-border animate-pulse shrink-0"
                 aria-hidden="true"
               />
             ) : currentUser ? (
-              <div className="flex items-center gap-2 pl-2 pr-1.5 py-1 h-9 rounded-lg bg-card border border-border shadow-xs">
+              <div className="flex items-center gap-2 pl-2 pr-1.5 py-1 h-9 rounded-lg bg-card border border-border shadow-xs shrink-0 max-w-fit">
                 <div
                   className="w-6 h-6 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-[10px] shrink-0"
                   title={currentUser.name}
                 >
                   {currentUser.name.charAt(0).toUpperCase()}
                 </div>
-                <div className="hidden md:flex flex-col text-left leading-tight mr-1">
-                  <span className="text-xs font-semibold text-foreground truncate max-w-[120px]">
+                <div className="flex flex-col text-left leading-tight mr-1 min-w-0">
+                  <span className="text-xs font-semibold text-foreground truncate max-w-[100px] xl:max-w-[150px]">
                     {currentUser.name}
                   </span>
                   <span className="text-[9px] uppercase tracking-wider font-extrabold text-emerald-600 dark:text-emerald-400">
@@ -293,7 +257,7 @@ export function Navigation() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
+                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
                   title="Sign Out"
                   aria-label="Sign Out"
                 >
@@ -411,55 +375,6 @@ export function Navigation() {
                   <span>Google Sign In</span>
                 </Link>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Modal to Clear All Data */}
-      {showClearModal && (
-        <div
-          className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="clear-dialog-title"
-        >
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => !isClearing && setShowClearModal(false)}
-          />
-          <div className="relative w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-4 z-10 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3 text-destructive">
-              <div className="p-3 rounded-2xl bg-destructive/10">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 id="clear-dialog-title" className="text-base font-bold text-foreground">
-                  Reset Store Data to Zero?
-                </h3>
-                <p className="text-xs text-muted-foreground">Permanent store wipe</p>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              This action will permanently delete all <strong>products</strong>, <strong>categories</strong>, <strong>suppliers</strong>, <strong>customers</strong>, <strong>inventory lots</strong>, and <strong>past orders</strong> so you can start from a completely clean slate. This cannot be undone.
-            </p>
-            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border">
-              <button
-                type="button"
-                onClick={() => setShowClearModal(false)}
-                disabled={isClearing}
-                className="px-4 py-2 rounded-xl border border-border text-xs font-semibold text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmClear}
-                disabled={isClearing}
-                className="px-4 py-2 rounded-xl bg-destructive text-destructive-foreground text-xs font-bold hover:bg-destructive/90 focus-visible:ring-2 focus-visible:ring-destructive shadow-sm disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {isClearing ? 'Clearing Store...' : 'Yes, Reset to Zero'}
-              </button>
             </div>
           </div>
         </div>

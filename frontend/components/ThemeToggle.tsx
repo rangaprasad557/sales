@@ -31,22 +31,22 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={toggleTheme}
-      className="relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold
+      className="relative inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 xl:px-3 rounded-lg text-xs font-semibold
                  bg-card hover:bg-muted text-foreground border border-border shadow-sm
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2
-                 transition-all active:scale-95 select-none cursor-pointer"
+                 transition-all active:scale-95 select-none cursor-pointer shrink-0"
       aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
       title={`Current: ${theme} mode. Click to toggle.`}
     >
       {isDark ? (
         <>
-          <Moon className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
-          <span>Dark</span>
+          <Moon className="w-3.5 h-3.5 text-primary shrink-0" aria-hidden="true" />
+          <span className="hidden xl:inline">Dark</span>
         </>
       ) : (
         <>
-          <Sun className="w-3.5 h-3.5 text-amber-500" aria-hidden="true" />
-          <span>Light</span>
+          <Sun className="w-3.5 h-3.5 text-amber-500 shrink-0" aria-hidden="true" />
+          <span className="hidden xl:inline">Light</span>
         </>
       )}
       <span className="sr-only">Toggle theme</span>

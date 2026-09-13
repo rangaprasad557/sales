@@ -344,6 +344,9 @@ def import_data(orders, dry_run=False):
             ("PROC-HISTORICAL-INITIAL", "Wholesale Shop", "2026-01-20", sum(it['qty'] * it['unit_cost'] for it in [dict(qty=v['qty'], unit_cost=k[1]) for k, v in product_cost_groups.items()]), "Initial historical inventory intake to back past sales ledger")
         )
         proc_id = cur.lastrowid
+        if not proc_id:
+            cur.execute("SELECT id FROM procurements WHERE invoice_no = 'PROC-HISTORICAL-INITIAL'")
+            proc_id = cur.fetchone()["id"]
 
     for (p_name, cost), info in product_cost_groups.items():
         p_id = prod_cache.get(p_name.strip().lower())
@@ -365,6 +368,9 @@ def import_data(orders, dry_run=False):
             (proc_id, p_id, batch_code, cost, info['qty'], info['earliest_date'])
         )
         lot_id = cur.lastrowid
+        if not lot_id:
+            cur.execute("SELECT id FROM inventory_lots WHERE batch_code = ?", (batch_code,))
+            lot_id = cur.fetchone()["id"]
         lot_cache[(p_id, cost)] = lot_id
 
     # 6. Insert Sales Orders and Sale Items
@@ -385,6 +391,9 @@ def import_data(orders, dry_run=False):
             (invoice_no, cust_id, o['sale_date'], o['total_amount'], o['total_cogs'], o['total_profit'], o['sold_by'], notes)
         )
         sale_id = cur.lastrowid
+        if not sale_id:
+            cur.execute("SELECT id FROM sales WHERE invoice_no = ?", (invoice_no,))
+            sale_id = cur.fetchone()["id"]
 
         for it in o['items']:
             p_id = prod_cache.get(it['product_name'].strip().lower())
@@ -404,6 +413,9 @@ def import_data(orders, dry_run=False):
                 (sale_id, p_id, it['qty'], it['unit_sale_price'], it['total_sale_price'], it['total_cost'], it['profit'])
             )
             sale_item_id = cur.lastrowid
+            if not sale_item_id:
+                cur.execute("SELECT MAX(id) as max_id FROM sale_items")
+                sale_item_id = cur.fetchone()["max_id"]
 
             lot_id = lot_cache.get((p_id, it['unit_cost']))
             if lot_id:
@@ -418,7 +430,19 @@ def import_data(orders, dry_run=False):
         total_cogs_recorded += o['total_cogs']
         total_profit_recorded += o['total_profit']
 
+        if inserted_orders % 100 == 0 or inserted_orders == len(orders):
+            print(f"  Progress: Ingested {inserted_orders}/{len(orders)} orders...")
+
     conn.commit()
+
+    # Synchronize PostgreSQL sequences if on Postgres
+    if db.is_postgres():
+        for tbl in ['sale_item_lots', 'sale_items', 'sales', 'inventory_lots', 'procurements', 'customers', 'products', 'suppliers', 'categories']:
+            try:
+                cur.execute(f"SELECT setval(pg_get_serial_sequence('{tbl}', 'id'), COALESCE((SELECT MAX(id) FROM {tbl}), 1))")
+            except Exception:
+                pass
+        conn.commit()
 
     # Post-import verification query
     cur.execute("""
@@ -465,6 +489,7 @@ if __name__ == '__main__':
     for i, arg in enumerate(sys.argv):
         if arg == "--database-url" and i + 1 < len(sys.argv):
             os.environ["DATABASE_URL"] = sys.argv[i + 1]
+            db.reset_pg_pool()
         elif not arg.startswith("--") and arg.endswith(".xlsx"):
             excel_file = arg
 

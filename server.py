@@ -27,9 +27,19 @@ def extract_supplier_name(notes):
     return m.group(1).strip() if m else ""
 
 
+def json_serializer(o):
+    import decimal
+    from datetime import date, datetime
+    if isinstance(o, decimal.Decimal):
+        return float(o)
+    if isinstance(o, (datetime, date)):
+        return o.isoformat()
+    return str(o)
+
+
 def json_response(handler, data, status=200):
     """Send a JSON HTTP response with CORS headers."""
-    payload = json.dumps(data, default=str).encode("utf-8")
+    payload = json.dumps(data, default=json_serializer).encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Content-Length", str(len(payload)))
@@ -1130,29 +1140,46 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
             WHERE {where_sql}
         """, params)
         sum_row = cur.fetchone()
-        revenue = sum_row["total_revenue"]
-        cogs = sum_row["total_cogs"]
-        profit = sum_row["total_profit"]
+        revenue = float(sum_row["total_revenue"]) if sum_row and sum_row["total_revenue"] is not None else 0.0
+        cogs = float(sum_row["total_cogs"]) if sum_row and sum_row["total_cogs"] is not None else 0.0
+        profit = float(sum_row["total_profit"]) if sum_row and sum_row["total_profit"] is not None else 0.0
         margin_pct = (profit / revenue * 100) if revenue > 0 else 0.0
+        units = float(sum_row["total_units_sold"]) if sum_row and sum_row["total_units_sold"] is not None else 0.0
+        orders_cnt = int(sum_row["total_orders"]) if sum_row and sum_row["total_orders"] is not None else 0
 
         summary = {
-            "total_orders": sum_row["total_orders"],
+            "total_orders": orders_cnt,
+            "order_count": orders_cnt,
             "total_revenue": round(revenue, 2),
+            "revenue": round(revenue, 2),
             "total_cogs": round(cogs, 2),
+            "cogs": round(cogs, 2),
             "total_profit": round(profit, 2),
+            "profit": round(profit, 2),
             "margin_pct": round(margin_pct, 1),
-            "total_units_sold": sum_row["total_units_sold"]
+            "total_units_sold": round(units, 2),
+            "units_sold": round(units, 2)
         }
 
         # 2. Timeline Aggregation (Line-item sums prevent row multiplication)
-        if granularity == "day":
-            date_group = "strftime('%Y-%m-%d', s.sale_date)"
-        elif granularity == "week":
-            date_group = "strftime('%Y-W%W', s.sale_date)"
-        elif granularity == "year":
-            date_group = "strftime('%Y', s.sale_date)"
+        if db.is_postgres():
+            if granularity == "day":
+                date_group = "TO_CHAR(s.sale_date, 'YYYY-MM-DD')"
+            elif granularity == "week":
+                date_group = "TO_CHAR(s.sale_date, 'IYYY-\"W\"IW')"
+            elif granularity == "year":
+                date_group = "TO_CHAR(s.sale_date, 'YYYY')"
+            else:
+                date_group = "TO_CHAR(s.sale_date, 'YYYY-MM')"
         else:
-            date_group = "strftime('%Y-%m', s.sale_date)"
+            if granularity == "day":
+                date_group = "strftime('%Y-%m-%d', s.sale_date)"
+            elif granularity == "week":
+                date_group = "strftime('%Y-W%W', s.sale_date)"
+            elif granularity == "year":
+                date_group = "strftime('%Y', s.sale_date)"
+            else:
+                date_group = "strftime('%Y-%m', s.sale_date)"
 
         cur.execute(f"""
             SELECT 
@@ -1196,15 +1223,18 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
         items_breakdown = []
         for r in cur.fetchall():
             it = dict(r)
-            it_rev = it["revenue"]
-            it_prof = it["profit"]
-            it_units = it["units_sold"]
+            it_rev = float(it["revenue"]) if it.get("revenue") is not None else 0.0
+            it_prof = float(it["profit"]) if it.get("profit") is not None else 0.0
+            it_cogs = float(it["cogs"]) if it.get("cogs") is not None else 0.0
+            it_units = float(it["units_sold"]) if it.get("units_sold") is not None else 0.0
+            it["name"] = it.get("product_name", "")
             it["margin_pct"] = round((it_prof / it_rev * 100), 1) if it_rev > 0 else 0.0
             it["avg_sale_price"] = round((it_rev / it_units), 2) if it_units > 0 else 0.0
-            it["avg_cost_price"] = round((it["cogs"] / it_units), 2) if it_units > 0 else 0.0
+            it["avg_cost_price"] = round((it_cogs / it_units), 2) if it_units > 0 else 0.0
             it["revenue"] = round(it_rev, 2)
-            it["cogs"] = round(it["cogs"], 2)
+            it["cogs"] = round(it_cogs, 2)
             it["profit"] = round(it_prof, 2)
+            it["units_sold"] = round(it_units, 2)
             items_breakdown.append(it)
 
         # 4. Source Breakdown
@@ -1227,6 +1257,7 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
             "summary": summary,
             "timeline": timeline,
             "items_breakdown": items_breakdown,
+            "products": items_breakdown,
             "sources_breakdown": sources
         })
 

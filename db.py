@@ -17,6 +17,45 @@ def is_postgres():
 
 _pg_pool = None
 
+def _resolve_host_if_needed(db_url):
+    """If the hostname in db_url cannot be resolved by standard DNS, try resolving via public DNS."""
+    if not db_url:
+        return db_url
+    try:
+        import urllib.parse
+        import socket
+        import subprocess
+        import re
+
+        parsed = urllib.parse.urlparse(db_url)
+        host = parsed.hostname
+        if not host:
+            return db_url
+        try:
+            socket.gethostbyname(host)
+            return db_url
+        except Exception:
+            # Fallback to nslookup with 8.8.8.8
+            res = subprocess.run(['nslookup', host, '8.8.8.8'], capture_output=True, text=True, timeout=5)
+            all_ips = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', res.stdout)
+            neon_ips = [ip for ip in all_ips if ip != '8.8.8.8']
+            if neon_ips and 'hostaddr=' not in db_url:
+                sep = '&' if '?' in db_url else '?'
+                return f"{db_url}{sep}hostaddr={neon_ips[0]}"
+    except Exception as ex:
+        pass
+    return db_url
+
+def reset_pg_pool():
+    """Reset and close existing connection pool if any."""
+    global _pg_pool
+    if _pg_pool is not None:
+        try:
+            _pg_pool.closeall()
+        except Exception:
+            pass
+        _pg_pool = None
+
 def get_pg_pool():
     """Lazy initialize and return ThreadedConnectionPool for PostgreSQL."""
     global _pg_pool
@@ -28,6 +67,7 @@ def get_pg_pool():
         from psycopg2.pool import ThreadedConnectionPool
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
+        db_url = _resolve_host_if_needed(db_url)
         _pg_pool = ThreadedConnectionPool(minconn=1, maxconn=10, dsn=db_url)
     return _pg_pool
 
@@ -55,6 +95,11 @@ class PgCursorWrapper:
             if "ON CONFLICT" not in s.upper():
                 s = s + " ON CONFLICT DO NOTHING"
         s = re.sub(r"datetime\('now',\s*'localtime'\)", "CURRENT_TIMESTAMP", s, flags=re.IGNORECASE)
+        # Adapt SQLite strftime to PostgreSQL TO_CHAR
+        s = re.sub(r"strftime\s*\(\s*'%Y-%m-%d'\s*,\s*([^)]+)\)", r"TO_CHAR(\1, 'YYYY-MM-DD')", s, flags=re.IGNORECASE)
+        s = re.sub(r"strftime\s*\(\s*'%Y-W%W'\s*,\s*([^)]+)\)", r"TO_CHAR(\1, 'IYYY-\"W\"IW')", s, flags=re.IGNORECASE)
+        s = re.sub(r"strftime\s*\(\s*'%Y-%m'\s*,\s*([^)]+)\)", r"TO_CHAR(\1, 'YYYY-MM')", s, flags=re.IGNORECASE)
+        s = re.sub(r"strftime\s*\(\s*'%Y'\s*,\s*([^)]+)\)", r"TO_CHAR(\1, 'YYYY')", s, flags=re.IGNORECASE)
         s = s.replace("?", "%s")
         return s
 
