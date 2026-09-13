@@ -14,10 +14,18 @@ import mimetypes
 import uuid
 import traceback
 from datetime import datetime, timedelta
+import re
 import db
 
 PORT = 8000
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def extract_supplier_name(notes):
+    if not notes:
+        return ""
+    m = re.search(r"Supplier:\s*([^.]+)", str(notes), re.IGNORECASE)
+    return m.group(1).strip() if m else ""
+
 
 def json_response(handler, data, status=200):
     """Send a JSON HTTP response with CORS headers."""
@@ -966,6 +974,7 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                     error_response(self, "Procurement not found", 404)
                     return
                 proc = dict(row)
+                proc["supplier_name"] = extract_supplier_name(proc.get("notes"))
                 cur.execute("""
                     SELECT l.id, l.product_id, pr.name as product_name, pr.sku, l.batch_code,
                            l.unit_cost, l.initial_qty, l.remaining_qty, l.source
@@ -985,6 +994,7 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 """)
                 procs = [dict(r) for r in cur.fetchall()]
                 for p in procs:
+                    p["supplier_name"] = extract_supplier_name(p.get("notes"))
                     cur.execute("""
                         SELECT l.id, l.product_id, pr.name as product_name, pr.sku, l.batch_code,
                                l.unit_cost, l.initial_qty, l.remaining_qty, l.source

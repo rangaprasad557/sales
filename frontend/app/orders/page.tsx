@@ -612,10 +612,9 @@ export default function OrdersPage() {
               Sale Date
             </label>
             <input
-              type="text"
+              type="date"
               value={editFormData.saleDate}
               onChange={(e) => setEditFormData({ ...editFormData, saleDate: e.target.value })}
-              placeholder="YYYY-MM-DD"
               className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>

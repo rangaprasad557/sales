@@ -179,9 +179,10 @@ export default function ProcurementPage() {
 
   const openEditDrawer = async (proc: ProcurementRecord) => {
     fetchProducts();
-    fetchSuppliers();
     setEditingProcurement(proc);
 
+    let resolvedSupplierName = proc.supplierName || '';
+    let resolvedSource = proc.source || 'Wholesale Shop';
     let itemProdId = '';
     let itemProdName = '';
     let itemUnitCost = '10.00';
@@ -194,6 +195,14 @@ export default function ProcurementPage() {
       if (res.ok) {
         const data = await res.json();
         const p = data.procurement || data;
+        if (p.supplier_name) {
+          resolvedSupplierName = p.supplier_name;
+        } else if (p.notes) {
+          const match = p.notes.match(/Supplier:\s*([^.]+)/i);
+          if (match) resolvedSupplierName = match[1].trim();
+        }
+        if (p.source) resolvedSource = p.source;
+        if (p.notes) itemNotes = p.notes;
         if (p.items && p.items.length > 0) {
           const it = p.items[0];
           itemProdId = String(it.product_id || '');
@@ -207,18 +216,56 @@ export default function ProcurementPage() {
       // Fallback
     }
 
+    // Refresh suppliers list and match supplier
+    let currentSuppliers = suppliers;
+    try {
+      const sRes = await fetch('/api/suppliers');
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        const list = sData.suppliers || sData.data || (Array.isArray(sData) ? sData : []);
+        currentSuppliers = list.map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          source: s.source || 'Wholesale Shop',
+          contactPerson: s.contact_person || s.contactPerson,
+        }));
+        setSuppliers(currentSuppliers);
+      }
+    } catch {
+      // Keep existing suppliers
+    }
+
+    const matchedSupplier = currentSuppliers.find(
+      (s) => s.name.trim().toLowerCase() === resolvedSupplierName.trim().toLowerCase()
+    );
+
+    let resolvedSupplierId = '';
+    if (matchedSupplier) {
+      resolvedSupplierId = String(matchedSupplier.id);
+      resolvedSupplierName = matchedSupplier.name;
+      if (matchedSupplier.source) resolvedSource = matchedSupplier.source;
+    } else if (resolvedSupplierName) {
+      resolvedSupplierId = '__custom__';
+    }
+
+    // Strip previous system prefixes like 'Supplier: X. Product: Y.' from user editable notes
+    const cleanedNotes = itemNotes
+      .replace(/^Supplier:\s*[^.]*\.?\s*/i, '')
+      .replace(/^Product:\s*[^.]*\.?\s*/i, '')
+      .trim();
+
     setFormData({
       invoiceNo: proc.invoiceNo,
-      supplierId: '',
-      supplierName: proc.supplierName,
-      source: proc.source,
-      procurementDate: proc.procurementDate,
+      supplierId: resolvedSupplierId,
+      supplierName: resolvedSupplierName,
+      source: resolvedSource,
+      procurementDate: proc.procurementDate || new Date().toISOString().slice(0, 10),
       productId: itemProdId,
       productName: itemProdName,
       unitCost: itemUnitCost,
       quantity: itemQty,
       batchCode: itemBatchCode,
-      notes: itemNotes,
+      notes: cleanedNotes,
     });
     setFormErrors({});
     setDrawerOpen(true);
@@ -229,6 +276,10 @@ export default function ProcurementPage() {
     if (!formData.invoiceNo.trim()) {
       errors.invoiceNo = 'Invoice number is required';
       addNotification('error', 'Invoice number is required');
+    }
+    if (!formData.procurementDate) {
+      errors.procurementDate = 'Procurement date is required';
+      addNotification('error', 'Procurement date is required');
     }
     if (!formData.productId) {
       errors.productId = 'Please select a product from the catalogue';
@@ -260,10 +311,15 @@ export default function ProcurementPage() {
     const batchCode = formData.batchCode.trim() || `LOT-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const chosenSupplier = suppliers.find((s) => String(s.id) === formData.supplierId);
-    const finalSupplierName = chosenSupplier ? chosenSupplier.name : formData.supplierName.trim() || 'Wholesale Vendor';
+    const finalSupplierName = chosenSupplier
+      ? chosenSupplier.name
+      : formData.supplierName.trim() || 'Wholesale Vendor';
 
     const chosenProduct = products.find((p) => p.id === prodId);
     const finalProductName = chosenProduct ? chosenProduct.name : formData.productName;
+
+    const userNotes = formData.notes.trim();
+    const formattedNotes = `Supplier: ${finalSupplierName}. Product: ${finalProductName}.${userNotes ? ' ' + userNotes : ''}`.trim();
 
     const payload = {
       invoice_no: formData.invoiceNo.trim(),
@@ -272,7 +328,7 @@ export default function ProcurementPage() {
       unit_cost: costVal,
       quantity: qtyVal,
       product_id: prodId,
-      notes: `Supplier: ${finalSupplierName}. Product: ${finalProductName}. ${formData.notes}`.trim(),
+      notes: formattedNotes,
       items: [
         {
           product_id: prodId,
@@ -536,24 +592,46 @@ export default function ProcurementPage() {
         }
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
-              Procurement Invoice # <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.invoiceNo}
-              onChange={(e) => setFormData({ ...formData, invoiceNo: e.target.value })}
-              className={`w-full px-3.5 py-2.5 rounded-xl border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary ${
-                formErrors.invoiceNo ? 'border-destructive' : 'border-border'
-              }`}
-            />
-            {formErrors.invoiceNo && (
-              <p className="mt-1 text-xs text-destructive flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                {formErrors.invoiceNo}
-              </p>
-            )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                Procurement Invoice # <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.invoiceNo}
+                onChange={(e) => setFormData({ ...formData, invoiceNo: e.target.value })}
+                className={`w-full px-3.5 py-2.5 rounded-xl border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary ${
+                  formErrors.invoiceNo ? 'border-destructive' : 'border-border'
+                }`}
+              />
+              {formErrors.invoiceNo && (
+                <p className="mt-1 text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {formErrors.invoiceNo}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                Procurement Date <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="date"
+                value={formData.procurementDate}
+                onChange={(e) => setFormData({ ...formData, procurementDate: e.target.value })}
+                className={`w-full px-3.5 py-2.5 rounded-xl border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary ${
+                  formErrors.procurementDate ? 'border-destructive' : 'border-border'
+                }`}
+              />
+              {formErrors.procurementDate && (
+                <p className="mt-1 text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {formErrors.procurementDate}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -573,27 +651,46 @@ export default function ProcurementPage() {
                 </a>
               </div>
               {suppliers.length > 0 ? (
-                <select
-                  value={formData.supplierId}
-                  onChange={(e) => {
-                    const selId = e.target.value;
-                    const selSup = suppliers.find((s) => String(s.id) === selId);
-                    setFormData((prev) => ({
-                      ...prev,
-                      supplierId: selId,
-                      supplierName: selSup ? selSup.name : prev.supplierName,
-                      source: selSup?.source || prev.source,
-                    }));
-                  }}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="">-- Select Registered Supplier --</option>
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.source})
-                    </option>
-                  ))}
-                </select>
+                <div className="space-y-2">
+                  <select
+                    value={formData.supplierId}
+                    onChange={(e) => {
+                      const selId = e.target.value;
+                      if (selId === '__custom__') {
+                        setFormData((prev) => ({
+                          ...prev,
+                          supplierId: '__custom__',
+                        }));
+                      } else {
+                        const selSup = suppliers.find((s) => String(s.id) === selId);
+                        setFormData((prev) => ({
+                          ...prev,
+                          supplierId: selId,
+                          supplierName: selSup ? selSup.name : prev.supplierName,
+                          source: selSup?.source || prev.source,
+                        }));
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">-- Select Registered Supplier --</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.source})
+                      </option>
+                    ))}
+                    <option value="__custom__">+ Custom / Unregistered Supplier</option>
+                  </select>
+                  {(formData.supplierId === '__custom__' || (formData.supplierId === '' && Boolean(formData.supplierName) && !suppliers.some((s) => s.name.toLowerCase() === formData.supplierName.toLowerCase()))) && (
+                    <input
+                      type="text"
+                      value={formData.supplierName}
+                      onChange={(e) => setFormData({ ...formData, supplierName: e.target.value })}
+                      placeholder="Enter supplier / vendor name"
+                      className="w-full px-3.5 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  )}
+                </div>
               ) : (
                 <input
                   type="text"

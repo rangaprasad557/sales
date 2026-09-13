@@ -854,3 +854,42 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
 - **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
 - **Outcome**: PR-021 fully satisfies all repository rules and quality gates.
+
+---
+
+## 28. PR-022: Manual Retroactive Dates (Procurement & POS Billing) & Procurement Supplier Edit Fix
+
+### Context & Implementation Scope
+- **PR Document**: docs/prs/PR-022-manual-dates-and-procurement-supplier-fix.md
+- **Branch**: master / main
+- **Scope Delivered**:
+  1. Manual Procurement Date (`procurement/page.tsx`):
+     - Added `<input type="date">` in the drawer next to Invoice Number.
+     - Required field validation and payload formatting for retroactive intake entries recorded from paper notebooks.
+  2. Procurement Supplier Edit Resolution (`procurement/page.tsx` & `server.py`):
+     - In `server.py`: added `extract_supplier_name(notes)` to return `supplier_name` in both `GET /api/procurements` and `GET /api/procurements/:id`.
+     - In `procurement/page.tsx`: enhanced `openEditDrawer` to refresh suppliers, match against registered suppliers, and gracefully assign `supplierId = '__custom__'` with `supplierName` preserved for one-off suppliers so the field is never blank.
+     - Added `+ Custom / Unregistered Supplier` in dropdown to allow entering or editing custom suppliers directly.
+     - Stripped redundant prefix stacking from `notes` when opening edit drawer.
+  3. POS Sales Order Date Selection (`sales/page.tsx`):
+     - Added `saleDate` state initialized to current date (`YYYY-MM-DD`).
+     - Added `<input type="date">` selector with calendar icon in both the top POS actions toolbar and the Financial Allocation Summary panel.
+     - Forwarded `sale_date` into `salePayload` and `completedSale` receipt record.
+  4. Order History Edit Drawer (`orders/page.tsx`):
+     - Changed sale date field to native HTML5 `type="date"`.
+  5. Test Coverage (`frontend/tests/procurement_and_order_dates.test.ts` & `test_suite.py`):
+     - Added 9 frontend tests verifying supplier resolution on edit, custom dates, notes prefix stripping, and WCAG AAA compliance.
+     - Added integration assertions in `test_suite.py` for custom date persistence and supplier extraction.
+
+### Automated Testing & Verification Evidence
+- **Backend Test Suite**: 42 / 42 passing (100% pass rate).
+- **Frontend Jest Suite**: 135 / 135 passing across 10 suites (100% pass rate).
+- **TypeScript Verification**: `npx tsc --noEmit` exited with 0 compile/type errors.
+- **Production Build**: `npm run build` compiled all 14 routes successfully.
+
+### Multi-Agent Review Verdicts
+- **Critic Agent**: APPROVED (0 Major, 0 Blocker).
+- **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **Outcome**: PR-022 fully satisfies all repository rules and quality gates.
+

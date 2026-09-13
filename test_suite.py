@@ -655,14 +655,16 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertEqual(status, 400)
 
     def test_e2e_07_procurements_api(self):
-        # POST new procurement
+        # POST new procurement with explicit date and supplier in notes
         status, _, res = self._http_post("/api/procurements", {
             "source": "E-Commerce",
-            "procurement_date": "2026-09-11",
+            "procurement_date": "2026-08-15",
+            "notes": "Supplier: Apex Groceries. Product: Rice. Paper notebook backlog entry.",
             "items": [{"product_id": 1, "qty": 15, "unit_cost": 18.50, "batch_code": "LOT-LIVE-PROC"}]
         })
         self.assertEqual(status, 201)
         self.assertTrue(res["success"])
+        new_proc_id = res["procurement_id"]
 
         # GET procurements list
         status, _, body = self._http_get("/api/procurements")
@@ -671,12 +673,14 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertGreater(len(data["procurements"]), 0)
 
-        # GET procurement by ID
-        status, _, body = self._http_get("/api/procurements/1")
+        # GET procurement by ID and verify supplier_name and procurement_date
+        status, _, body = self._http_get(f"/api/procurements/{new_proc_id}")
         self.assertEqual(status, 200)
         data = json.loads(body)
         self.assertTrue(data["success"])
         self.assertIn("procurement", data)
+        self.assertEqual(data["procurement"]["supplier_name"], "Apex Groceries")
+        self.assertEqual(data["procurement"]["procurement_date"], "2026-08-15")
         self.assertIn("items", data["procurement"])
 
         # GET non-existent procurement -> 404
@@ -697,11 +701,11 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertEqual(len(sim["items"]), 1)
         self.assertGreater(sim["summary"]["total_profit"], 0)
 
-        # 2. Execute sale
+        # 2. Execute sale with custom historical sale_date
         status, _, sale = self._http_post("/api/sales", {
             "customer_id": 1,
-            "sale_date": "2026-09-11",
-            "notes": "Live HTTP E2E Test Sale",
+            "sale_date": "2026-08-20",
+            "notes": "Live HTTP E2E Test Sale with historical paper order date",
             "items": [{"product_id": 1, "qty": 3, "unit_sale_price": 35.00, "allocation_mode": "AUTO"}]
         })
         self.assertEqual(status, 201)
@@ -714,6 +718,7 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         invoice = json.loads(body)
         self.assertTrue(invoice["success"])
         self.assertEqual(invoice["sale"]["id"], sale_id)
+        self.assertEqual(invoice["sale"]["sale_date"], "2026-08-20")
         self.assertEqual(len(invoice["sale"]["items"]), 1)
         self.assertGreater(len(invoice["sale"]["items"][0]["allocated_lots"]), 0)
 

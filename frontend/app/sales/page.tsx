@@ -21,6 +21,7 @@ import {
   Boxes,
   RotateCcw,
   Sparkles,
+  Calendar,
 } from 'lucide-react';
 import { ProductPickerModal, PickerItemToAdd } from '../../components/ProductPickerModal';
 import { ManualLotOverrideModal, LotAllocation, LotItem } from '../../components/ManualLotOverrideModal';
@@ -110,6 +111,7 @@ export default function SalesPOSPage() {
   const [catalogue, setCatalogue] = useState<CatalogueProduct[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [saleDate, setSaleDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
 
   // Quick Search & Autocomplete
   const [searchQuery, setSearchQuery] = useState('');
@@ -415,7 +417,7 @@ export default function SalesPOSPage() {
     const record: CompletedSaleRecord = {
       invoiceNo,
       customerName: selectedCustomer ? selectedCustomer.name : 'Walk-in Retail Customer',
-      saleDate: new Date().toISOString().slice(0, 10),
+      saleDate: saleDate || new Date().toISOString().slice(0, 10),
       totalAmount: cartSummary.subtotal,
       totalCogs: cartSummary.totalCogs,
       totalProfit: cartSummary.netProfit,
@@ -426,7 +428,7 @@ export default function SalesPOSPage() {
     const salePayload = {
       invoice_no: invoiceNo,
       customer_id: selectedCustomerId || null,
-      sale_date: new Date().toISOString().slice(0, 10),
+      sale_date: saleDate || new Date().toISOString().slice(0, 10),
       notes: `POS Sale. Customer: ${selectedCustomer ? selectedCustomer.name : 'Walk-in'}`,
       items: cart.map((item) => ({
         product_id: item.product.id,
@@ -503,6 +505,18 @@ export default function SalesPOSPage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="relative flex items-center">
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="date"
+              value={saleDate}
+              onChange={(e) => setSaleDate(e.target.value)}
+              title="Sale Order Date"
+              aria-label="Sale Order Date"
+              className="pl-9 pr-3 py-2 rounded-xl text-xs font-semibold bg-card border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary shadow-xs cursor-pointer"
+            />
           </div>
         </div>
       </div>
@@ -814,6 +828,21 @@ export default function SalesPOSPage() {
                 )}
               </div>
             )}
+
+            {/* Order Date Selection in Summary Panel */}
+            <div className="p-3.5 rounded-2xl bg-muted/40 border border-border text-xs flex items-center justify-between">
+              <span className="text-muted-foreground font-semibold flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-primary" />
+                <span>Order Date:</span>
+              </span>
+              <input
+                type="date"
+                value={saleDate}
+                onChange={(e) => setSaleDate(e.target.value)}
+                aria-label="Order Date"
+                className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary shadow-xs cursor-pointer"
+              />
+            </div>
           </div>
 
           <button
