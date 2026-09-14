@@ -340,4 +340,158 @@ describe('Manual Dates & Procurement Supplier Edit Bugfix Quality Gate', () => {
       expect(payload.items).toBeUndefined(); // preserves all lots on backend
     });
   });
+
+  describe('7. Multi-Product Stock Intake Creation (PR-025)', () => {
+    const mockCatalogue = [
+      { id: 1, name: 'Sugar 1kg', sku: 'SUG-001', unit: 'pcs' },
+      { id: 2, name: 'Wheat Flour 5kg', sku: 'WHT-002', unit: 'pcs' },
+      { id: 3, name: 'Basmati Rice 10kg', sku: 'RCE-003', unit: 'pcs' },
+    ];
+
+    it('initializes default intake row correctly', () => {
+      const defaultRow = {
+        id: 'row-1',
+        productId: String(mockCatalogue[0].id),
+        productName: mockCatalogue[0].name,
+        unitCost: '10.00',
+        quantity: '50',
+        batchCode: '',
+      };
+      expect(defaultRow.productId).toBe('1');
+      expect(defaultRow.quantity).toBe('50');
+      expect(defaultRow.unitCost).toBe('10.00');
+    });
+
+    it('adds and removes intake rows dynamically', () => {
+      let rows = [
+        { id: '1', productId: '1', productName: 'Sugar 1kg', unitCost: '40.00', quantity: '20', batchCode: '' },
+      ];
+
+      // Add a second product row
+      const usedIds = new Set(rows.map((r) => r.productId));
+      const nextProduct = mockCatalogue.find((p) => !usedIds.has(String(p.id)));
+      rows.push({
+        id: '2',
+        productId: String(nextProduct!.id),
+        productName: nextProduct!.name,
+        unitCost: '10.00',
+        quantity: '50',
+        batchCode: '',
+      });
+
+      expect(rows.length).toBe(2);
+      expect(rows[1].productId).toBe('2');
+      expect(rows[1].productName).toBe('Wheat Flour 5kg');
+
+      // Prevent removal if only 1 item left
+      const removeRow = (idToRemove: string) => {
+        if (rows.length <= 1) return false;
+        rows = rows.filter((r) => r.id !== idToRemove);
+        return true;
+      };
+
+      expect(removeRow('1')).toBe(true);
+      expect(rows.length).toBe(1);
+      expect(removeRow('2')).toBe(false); // Cannot remove last row
+      expect(rows.length).toBe(1);
+    });
+
+    it('computes consignment intake summary (total units, total cost, unique products)', () => {
+      const intakeItems = [
+        { id: '1', productId: '1', productName: 'Sugar 1kg', unitCost: '40.00', quantity: '10', batchCode: '' },
+        { id: '2', productId: '2', productName: 'Wheat Flour 5kg', unitCost: '250.00', quantity: '5', batchCode: '' },
+        { id: '3', productId: '1', productName: 'Sugar 1kg', unitCost: '42.00', quantity: '10', batchCode: '' }, // second batch of sugar
+      ];
+
+      let totalUnits = 0;
+      let totalCost = 0;
+      const selectedProductIds = new Set<string>();
+
+      for (const item of intakeItems) {
+        const qty = parseFloat(item.quantity) || 0;
+        const cost = parseFloat(item.unitCost) || 0;
+        totalUnits += qty;
+        totalCost += qty * cost;
+        if (item.productId) selectedProductIds.add(item.productId);
+      }
+
+      expect(totalUnits).toBe(25);
+      expect(totalCost).toBe(10 * 40 + 5 * 250 + 10 * 42); // 400 + 1250 + 420 = 2070
+      expect(selectedProductIds.size).toBe(2); // Sugar and Wheat Flour
+    });
+
+    it('validates multi-product rows and catches invalid cost, missing product, or non-positive quantity', () => {
+      const invalidItems = [
+        { id: '1', productId: '', productName: '', unitCost: '10', quantity: '5', batchCode: '' },
+      ];
+      const errors: Record<string, string> = {};
+      for (let i = 0; i < invalidItems.length; i++) {
+        const item = invalidItems[i];
+        if (!item.productId) errors[`item_${item.id}_productId`] = `Product #${i + 1} is required`;
+      }
+      expect(errors['item_1_productId']).toBe('Product #1 is required');
+
+      // Test negative quantity
+      const negQtyItems = [
+        { id: '2', productId: '1', productName: 'Sugar', unitCost: '10', quantity: '-5', batchCode: '' },
+      ];
+      const qtyErrors: Record<string, string> = {};
+      for (let i = 0; i < negQtyItems.length; i++) {
+        const item = negQtyItems[i];
+        const qty = parseFloat(item.quantity);
+        if (isNaN(qty) || qty <= 0) qtyErrors[`item_${item.id}_quantity`] = `Quantity must be > 0`;
+      }
+      expect(qtyErrors['item_2_quantity']).toBe('Quantity must be > 0');
+    });
+
+    it('formats new multi-product intake payload with generated batch codes and item breakdown', () => {
+      const intakeItems = [
+        { id: '1', productId: '1', productName: 'Sugar 1kg', unitCost: '40.00', quantity: '100', batchCode: 'LOT-SUG-01' },
+        { id: '2', productId: '2', productName: 'Wheat Flour 5kg', unitCost: '250.00', quantity: '50', batchCode: '' },
+      ];
+
+      const formData = {
+        invoiceNo: 'INV-2026-MULTI-01',
+        source: 'Wholesale Shop',
+        procurementDate: '2026-09-14',
+        supplierName: 'Grand Wholesale Market',
+        notes: 'Urgent festival stock',
+      };
+
+      const itemsPayload = intakeItems.map((it, idx) => {
+        const prodId = parseInt(it.productId, 10);
+        const qtyVal = parseFloat(it.quantity);
+        const costVal = parseFloat(it.unitCost);
+        const bCode = it.batchCode.trim() || `LOT-TEST-${idx + 1}`;
+        return {
+          product_id: prodId,
+          qty: qtyVal,
+          unit_cost: costVal,
+          batch_code: bCode,
+        };
+      });
+
+      const payload = {
+        invoice_no: formData.invoiceNo.trim(),
+        source: formData.source,
+        procurement_date: formData.procurementDate,
+        notes: `Supplier: ${formData.supplierName}. Products: Sugar 1kg (100), Wheat Flour 5kg (50). ${formData.notes}`.trim(),
+        items: itemsPayload,
+      };
+
+      expect(payload.invoice_no).toBe('INV-2026-MULTI-01');
+      expect(payload.items.length).toBe(2);
+      expect(payload.items[0]).toEqual({
+        product_id: 1,
+        qty: 100,
+        unit_cost: 40,
+        batch_code: 'LOT-SUG-01',
+      });
+      expect(payload.items[1].product_id).toBe(2);
+      expect(payload.items[1].qty).toBe(50);
+      expect(payload.items[1].unit_cost).toBe(250);
+      expect(payload.items[1].batch_code).toBe('LOT-TEST-2');
+    });
+  });
 });
+

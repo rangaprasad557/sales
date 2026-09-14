@@ -15,9 +15,19 @@ import {
   Edit2,
   Boxes,
   CheckCircle2,
+  Trash2,
 } from 'lucide-react';
 import { Drawer } from '../../components/Drawer';
 import { useUIStore } from '../../store/useUIStore';
+
+export interface IntakeItemRow {
+  id: string;
+  productId: string;
+  productName: string;
+  unitCost: string;
+  quantity: string;
+  batchCode: string;
+}
 
 interface CatalogueProductItem {
   id: number;
@@ -60,6 +70,7 @@ export default function ProcurementPage() {
   const [consignmentItems, setConsignmentItems] = useState<any[]>([]);
   const [consignmentSearch, setConsignmentSearch] = useState('');
   const [consignmentTab, setConsignmentTab] = useState<'products' | 'lots'>('products');
+  const [intakeItems, setIntakeItems] = useState<IntakeItemRow[]>([]);
   const { addNotification } = useUIStore();
 
   // Form State
@@ -181,6 +192,18 @@ export default function ProcurementPage() {
       batchCode: '', // Not required
       notes: '',
     });
+
+    setIntakeItems([
+      {
+        id: Math.random().toString(36).substring(2, 9),
+        productId: defaultProduct ? String(defaultProduct.id) : '',
+        productName: defaultProduct ? defaultProduct.name : '',
+        unitCost: '10.00',
+        quantity: '50',
+        batchCode: '',
+      },
+    ]);
+
     setFormErrors({});
     setDrawerOpen(true);
   };
@@ -188,6 +211,7 @@ export default function ProcurementPage() {
   const openEditDrawer = async (proc: ProcurementRecord) => {
     fetchProducts();
     setEditingProcurement(proc);
+    setIntakeItems([]);
     setConsignmentSearch('');
     setConsignmentTab('products');
 
@@ -284,6 +308,72 @@ export default function ProcurementPage() {
     setDrawerOpen(true);
   };
 
+  const addIntakeRow = () => {
+    const usedProductIds = new Set(intakeItems.map((it) => it.productId));
+    const nextProduct = products.find((p) => !usedProductIds.has(String(p.id))) || (products.length > 0 ? products[0] : null);
+
+    const newRow: IntakeItemRow = {
+      id: Math.random().toString(36).substring(2, 9),
+      productId: nextProduct ? String(nextProduct.id) : '',
+      productName: nextProduct ? nextProduct.name : '',
+      unitCost: '10.00',
+      quantity: '50',
+      batchCode: '',
+    };
+    setIntakeItems((prev) => [...prev, newRow]);
+  };
+
+  const removeIntakeRow = (id: string) => {
+    if (intakeItems.length <= 1) {
+      addNotification('error', 'Consignment intake must contain at least one catalogue product.');
+      return;
+    }
+    setIntakeItems((prev) => prev.filter((it) => it.id !== id));
+  };
+
+  const updateIntakeRow = (id: string, field: keyof IntakeItemRow, value: string) => {
+    setIntakeItems((prev) =>
+      prev.map((it) => {
+        if (it.id !== id) return it;
+        if (field === 'productId') {
+          const selectedProd = products.find((p) => String(p.id) === value);
+          return {
+            ...it,
+            productId: value,
+            productName: selectedProd ? selectedProd.name : it.productName,
+          };
+        }
+        return {
+          ...it,
+          [field]: value,
+        };
+      })
+    );
+  };
+
+  const intakeSummary = useMemo(() => {
+    let totalUnits = 0;
+    let totalCost = 0;
+    const selectedProductIds = new Set<string>();
+
+    for (const item of intakeItems) {
+      const qty = parseFloat(item.quantity) || 0;
+      const cost = parseFloat(item.unitCost) || 0;
+      totalUnits += qty;
+      totalCost += qty * cost;
+      if (item.productId) {
+        selectedProductIds.add(item.productId);
+      }
+    }
+
+    return {
+      productsCount: selectedProductIds.size,
+      itemsCount: intakeItems.length,
+      totalUnits,
+      totalCost,
+    };
+  }, [intakeItems]);
+
   const isMultiItemConsignment = Boolean(editingProcurement && consignmentItems.length > 1);
 
   const consignmentProductsRollup = useMemo(() => {
@@ -373,7 +463,32 @@ export default function ProcurementPage() {
       addNotification('error', 'Procurement date is required');
     }
 
-    if (!isMultiItemConsignment) {
+    if (!editingProcurement) {
+      if (intakeItems.length === 0) {
+        errors.general = 'Please add at least one product to the consignment';
+        addNotification('error', 'Please add at least one product to the consignment');
+      }
+      for (let i = 0; i < intakeItems.length; i++) {
+        const item = intakeItems[i];
+        if (!item.productId) {
+          errors[`item_${item.id}_productId`] = `Product #${i + 1} is required`;
+          addNotification('error', `Please select a product for line #${i + 1}`);
+          break;
+        }
+        const cost = parseFloat(item.unitCost);
+        if (isNaN(cost) || cost < 0) {
+          errors[`item_${item.id}_unitCost`] = `Unit cost must be >= 0`;
+          addNotification('error', `Unit acquisition cost for line #${i + 1} must be >= 0`);
+          break;
+        }
+        const qty = parseFloat(item.quantity);
+        if (isNaN(qty) || qty <= 0) {
+          errors[`item_${item.id}_quantity`] = `Quantity must be > 0`;
+          addNotification('error', `Quantity for line #${i + 1} must be > 0`);
+          break;
+        }
+      }
+    } else if (!isMultiItemConsignment) {
       if (!formData.productId) {
         errors.productId = 'Please select a product from the catalogue';
         addNotification('error', 'Please select a product from the catalogue');
@@ -409,46 +524,82 @@ export default function ProcurementPage() {
     let payload: any;
     let successMsg = '';
 
-    if (isMultiItemConsignment) {
-      const formattedNotes = `Supplier: ${finalSupplierName}.${userNotes ? ' ' + userNotes : ''}`.trim();
-      payload = {
-        invoice_no: formData.invoiceNo.trim(),
-        source: formData.source,
-        procurement_date: formData.procurementDate,
-        notes: formattedNotes,
-        is_multi_item: true,
-      };
-      successMsg = `Consignment invoice ${formData.invoiceNo} header updated successfully!`;
+    if (editingProcurement) {
+      if (isMultiItemConsignment) {
+        const formattedNotes = `Supplier: ${finalSupplierName}.${userNotes ? ' ' + userNotes : ''}`.trim();
+        payload = {
+          invoice_no: formData.invoiceNo.trim(),
+          source: formData.source,
+          procurement_date: formData.procurementDate,
+          notes: formattedNotes,
+          is_multi_item: true,
+        };
+        successMsg = `Consignment invoice ${formData.invoiceNo} header updated successfully!`;
+      } else {
+        const prodId = parseInt(formData.productId, 10);
+        const qtyVal = parseFloat(formData.quantity);
+        const costVal = parseFloat(formData.unitCost);
+        const batchCode = formData.batchCode.trim() || `LOT-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        const chosenProduct = products.find((p) => p.id === prodId);
+        const finalProductName = chosenProduct ? chosenProduct.name : formData.productName;
+        const formattedNotes = `Supplier: ${finalSupplierName}. Product: ${finalProductName}.${userNotes ? ' ' + userNotes : ''}`.trim();
+
+        payload = {
+          invoice_no: formData.invoiceNo.trim(),
+          source: formData.source,
+          procurement_date: formData.procurementDate,
+          unit_cost: costVal,
+          quantity: qtyVal,
+          product_id: prodId,
+          notes: formattedNotes,
+          items: [
+            {
+              product_id: prodId,
+              qty: qtyVal,
+              unit_cost: costVal,
+              batch_code: batchCode,
+            },
+          ],
+        };
+        successMsg = `Procurement invoice ${formData.invoiceNo} updated successfully!`;
+      }
     } else {
-      const prodId = parseInt(formData.productId, 10);
-      const qtyVal = parseFloat(formData.quantity);
-      const costVal = parseFloat(formData.unitCost);
-      const batchCode = formData.batchCode.trim() || `LOT-${Math.floor(1000 + Math.random() * 9000)}`;
+      // New multi-product consignment intake
+      const itemsPayload = intakeItems.map((it, idx) => {
+        const prodId = parseInt(it.productId, 10);
+        const qtyVal = parseFloat(it.quantity);
+        const costVal = parseFloat(it.unitCost);
+        const bCode = it.batchCode.trim() || `LOT-${Math.floor(1000 + Math.random() * 9000)}-${idx + 1}`;
+        return {
+          product_id: prodId,
+          qty: qtyVal,
+          unit_cost: costVal,
+          batch_code: bCode,
+        };
+      });
 
-      const chosenProduct = products.find((p) => p.id === prodId);
-      const finalProductName = chosenProduct ? chosenProduct.name : formData.productName;
-      const formattedNotes = `Supplier: ${finalSupplierName}. Product: ${finalProductName}.${userNotes ? ' ' + userNotes : ''}`.trim();
+      const productNamesSummary = intakeItems
+        .map((it) => {
+          const p = products.find((pr) => String(pr.id) === it.productId);
+          return p ? `${p.name} (${it.quantity})` : it.productName;
+        })
+        .filter(Boolean)
+        .slice(0, 3)
+        .join(', ');
+
+      const moreCount = intakeItems.length > 3 ? ` +${intakeItems.length - 3} more` : '';
+      const formattedNotes = `Supplier: ${finalSupplierName}. Products: ${productNamesSummary}${moreCount}.${userNotes ? ' ' + userNotes : ''}`.trim();
 
       payload = {
         invoice_no: formData.invoiceNo.trim(),
         source: formData.source,
         procurement_date: formData.procurementDate,
-        unit_cost: costVal,
-        quantity: qtyVal,
-        product_id: prodId,
         notes: formattedNotes,
-        items: [
-          {
-            product_id: prodId,
-            qty: qtyVal,
-            unit_cost: costVal,
-            batch_code: batchCode,
-          },
-        ],
+        items: itemsPayload,
       };
-      successMsg = editingProcurement
-        ? `Procurement invoice ${formData.invoiceNo} updated successfully!`
-        : `Stock intake committed! Invoice ${formData.invoiceNo} saved with batch ${batchCode}.`;
+
+      successMsg = `Stock intake committed! Consignment ${formData.invoiceNo} saved with ${intakeItems.length} products (${intakeSummary.totalUnits} units total).`;
     }
 
     try {
@@ -476,6 +627,7 @@ export default function ProcurementPage() {
       setDrawerOpen(false);
       setEditingProcurement(null);
       setConsignmentItems([]);
+      setIntakeItems([]);
       fetchProcurements();
     } catch (err: any) {
       addNotification('error', err.message || 'Failed to record intake');
@@ -679,21 +831,22 @@ export default function ProcurementPage() {
           setDrawerOpen(false);
           setEditingProcurement(null);
           setConsignmentItems([]);
+          setIntakeItems([]);
         }}
-        width={editingProcurement && consignmentItems.length > 1 ? 'xl' : 'md'}
+        width={editingProcurement && !isMultiItemConsignment ? 'md' : 'xl'}
         title={
           editingProcurement
             ? consignmentItems.length > 1
               ? `Consignment: ${formData.invoiceNo}`
               : 'Edit Stock Intake'
-            : 'Record New Stock Intake'
+            : 'Record New Multi-Product Intake'
         }
         description={
           editingProcurement
             ? consignmentItems.length > 1
               ? `Consignment manifest with ${consignmentProductsRollup.length} products and ${consignmentItems.length} inventory lots.`
               : 'Update procurement details, unit cost, or batch allocation.'
-            : 'Register arrival of inventory lots with fluctuating acquisition costs.'
+            : 'Register incoming inventory consignments across multiple catalogue products with multi-batch costing.'
         }
         footer={
           <>
@@ -703,6 +856,7 @@ export default function ProcurementPage() {
                 setDrawerOpen(false);
                 setEditingProcurement(null);
                 setConsignmentItems([]);
+                setIntakeItems([]);
               }}
               className="px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
             >
@@ -861,7 +1015,238 @@ export default function ProcurementPage() {
             />
           </div>
 
-          {isMultiItemConsignment ? (
+          {!editingProcurement ? (
+            <div className="space-y-4 pt-2 border-t border-border">
+              {/* Consignment Overview Banner */}
+              <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Boxes className="w-5 h-5 text-primary" />
+                    <h3 className="text-sm font-bold text-foreground">Consignment Summary</h3>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                    {intakeSummary.productsCount} Unique Products &bull; {intakeSummary.itemsCount} Line Items
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                  <div className="p-2.5 rounded-lg bg-card border border-border">
+                    <div className="text-xs text-muted-foreground font-medium">Estimated Value</div>
+                    <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+                      ₹{intakeSummary.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-card border border-border">
+                    <div className="text-xs text-muted-foreground font-medium">Total Quantity</div>
+                    <div className="text-base font-bold text-foreground font-mono">
+                      {intakeSummary.totalUnits.toLocaleString()} pcs
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-card border border-border">
+                    <div className="text-xs text-muted-foreground font-medium">Unique Items</div>
+                    <div className="text-base font-bold text-primary font-mono">
+                      {intakeSummary.productsCount} / {intakeSummary.itemsCount}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-card border border-border">
+                    <div className="text-xs text-muted-foreground font-medium">Procurement Channel</div>
+                    <div className="text-sm font-semibold text-foreground truncate">
+                      {formData.source}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Items Section Header */}
+              <div className="flex items-center justify-between pt-1">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                    Consignment Product Items ({intakeItems.length})
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    Add multiple catalogue products received in this invoice to generate lots at their respective costs.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addIntakeRow}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-xs transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Product</span>
+                </button>
+              </div>
+
+              {/* Line Items List */}
+              <div className="space-y-3">
+                {intakeItems.map((item, idx) => {
+                  const lineTotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.unitCost) || 0);
+                  const selectedProd = products.find((p) => String(p.id) === item.productId);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-3.5 rounded-xl border border-border bg-card hover:border-border/80 transition-all shadow-2xs space-y-3"
+                    >
+                      {/* Row Top Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted text-foreground text-[11px] font-bold border border-border">
+                            {idx + 1}
+                          </span>
+                          <span className="text-xs font-semibold text-foreground">
+                            {selectedProd ? selectedProd.name : 'Select Product'}
+                          </span>
+                          {selectedProd?.sku && (
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                              {selectedProd.sku}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <span className="text-[10px] text-muted-foreground mr-1">Line Total:</span>
+                            <span className="text-xs font-mono font-bold text-foreground">
+                              ₹{lineTotal.toFixed(2)}
+                            </span>
+                          </div>
+                          {intakeItems.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeIntakeRow(item.id)}
+                              className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive transition-colors cursor-pointer"
+                              title={`Remove line #${idx + 1}`}
+                              aria-label={`Remove line #${idx + 1}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Row Product Selection */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                            Catalogue Product <span className="text-destructive">*</span>
+                          </label>
+                          <a
+                            href="/catalogue"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[11px] text-primary hover:underline inline-flex items-center gap-0.5"
+                          >
+                            <span>Catalogue</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        </div>
+                        {products.length > 0 ? (
+                          <select
+                            value={item.productId}
+                            onChange={(e) => updateIntakeRow(item.id, 'productId', e.target.value)}
+                            className={`w-full px-3 py-2 rounded-lg border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary ${
+                              formErrors[`item_${item.id}_productId`] ? 'border-destructive' : 'border-border'
+                            }`}
+                          >
+                            <option value="">-- Select Catalogue Product --</option>
+                            {products.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} [{p.sku}] ({p.unit})
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="p-2 rounded-lg border border-dashed border-amber-300 bg-amber-50 dark:bg-amber-950/20 text-xs text-amber-800 dark:text-amber-300">
+                            No products in catalogue.{' '}
+                            <a href="/catalogue" className="font-bold underline text-primary">
+                              Create product
+                            </a>{' '}
+                            first.
+                          </div>
+                        )}
+                        {formErrors[`item_${item.id}_productId`] && (
+                          <p className="mt-1 text-[11px] text-destructive flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {formErrors[`item_${item.id}_productId`]}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Row Cost, Qty, Batch Code */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                            Unit Cost (₹) <span className="text-destructive">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.unitCost}
+                            onChange={(e) => updateIntakeRow(item.id, 'unitCost', e.target.value)}
+                            placeholder="0.00"
+                            className={`w-full px-3 py-1.5 rounded-lg border bg-background text-foreground text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary ${
+                              formErrors[`item_${item.id}_unitCost`] ? 'border-destructive' : 'border-border'
+                            }`}
+                          />
+                          {formErrors[`item_${item.id}_unitCost`] && (
+                            <p className="mt-1 text-[11px] text-destructive flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              {formErrors[`item_${item.id}_unitCost`]}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                            Quantity Received <span className="text-destructive">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.quantity}
+                            onChange={(e) => updateIntakeRow(item.id, 'quantity', e.target.value)}
+                            placeholder="0"
+                            className={`w-full px-3 py-1.5 rounded-lg border bg-background text-foreground text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary ${
+                              formErrors[`item_${item.id}_quantity`] ? 'border-destructive' : 'border-border'
+                            }`}
+                          />
+                          {formErrors[`item_${item.id}_quantity`] && (
+                            <p className="mt-1 text-[11px] text-destructive flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              {formErrors[`item_${item.id}_quantity`]}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                            Batch Code <span className="text-[10px] font-normal lowercase">(optional)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={item.batchCode}
+                            onChange={(e) => updateIntakeRow(item.id, 'batchCode', e.target.value)}
+                            placeholder="Auto-generated if blank"
+                            className="w-full px-3 py-1.5 rounded-lg border border-border bg-background text-foreground text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Add item dashed button */}
+              <button
+                type="button"
+                onClick={addIntakeRow}
+                className="w-full py-2.5 px-4 rounded-xl border border-dashed border-border hover:border-primary/50 bg-muted/30 hover:bg-muted/60 text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Add Another Catalogue Product to this Consignment</span>
+              </button>
+            </div>
+          ) : isMultiItemConsignment ? (
             <div className="space-y-4 pt-2 border-t border-border">
               {/* Consignment Overview Banner */}
               <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-3">

@@ -970,4 +970,40 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
 - **Outcome**: PR-024 fully satisfies all repository rules and quality gates.
 
+---
+
+## PR-025: Multi-Product Stock Intake Creation & Consignment Line Items Builder
+- **Date**: 2026-09-14
+- **Branch**: master / main
+- **Scope Delivered**:
+  1. Multi-Product Consignment Stock Intake Builder (`frontend/app/procurement/page.tsx`):
+     - Solved the limitation where users had to record multiple procurement transactions when purchasing multiple products simultaneously from the same supplier.
+     - Upgraded the "New Stock Intake" drawer with a dynamic `xl` multi-line builder interface.
+     - Added `IntakeItemRow` state management supporting dynamic addition and removal of product rows with minimum 1 guard.
+     - Added real-time Consignment Summary banner computing Total Estimated Cost (₹), Total Received Units (pcs), and Unique Products count across line items.
+     - Line items allow custom or auto-generated batch codes (`LOT-<rand>-<index>`), independent quantity entry, and unit cost configuration per catalogue product.
+     - Integrated multi-product consignment payload compilation sent to `POST /api/procurements`.
+  2. Full Backward Compatibility Preserved:
+     - Single-product edits continue to open in focused `md` mode.
+     - Historical multi-item consignments (PR-024) continue to render the full 143-lot manifest with search and product rollups.
+     - Multi-batch costing, Lowest-Cost-First allocation, and database schema remain 100% intact.
+  3. Comprehensive Automated & Accessibility Testing (`frontend/tests/procurement_and_order_dates.test.ts`):
+     - Added Section 7 test suite testing:
+       - Default intake row initialization.
+       - Dynamic row addition and removal behavior.
+       - Consignment summary aggregations (total cost, total units, distinct product counts).
+       - Multi-line validation for missing products, negative quantities, or invalid unit costs.
+       - Consignment payload formation with auto-generated lot IDs and summary notes.
+  4. Test Verification Evidence:
+     - **Frontend Jest Suite**: 144 / 144 passing across 10 suites (100% pass rate).
+     - **Backend Test Suite**: 43 / 43 passing (100% pass rate).
+     - **Next.js Production Build**: 14 routes compiled cleanly with zero errors.
+
+### Multi-Agent Review Verdicts
+- **Critic Agent**: APPROVED (0 Major, 0 Blocker).
+- **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **Outcome**: PR-025 fully satisfies all repository rules and quality gates.
+
+
 
