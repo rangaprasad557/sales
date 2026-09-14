@@ -636,6 +636,36 @@ export default function ProcurementPage() {
     }
   };
 
+  const handleDelete = async (proc: ProcurementRecord) => {
+    if (
+      !confirm(
+        `Are you sure you want to delete procurement invoice "${proc.invoiceNo}"?\n\nThis will remove the procurement record and delete its associated inventory lots, restoring stock levels. This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/procurements/${proc.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to delete procurement');
+      }
+      addNotification('success', data.message || `Procurement invoice ${proc.invoiceNo} deleted successfully.`);
+      if (editingProcurement && editingProcurement.id === proc.id) {
+        setDrawerOpen(false);
+        setEditingProcurement(null);
+        setConsignmentItems([]);
+        setIntakeItems([]);
+      }
+      fetchProcurements();
+    } catch (err: any) {
+      addNotification('error', err.message || 'Failed to delete procurement');
+    }
+  };
+
   const filteredProcurements = procurements.filter((p) => {
     const matchSrc = selectedSource === 'ALL' || p.source === selectedSource;
     const q = searchQuery.toLowerCase();
@@ -806,15 +836,26 @@ export default function ProcurementPage() {
                       ₹{proc.totalAmount.toFixed(2)}
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <button
-                        type="button"
-                        onClick={() => openEditDrawer(proc)}
-                        className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors cursor-pointer"
-                        title={`Edit Invoice ${proc.invoiceNo}`}
-                        aria-label={`Edit Invoice ${proc.invoiceNo}`}
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEditDrawer(proc)}
+                          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors cursor-pointer"
+                          title={`Edit Invoice ${proc.invoiceNo}`}
+                          aria-label={`Edit Invoice ${proc.invoiceNo}`}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(proc)}
+                          className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive transition-colors cursor-pointer"
+                          title={`Delete Invoice ${proc.invoiceNo}`}
+                          aria-label={`Delete Invoice ${proc.invoiceNo}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -850,6 +891,18 @@ export default function ProcurementPage() {
         }
         footer={
           <>
+            {editingProcurement && (
+              <button
+                type="button"
+                onClick={() => handleDelete(editingProcurement)}
+                className="px-4 py-2 rounded-xl border border-destructive/30 text-destructive hover:bg-destructive/10 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-destructive transition-colors cursor-pointer inline-flex items-center gap-1.5 mr-auto"
+                title={`Delete Invoice ${editingProcurement.invoiceNo}`}
+                aria-label={`Delete Invoice ${editingProcurement.invoiceNo}`}
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete Intake</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {

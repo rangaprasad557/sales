@@ -2339,6 +2339,92 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_procurement_deletion_safe_and_rejection_guard(self):
+        """
+        Verify that procurements with unsold inventory can be cleanly deleted,
+        and that procurements with sold/allocated lots are strictly blocked from deletion.
+        """
+        conn = db.get_connection()
+        cur = conn.cursor()
+        try:
+            # Create a test product
+            cur.execute("SELECT id FROM products WHERE sku = 'DEL-TEST-001'")
+            prod = cur.fetchone()
+            if not prod:
+                cur.execute(
+                    "INSERT INTO products (name, sku, category, unit, min_stock) VALUES ('Delete Test Item', 'DEL-TEST-001', 'Test', 'pcs', 5)"
+                )
+                conn.commit()
+                prod_id = cur.lastrowid
+            else:
+                prod_id = prod["id"]
+
+            # 1. Create a procurement with 2 items
+            proc_res, status = server.execute_procurement(conn, cur, {
+                "invoice_no": "PROC-DEL-TEST-01",
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-14",
+                "items": [
+                    {"product_id": prod_id, "qty": 50, "unit_cost": 20.0, "batch_code": "LOT-DEL-01"},
+                    {"product_id": prod_id, "qty": 30, "unit_cost": 25.0, "batch_code": "LOT-DEL-02"},
+                ]
+            })
+            self.assertEqual(status, 201)
+            proc_id = proc_res["procurement_id"]
+
+            # Verify procurement and lots exist
+            cur.execute("SELECT COUNT(*) as count FROM inventory_lots WHERE procurement_id = ?", (proc_id,))
+            self.assertEqual(cur.fetchone()["count"], 2)
+
+            # 2. Test Safe Deletion (no sales yet)
+            del_res, del_status = server.delete_procurement(conn, cur, proc_id)
+            self.assertEqual(del_status, 200)
+            self.assertTrue(del_res["success"])
+
+            # Verify procurement and lots are completely removed
+            cur.execute("SELECT * FROM procurements WHERE id = ?", (proc_id,))
+            self.assertIsNone(cur.fetchone())
+            cur.execute("SELECT COUNT(*) as count FROM inventory_lots WHERE procurement_id = ?", (proc_id,))
+            self.assertEqual(cur.fetchone()["count"], 0)
+
+            # 3. Test Non-Existent Procurement Deletion (returns 404)
+            del_res_404, del_status_404 = server.delete_procurement(conn, cur, 999999)
+            self.assertEqual(del_status_404, 404)
+
+            # 4. Test Rejection Guard when lots have been sold in a sale
+            proc_res2, status2 = server.execute_procurement(conn, cur, {
+                "invoice_no": "PROC-DEL-TEST-02",
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-14",
+                "items": [
+                    {"product_id": prod_id, "qty": 100, "unit_cost": 30.0, "batch_code": "LOT-DEL-SOLD-01"}
+                ]
+            })
+            self.assertEqual(status2, 201)
+            proc_id_2 = proc_res2["procurement_id"]
+
+            # Execute a sale consuming from this lot
+            sale_res, sale_status = server.execute_sale(conn, cur, {
+                "invoice_no": "SALE-DEL-TEST-01",
+                "sale_date": "2026-09-14",
+                "items": [{"product_id": prod_id, "qty": 10, "unit_sale_price": 50.0}]
+            })
+            self.assertEqual(sale_status, 201)
+
+            # Attempt deletion of procurement with sold lot -> MUST FAIL with 400
+            del_res_blocked, del_status_blocked = server.delete_procurement(conn, cur, proc_id_2)
+            self.assertEqual(del_status_blocked, 400)
+            self.assertFalse(del_res_blocked["success"])
+            self.assertIn("already been sold", del_res_blocked["error"])
+
+            # Verify procurement and lot remain intact
+            cur.execute("SELECT * FROM procurements WHERE id = ?", (proc_id_2,))
+            self.assertIsNotNone(cur.fetchone())
+            cur.execute("SELECT COUNT(*) as count FROM inventory_lots WHERE procurement_id = ?", (proc_id_2,))
+            self.assertEqual(cur.fetchone()["count"], 1)
+        finally:
+            conn.close()
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
 

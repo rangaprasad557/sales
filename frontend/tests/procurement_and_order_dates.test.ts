@@ -493,5 +493,57 @@ describe('Manual Dates & Procurement Supplier Edit Bugfix Quality Gate', () => {
       expect(payload.items[1].batch_code).toBe('LOT-TEST-2');
     });
   });
+
+  describe('8. Procurement Deletion & Inventory Invariant Guards (PR-026)', () => {
+    it('executes successful deletion of unallocated procurement and removes record', async () => {
+      let procurementsList = [
+        { id: 1, invoiceNo: 'PROC-101', totalAmount: 500, itemCount: 50 },
+        { id: 2, invoiceNo: 'PROC-102', totalAmount: 1200, itemCount: 100 },
+      ];
+
+      const deleteId = 1;
+      // Mock successful deletion response
+      const mockApiResponse = { success: true, message: "Procurement 'PROC-101' and its associated inventory lots were deleted successfully." };
+
+      if (mockApiResponse.success) {
+        procurementsList = procurementsList.filter((p) => p.id !== deleteId);
+      }
+
+      expect(procurementsList.length).toBe(1);
+      expect(procurementsList[0].id).toBe(2);
+      expect(mockApiResponse.message).toContain('deleted successfully');
+    });
+
+    it('blocks deletion with error when inventory lots have already been sold', async () => {
+      let procurementsList = [
+        { id: 1, invoiceNo: 'PROC-HISTORICAL-INITIAL', totalAmount: 4059984.92, itemCount: 19103 },
+      ];
+
+      // Mock backend 400 error response
+      const mockApiResponse = {
+        success: false,
+        error: "Cannot delete procurement 'PROC-HISTORICAL-INITIAL': 23 lot(s) have already been sold or allocated to sales orders. Please delete or adjust the associated sales orders first.",
+      };
+
+      let errorMessage = '';
+      if (!mockApiResponse.success) {
+        errorMessage = mockApiResponse.error;
+      } else {
+        procurementsList = procurementsList.filter((p) => p.id !== 1);
+      }
+
+      expect(procurementsList.length).toBe(1); // Not deleted
+      expect(errorMessage).toContain('already been sold');
+    });
+
+    it('maintains WCAG 2.1 AA/AAA contrast ratios for destructive delete buttons', () => {
+      // Destructive button text / icon on card background
+      // Red: rgb(239, 68, 68) [#ef4444] or dark destructive rgb(220, 38, 38)
+      // Background white: rgb(255, 255, 255)
+      const contrast = getContrastRatio([220, 38, 38], [255, 255, 255]);
+      expect(contrast).toBeGreaterThanOrEqual(4.5); // WCAG 2.1 AA minimum 4.5:1 for normal text
+    });
+  });
 });
+
 

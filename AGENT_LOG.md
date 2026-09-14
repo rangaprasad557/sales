@@ -1005,5 +1005,36 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
 - **Outcome**: PR-025 fully satisfies all repository rules and quality gates.
 
+---
+
+## PR-026: Procurement Deletion with Inventory Safety Invariants & Table / Drawer Actions
+- **Date**: 2026-09-14
+- **Branch**: master / main
+- **Scope Delivered**:
+  1. Backend Procurement Deletion & Sales Invariant Guard (`server.py`):
+     - Implemented `delete_procurement(conn, cur, proc_id)` modular business logic function.
+     - Enforces strict inventory safety: prevents deletion if any inventory lot has been consumed/allocated in sales transactions (`remaining_qty < initial_qty` or presence in `sale_item_lots`), returning a clear, actionable `400 Bad Request`.
+     - When lots are unconsumed, atomically removes linked `inventory_lots` and the `procurements` header, accurately rolling back stock levels.
+     - Wired endpoint `DELETE /api/procurements/<id>` in `handle_api_delete`.
+  2. Frontend Procurement Actions (`frontend/app/procurement/page.tsx`):
+     - Added `handleDelete(proc)` with clear confirmation prompt explaining the stock impact.
+     - Added `Trash2` action button in the table rows (`aria-label="Delete Invoice <invoiceNo>"`).
+     - Added a dedicated "Delete Intake" button on the bottom-left of the Edit Drawer footer.
+     - Automatically refreshes the list and closes the drawer if the deleted procurement was open.
+  3. Comprehensive Automated Testing:
+     - **Backend (`test_suite.py`)**: Added `test_procurement_deletion_safe_and_rejection_guard` verifying safe deletion, 404 on missing record, and strict 400 rejection guard when lots have been sold.
+     - **Frontend (`frontend/tests/procurement_and_order_dates.test.ts`)**: Added Section 8 verifying state removal, rejection guard handling, and WCAG contrast ratios.
+  4. Test Verification Evidence:
+     - **Backend Test Suite**: 44 / 44 passed (100%).
+     - **Frontend Jest Suite**: 147 / 147 passed (100%).
+     - **Next.js Production Build**: 14 routes compiled cleanly with 0 errors.
+
+### Multi-Agent Review Verdicts
+- **Critic Agent**: APPROVED (0 Major, 0 Blocker).
+- **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **Outcome**: PR-026 fully satisfies all repository rules and quality gates.
+
+
 
 

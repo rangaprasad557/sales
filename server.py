@@ -120,6 +120,60 @@ def execute_procurement(conn, cur, body):
         "message": "Procurement recorded successfully with new inventory lots"
     }, 201
 
+def delete_procurement(conn, cur, proc_id):
+    """
+    Deletes a procurement and its associated inventory lots, provided none of the
+    lots have been partially or fully sold in sales transactions.
+    Returns: (dict result, int status_code)
+    """
+    try:
+        proc_id = int(proc_id)
+    except (ValueError, TypeError):
+        return {"error": "Invalid procurement ID", "success": False}, 400
+
+    cur.execute("SELECT id, invoice_no FROM procurements WHERE id = ?", (proc_id,))
+    proc_row = cur.fetchone()
+    if not proc_row:
+        return {"error": "Procurement not found", "success": False}, 404
+
+    invoice_no = proc_row["invoice_no"] if isinstance(proc_row, dict) or hasattr(proc_row, "__getitem__") else str(proc_id)
+
+    # Fetch all inventory lots belonging to this procurement
+    cur.execute("SELECT id, initial_qty, remaining_qty FROM inventory_lots WHERE procurement_id = ?", (proc_id,))
+    lots = [dict(l) for l in cur.fetchall()]
+    lot_ids = [l["id"] for l in lots]
+
+    # Check if any inventory lot has been consumed or allocated in sales
+    lots_with_sales = []
+    if lot_ids:
+        placeholders = ",".join(["?"] * len(lot_ids))
+        cur.execute(f"SELECT DISTINCT lot_id FROM sale_item_lots WHERE lot_id IN ({placeholders})", tuple(lot_ids))
+        sold_rows = cur.fetchall()
+        sold_lot_ids = {r[0] if isinstance(r, tuple) else r["lot_id"] for r in sold_rows}
+
+        for lot in lots:
+            init_qty = float(lot.get("initial_qty") or 0)
+            rem_qty = float(lot.get("remaining_qty") if lot.get("remaining_qty") is not None else 0)
+            if lot["id"] in sold_lot_ids or rem_qty < init_qty:
+                lots_with_sales.append(lot)
+
+    if lots_with_sales:
+        return {
+            "error": f"Cannot delete procurement '{invoice_no}': {len(lots_with_sales)} lot(s) have already been sold or allocated to sales orders. Please delete or adjust the associated sales orders first.",
+            "success": False
+        }, 400
+
+    # Cleanly remove lots and procurement
+    if lot_ids:
+        cur.execute("DELETE FROM inventory_lots WHERE procurement_id = ?", (proc_id,))
+    cur.execute("DELETE FROM procurements WHERE id = ?", (proc_id,))
+    conn.commit()
+
+    return {
+        "success": True,
+        "message": f"Procurement '{invoice_no}' and its associated inventory lots were deleted successfully."
+    }, 200
+
 def simulate_sale(cur, body):
     """
     Simulates lot allocation (Lowest-Cost-First or manual) and calculates
@@ -813,6 +867,12 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 cur.execute("DELETE FROM categories WHERE id = ?", (int(entity_id),))
                 conn.commit()
                 json_response(self, {"success": True, "message": "Category deleted"})
+
+            # DELETE /api/procurements/<id>
+            elif path.startswith("/api/procurements/"):
+                entity_id = path.split("/")[-1]
+                res, status = delete_procurement(conn, cur, entity_id)
+                json_response(self, res, status)
 
             else:
                 error_response(self, "Endpoint not found", 404)
