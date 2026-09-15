@@ -1038,3 +1038,37 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 
 
 
+
+
+## PR-027: Sell Price Entry, Cashier Keyboard Navigation, Order Deletion with Stock Restoration & POS Creation Hardening
+- **Date**: 2026-09-15
+- **Branch**: master / main
+- **Scope Delivered**:
+  1. Sell Price Entry & Buffer-Preserving Decimal Inputs:
+     - Enabled direct editing of Unit Sell Price (₹) across all line items in POS Billing (`frontend/app/sales/page.tsx`).
+     - Added dedicated "Sell Price (₹)" input column in Catalogue Product Picker modal (`frontend/components/ProductPickerModal.tsx`).
+     - Added string input buffers (`qtyStr`, `priceStr`) preventing decimal drop-offs or snapping to 0 on backspace.
+     - Added `onFocus={(e) => e.target.select()}` for seamless single-keystroke replacement.
+  2. Cashier Rapid Keyboard Navigation:
+     - `Enter` on Qty advances focus to Sell Price on the same item row.
+     - `Enter` on Sell Price advances focus to next row's Qty (or cycles back to Quick Search on the last row).
+     - `Shift+Enter` navigates backwards across price and quantity fields.
+     - `Enter` in Quick Search auto-adds the top matching product and focuses its Qty field.
+     - `Enter` on Qty or Price in Product Picker modal immediately adds the item to cart.
+  3. Transactional Order Deletion & Inventory Restoration:
+     - Implemented `delete_sale(conn, cur, sale_id)` in `server.py`: restores `remaining_qty` on allocated `inventory_lots`, reactivates depleted lots (`status = 'active'`), and cleans up `sale_item_lots`, `sale_items`, and `sales`.
+     - Wired route `DELETE /api/sales/<id>`.
+     - Added table row `Trash2` button and Edit Drawer "Delete Order" button in `frontend/app/orders/page.tsx` with full audit confirmation dialog.
+  4. POS Order Creation Hardening:
+     - Resolved root cause of orders not saving silently: replaced unchecked `fetch('/api/sales')` with proper `res.ok` validation, error toast surfacing, and cart state preservation on rejection.
+     - Added real-time stock shortage warning badges (`shortQty`) when active lots cannot fulfill requested quantities.
+  5. Comprehensive Automated & Visual Accessibility Testing:
+     - **Backend (`test_suite.py`)`**: 45 / 45 passed (100%), including `test_sale_deletion_and_stock_restoration` and `DELETE /api/sales/<id>` live HTTP tests.
+     - **Frontend Jest Suite**: 151 / 151 passed across 10 suites (100%), including Section 7 in `orders_history_a11y.test.ts`.
+     - **Next.js Production Build**: 14 routes compiled cleanly with 0 errors.
+
+### Multi-Agent Review Verdicts
+- **Critic Agent**: APPROVED (0 Major, 0 Blocker).
+- **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **Outcome**: PR-027 fully satisfies all repository rules and quality gates.

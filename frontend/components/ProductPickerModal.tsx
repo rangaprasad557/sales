@@ -372,13 +372,14 @@ export function ProductPickerModal({
                     )}
                   </div>
                 </th>
+                <th className="px-4 py-3.5 text-center select-none">Sell Price (₹)</th>
                 <th className="px-6 py-3.5 text-center">Add Qty & Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {sortedProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
                     <Package className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
                     <p className="font-semibold text-foreground">No products match your fuzzy search</p>
                     <p className="text-xs mt-1">Try relaxing your search terms or toggling filters.</p>
@@ -389,6 +390,7 @@ export function ProductPickerModal({
                   const qtyEntered = enteredQuantities[p.id] || 0;
                   const isDepleted = p.currentStock <= 0;
                   const isLow = p.currentStock > 0 && p.currentStock <= p.minStock;
+                  const defaultPrice = p.lowestCost > 0 ? parseFloat((p.lowestCost * 1.3).toFixed(2)) : 10.0;
 
                   return (
                     <tr
@@ -452,6 +454,32 @@ export function ProductPickerModal({
                         ₹{p.lowestCost > 0 ? p.lowestCost.toFixed(2) : '0.00'}
                       </td>
 
+                      {/* Custom Sell Price */}
+                      <td className="px-4 py-3.5 text-center">
+                        <div className="relative inline-block w-24">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                            ₹
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={customPrices[p.id] !== undefined ? customPrices[p.id] : defaultPrice.toFixed(2)}
+                            onChange={(e) => handlePriceChange(p.id, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddSingleItem(p);
+                              }
+                            }}
+                            placeholder={defaultPrice.toFixed(2)}
+                            disabled={isDepleted}
+                            aria-label={`Sell price for ${p.name}`}
+                            className="w-full pl-5 pr-2 py-1.5 text-right text-xs font-semibold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-40 font-mono"
+                          />
+                        </div>
+                      </td>
+
                       {/* Add Qty & Action */}
                       <td className="px-6 py-3.5">
                         <div className="flex items-center justify-center gap-2">
@@ -460,9 +488,17 @@ export function ProductPickerModal({
                             inputMode="numeric"
                             value={qtyEntered === 0 ? '' : qtyEntered}
                             onChange={(e) => handleQtyChange(p.id, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddSingleItem(p);
+                              }
+                            }}
                             placeholder="Qty"
                             disabled={isDepleted}
-                            className="w-16 px-2 py-1.5 text-center text-xs font-semibold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-40"
+                            aria-label={`Quantity for ${p.name}`}
+                            className="w-16 px-2 py-1.5 text-center text-xs font-semibold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-40 font-mono"
                           />
                           <button
                             type="button"

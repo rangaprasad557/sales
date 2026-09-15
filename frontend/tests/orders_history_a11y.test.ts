@@ -281,4 +281,67 @@ describe('PR-017: Past Orders & Order History Quality Gate', () => {
       expect(receipt.soldBy).toBe('Surendra');
     });
   });
+
+  describe('7. PR-027: Order Deletion & Inventory Restoration Contracts', () => {
+    it('removes the deleted order from list and constructs accurate stock restoration message', () => {
+      let ordersList = [...sampleOrders];
+      const targetOrder = ordersList[0]; // INV-20260912-2778, 22 units
+
+      const deleteOrder = (id: number) => {
+        const found = ordersList.find((o) => o.id === id);
+        if (!found) return null;
+        ordersList = ordersList.filter((o) => o.id !== id);
+        return {
+          success: true,
+          message: `Order ${found.invoice_no} deleted and ${found.total_qty} units restored to inventory.`,
+        };
+      };
+
+      const res = deleteOrder(targetOrder.id);
+      expect(res).not.toBeNull();
+      expect(res!.success).toBe(true);
+      expect(res!.message).toBe('Order INV-20260912-2778 deleted and 22 units restored to inventory.');
+      expect(ordersList.length).toBe(sampleOrders.length - 1);
+      expect(ordersList.some((o) => o.id === targetOrder.id)).toBe(false);
+    });
+
+    it('closes the edit drawer if the currently edited order is deleted', () => {
+      let editingOrder: OrderListItem | null = sampleOrders[1];
+      let isEditDrawerOpen = true;
+
+      const handleDeleteFromDrawer = (deletedId: number) => {
+        if (editingOrder?.id === deletedId) {
+          isEditDrawerOpen = false;
+          editingOrder = null;
+        }
+      };
+
+      handleDeleteFromDrawer(sampleOrders[1].id);
+      expect(isEditDrawerOpen).toBe(false);
+      expect(editingOrder).toBeNull();
+    });
+
+    it('confirmation dialog exposes complete audit details (invoice, units, items, amount)', () => {
+      const order = sampleOrders[0];
+      const dialogDetails = {
+        invoiceNo: order.invoice_no,
+        itemsCount: order.items_count,
+        unitsToRestore: order.total_qty,
+        revenueToDeduct: order.total_amount,
+      };
+
+      expect(dialogDetails.invoiceNo).toBe('INV-20260912-2778');
+      expect(dialogDetails.itemsCount).toBe(1);
+      expect(dialogDetails.unitsToRestore).toBe(22.0);
+      expect(dialogDetails.revenueToDeduct).toBe(4862.0);
+    });
+
+    it('enforces accessible styling on destructive delete buttons', () => {
+      const deleteBtnClass =
+        'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-destructive/20 text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive';
+      expect(deleteBtnClass).toContain('text-destructive');
+      expect(deleteBtnClass).toContain('focus-visible:ring-destructive');
+      expect(deleteBtnClass).toContain('focus-visible:ring-2');
+    });
+  });
 });

@@ -174,6 +174,55 @@ def delete_procurement(conn, cur, proc_id):
         "message": f"Procurement '{invoice_no}' and its associated inventory lots were deleted successfully."
     }, 200
 
+def delete_sale(conn, cur, sale_id):
+    """
+    Deletes a sales order and restores the exact quantities drawn back into
+    their respective inventory lots, setting status back to 'active'.
+    Returns: (dict result, int status_code)
+    """
+    try:
+        sale_id = int(sale_id)
+    except (ValueError, TypeError):
+        return {"error": "Invalid sale ID", "success": False}, 400
+
+    cur.execute("SELECT id, invoice_no FROM sales WHERE id = ?", (sale_id,))
+    sale_row = cur.fetchone()
+    if not sale_row:
+        return {"error": "Sale not found", "success": False}, 404
+
+    invoice_no = sale_row["invoice_no"] if isinstance(sale_row, dict) or hasattr(sale_row, "__getitem__") else str(sale_id)
+
+    # Fetch all lot allocations made by this sale's items
+    cur.execute("""
+        SELECT sil.lot_id, sil.qty
+        FROM sale_item_lots sil
+        JOIN sale_items si ON sil.sale_item_id = si.id
+        WHERE si.sale_id = ?
+    """, (sale_id,))
+    allocations = cur.fetchall()
+
+    for alloc in allocations:
+        lot_id = alloc["lot_id"] if isinstance(alloc, dict) else alloc[0]
+        qty_to_restore = float(alloc["qty"] if isinstance(alloc, dict) else alloc[1])
+        if qty_to_restore > 0:
+            cur.execute("""
+                UPDATE inventory_lots
+                SET remaining_qty = remaining_qty + ?,
+                    status = 'active'
+                WHERE id = ?
+            """, (qty_to_restore, lot_id))
+
+    # Cleanly remove sale_item_lots, sale_items, and sales
+    cur.execute("DELETE FROM sale_item_lots WHERE sale_item_id IN (SELECT id FROM sale_items WHERE sale_id = ?)", (sale_id,))
+    cur.execute("DELETE FROM sale_items WHERE sale_id = ?", (sale_id,))
+    cur.execute("DELETE FROM sales WHERE id = ?", (sale_id,))
+    conn.commit()
+
+    return {
+        "success": True,
+        "message": f"Sale order '{invoice_no}' and its allocations were deleted, and inventory was restored successfully."
+    }, 200
+
 def simulate_sale(cur, body):
     """
     Simulates lot allocation (Lowest-Cost-First or manual) and calculates
@@ -326,6 +375,12 @@ def execute_sale(conn, cur, body):
     if not invoice_no:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
         invoice_no = f"INV-{timestamp[:17]}-{uuid.uuid4().hex[:4].upper()}"
+    else:
+        # Prevent unique constraint collision if invoice_no already exists
+        cur.execute("SELECT id FROM sales WHERE invoice_no = ?", (invoice_no,))
+        if cur.fetchone():
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
+            invoice_no = f"{invoice_no}-{timestamp[-6:]}-{uuid.uuid4().hex[:4].upper()}"
 
     # Insert parent sale record
     cur.execute(
@@ -717,14 +772,14 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
 
                 if "items" in body and isinstance(body["items"], list):
                     # 1. Restore all drawn lots for this sale
-                    cur.execute("SELECT lot_id, qty_drawn FROM sale_item_lots sil JOIN sale_items si ON sil.sale_item_id = si.id WHERE si.sale_id = ?", (sale_id,))
+                    cur.execute("SELECT lot_id, qty FROM sale_item_lots sil JOIN sale_items si ON sil.sale_item_id = si.id WHERE si.sale_id = ?", (sale_id,))
                     drawn_lots = cur.fetchall()
                     for dl in drawn_lots:
                         cur.execute("""
                             UPDATE inventory_lots 
                             SET remaining_qty = remaining_qty + ?, status = 'active'
                             WHERE id = ?
-                        """, (dl["qty_drawn"], dl["lot_id"]))
+                        """, (dl["qty"], dl["lot_id"]))
 
                     # 2. Delete old sale_items and sale_item_lots
                     cur.execute("DELETE FROM sale_item_lots WHERE sale_item_id IN (SELECT id FROM sale_items WHERE sale_id = ?)", (sale_id,))
@@ -774,7 +829,8 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                             new_rem = lot["remaining_qty"] - lot_draw
                             new_st = 'depleted' if new_rem <= 0 else 'active'
                             cur.execute("UPDATE inventory_lots SET remaining_qty = ?, status = ? WHERE id = ?", (new_rem, new_st, lot["id"]))
-                            cur.execute("INSERT INTO sale_item_lots (sale_item_id, lot_id, qty_drawn, unit_lot_cost) VALUES (?, ?, ?, ?)", (sale_item_id, lot["id"], lot_draw, lot["unit_cost"]))
+                            lot_profit = (unit_sale_price - lot["unit_cost"]) * lot_draw
+                            cur.execute("INSERT INTO sale_item_lots (sale_item_id, lot_id, qty, unit_cost, lot_profit) VALUES (?, ?, ?, ?, ?)", (sale_item_id, lot["id"], lot_draw, lot["unit_cost"], lot_profit))
 
                         total_cogs += item_cogs
                         item_profit = subtotal_amount - item_cogs
@@ -872,6 +928,12 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
             elif path.startswith("/api/procurements/"):
                 entity_id = path.split("/")[-1]
                 res, status = delete_procurement(conn, cur, entity_id)
+                json_response(self, res, status)
+
+            # DELETE /api/sales/<id>
+            elif path.startswith("/api/sales/"):
+                entity_id = path.split("/")[-1]
+                res, status = delete_sale(conn, cur, entity_id)
                 json_response(self, res, status)
 
             else:

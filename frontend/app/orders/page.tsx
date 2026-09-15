@@ -50,6 +50,8 @@ export default function OrdersPage() {
   const [selectedSaleRecord, setSelectedSaleRecord] = useState<CompletedSaleRecord | null>(null);
   const [isReceiptModalOpen, setReceiptModalOpen] = useState(false);
   const [fetchingDetailId, setFetchingDetailId] = useState<number | null>(null);
+  const [orderToDelete, setOrderToDelete] = useState<OrderListItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { addNotification } = useUIStore();
 
@@ -228,6 +230,35 @@ export default function OrdersPage() {
       addNotification('error', err.message || 'Failed to update order');
     } finally {
       setIsSavingOrder(false);
+    }
+  };
+
+  const handleDeleteOrder = async (order: OrderListItem) => {
+    if (!order) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/sales/${order.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        addNotification(
+          'success',
+          `Order ${order.invoice_no} deleted and ${order.total_qty} units restored to inventory.`
+        );
+        setOrderToDelete(null);
+        if (editingOrder?.id === order.id) {
+          setEditDrawerOpen(false);
+          setEditingOrder(null);
+        }
+        fetchOrders();
+      } else {
+        addNotification('error', data.error || 'Failed to delete sale order.');
+      }
+    } catch (e: any) {
+      addNotification('error', `Error deleting order: ${e.message || 'Unknown network error'}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -566,6 +597,17 @@ export default function OrdersPage() {
                             <Edit2 className="w-3.5 h-3.5" />
                             <span>Edit</span>
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setOrderToDelete(order)}
+                            disabled={isFetchingThis || isDeleting}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-destructive/20 text-destructive hover:bg-destructive/10 text-xs font-semibold transition-all focus-visible:ring-2 focus-visible:ring-destructive cursor-pointer disabled:opacity-50"
+                            title={`Delete order ${order.invoice_no} and restore inventory`}
+                            aria-label={`Delete order ${order.invoice_no}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -599,26 +641,40 @@ export default function OrdersPage() {
         title={`Edit Order: ${editingOrder?.invoice_no || ''}`}
         description="Modify customer assignment, sale date, notes, and line item quantities."
         footer={
-          <>
+          <div className="flex items-center justify-between w-full">
             <button
               type="button"
               onClick={() => {
-                setEditDrawerOpen(false);
-                setEditingOrder(null);
+                if (editingOrder) {
+                  setOrderToDelete(editingOrder);
+                }
               }}
-              className="px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-destructive hover:bg-destructive/10 border border-destructive/20 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-destructive cursor-pointer transition-colors"
             >
-              Cancel
+              <Trash2 className="w-4 h-4" />
+              <span>Delete Order</span>
             </button>
-            <button
-              type="button"
-              onClick={handleSaveOrder}
-              disabled={isSavingOrder}
-              className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-sm disabled:opacity-50"
-            >
-              {isSavingOrder ? 'Saving Order...' : 'Save Changes'}
-            </button>
-          </>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditDrawerOpen(false);
+                  setEditingOrder(null);
+                }}
+                className="px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveOrder}
+                disabled={isSavingOrder}
+                className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary shadow-sm disabled:opacity-50 cursor-pointer"
+              >
+                {isSavingOrder ? 'Saving Order...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
         }
       >
         <div className="space-y-4">
@@ -732,6 +788,67 @@ export default function OrdersPage() {
           </div>
         </div>
       </Drawer>
+
+      {/* Confirmation Modal for Order Deletion & Stock Restoration */}
+      {orderToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-xs"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="delete-order-title"
+        >
+          <div className="w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-destructive">
+              <div className="w-10 h-10 rounded-2xl bg-destructive/10 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 id="delete-order-title" className="text-base font-bold text-foreground">
+                  Delete Sale Order?
+                </h3>
+                <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                  {orderToDelete.invoice_no}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-muted/40 border border-border text-xs space-y-1.5 text-muted-foreground">
+              <p className="font-semibold text-foreground">
+                This action cannot be undone:
+              </p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Order invoice <span className="font-mono font-bold text-foreground">{orderToDelete.invoice_no}</span> will be permanently removed.</li>
+                <li>All drawn inventory (<span className="font-bold text-foreground">{orderToDelete.total_qty} units</span> across {orderToDelete.items_count} items) will be restored to active inventory lots.</li>
+                <li>Historical store revenue of <span className="font-bold text-foreground">₹{orderToDelete.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span> will be deducted.</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setOrderToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteOrder(orderToDelete)}
+                disabled={isDeleting}
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-destructive text-destructive-foreground text-sm font-bold hover:bg-destructive/90 focus-visible:ring-2 focus-visible:ring-destructive cursor-pointer disabled:opacity-50 shadow-sm"
+              >
+                {isDeleting ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                <span>{isDeleting ? 'Restoring & Deleting...' : 'Confirm Delete & Restore'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

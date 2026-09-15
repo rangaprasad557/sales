@@ -22,6 +22,7 @@ import {
   RotateCcw,
   Sparkles,
   Calendar,
+  RefreshCw,
 } from 'lucide-react';
 import { ProductPickerModal, PickerItemToAdd } from '../../components/ProductPickerModal';
 import { ManualLotOverrideModal, LotAllocation, LotItem } from '../../components/ManualLotOverrideModal';
@@ -35,6 +36,8 @@ interface CartItem {
   product: CatalogueProduct;
   qty: number;
   salePrice: number;
+  qtyStr?: string;
+  priceStr?: string;
   allocationType: 'AUTO_LOWEST_COST' | 'MANUAL_OVERRIDE';
   manualAllocations?: LotAllocation[];
 }
@@ -118,6 +121,11 @@ export default function SalesPOSPage() {
   const [isSearchFocused, setSearchFocused] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Navigation refs for fluid cashier Enter key progression
+  const qtyInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const priceInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [isSubmittingSale, setIsSubmittingSale] = useState(false);
+
   // Active Sale / Cart
   const [cart, setCart] = useState<CartItem[]>([]);
 
@@ -165,6 +173,7 @@ export default function SalesPOSPage() {
       return;
     }
 
+    let targetId = '';
     const existingIndex = cart.findIndex((item) => item.product.id === product.id);
     if (existingIndex >= 0) {
       const updated = [...cart];
@@ -174,22 +183,36 @@ export default function SalesPOSPage() {
         return;
       }
       updated[existingIndex].qty = newQty;
+      updated[existingIndex].qtyStr = String(newQty);
+      targetId = updated[existingIndex].id;
       setCart(updated);
     } else {
       const defaultPrice = product.lowestCost > 0 ? parseFloat((product.lowestCost * 1.3).toFixed(2)) : 10.0;
+      targetId = `${Date.now()}-${product.id}`;
       const newItem: CartItem = {
-        id: `${Date.now()}-${product.id}`,
+        id: targetId,
         product,
         qty: 1,
+        qtyStr: '1',
         salePrice: defaultPrice,
+        priceStr: defaultPrice.toFixed(2),
         allocationType: 'AUTO_LOWEST_COST',
       };
-      setCart([...cart, newItem]);
+      setCart((prev) => [...prev, newItem]);
     }
 
     setSearchQuery('');
     setSearchFocused(false);
     addNotification('success', `Added "${product.name}" to active sale.`);
+
+    // Auto-focus the added line item's quantity input
+    setTimeout(() => {
+      const el = qtyInputRefs.current[targetId];
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    }, 60);
   };
 
   // Load backend products and customers
@@ -269,14 +292,19 @@ export default function SalesPOSPage() {
     for (const item of itemsToAdd) {
       const existingIdx = newCart.findIndex((c) => c.product.id === item.product.id);
       if (existingIdx >= 0) {
-        newCart[existingIdx].qty += item.qty;
+        const newQty = newCart[existingIdx].qty + item.qty;
+        newCart[existingIdx].qty = newQty;
+        newCart[existingIdx].qtyStr = String(newQty);
         newCart[existingIdx].salePrice = item.salePrice;
+        newCart[existingIdx].priceStr = item.salePrice.toFixed(2);
       } else {
         newCart.push({
           id: `${Date.now()}-${item.product.id}-${Math.random()}`,
           product: item.product,
           qty: item.qty,
+          qtyStr: String(item.qty),
           salePrice: item.salePrice,
+          priceStr: item.salePrice.toFixed(2),
           allocationType: 'AUTO_LOWEST_COST',
         });
       }
@@ -286,32 +314,67 @@ export default function SalesPOSPage() {
     addNotification('success', `Added ${itemsToAdd.length} items to the sale.`);
   };
 
-  // Update Cart Item Quantity
-  const handleUpdateQty = (cartId: string, qtyStr: string) => {
-    const clean = qtyStr.replace(/[^0-9]/g, '');
-    const val = parseInt(clean, 10);
-    const qty = isNaN(val) ? 0 : val;
+  // Update Cart Item Quantity with string buffer for unconstrained typing
+  const handleUpdateQty = (cartId: string, rawStr: string) => {
+    const clean = rawStr.replace(/[^0-9]/g, '');
+    const val = clean === '' ? 0 : parseInt(clean, 10);
 
     setCart((prev) =>
       prev.map((item) => {
         if (item.id === cartId) {
-          if (item.product.currentStock > 0 && qty > item.product.currentStock) {
-            addNotification('warning', `Requested ${qty} exceeds available stock (${item.product.currentStock}).`);
-            return { ...item, qty: item.product.currentStock };
+          if (item.product.currentStock > 0 && val > item.product.currentStock) {
+            addNotification('warning', `Requested ${val} exceeds available stock (${item.product.currentStock}).`);
+            return { ...item, qty: item.product.currentStock, qtyStr: String(item.product.currentStock) };
           }
-          return { ...item, qty };
+          return { ...item, qty: val, qtyStr: clean };
         }
         return item;
       })
     );
   };
 
-  // Update Cart Item Price
-  const handleUpdatePrice = (cartId: string, priceStr: string) => {
-    const val = parseFloat(priceStr);
-    const price = isNaN(val) ? 0 : Math.max(0, val);
+  // On blur, normalize quantity to at least 1
+  const handleBlurQty = (cartId: string) => {
     setCart((prev) =>
-      prev.map((item) => (item.id === cartId ? { ...item, salePrice: price } : item))
+      prev.map((item) => {
+        if (item.id === cartId) {
+          const finalQty = Math.max(1, item.qty);
+          return { ...item, qty: finalQty, qtyStr: String(finalQty) };
+        }
+        return item;
+      })
+    );
+  };
+
+  // Update Cart Item Price with string buffer for fluid decimal typing
+  const handleUpdatePrice = (cartId: string, rawStr: string) => {
+    let clean = rawStr.replace(/[^0-9.]/g, '');
+    const parts = clean.split('.');
+    if (parts.length > 2) {
+      clean = parts[0] + '.' + parts.slice(1).join('');
+    }
+    const val = parseFloat(clean);
+    const price = isNaN(val) ? 0 : Math.max(0, val);
+
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.id === cartId) {
+          return { ...item, salePrice: price, priceStr: clean };
+        }
+        return item;
+      })
+    );
+  };
+
+  // On blur, format price to 2 decimals
+  const handleBlurPrice = (cartId: string) => {
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.id === cartId) {
+          return { ...item, priceStr: item.salePrice.toFixed(2) };
+        }
+        return item;
+      })
     );
   };
 
@@ -326,10 +389,11 @@ export default function SalesPOSPage() {
   };
 
   // Compute Lowest-Cost-First (LCF) batch allocation preview for a cart item
-  const computeLCFAllocation = (item: CartItem): { cogs: number; lotsPreview: LotAllocation[] } => {
+  const computeLCFAllocation = (item: CartItem): { cogs: number; lotsPreview: LotAllocation[]; shortQty: number } => {
     if (item.allocationType === 'MANUAL_OVERRIDE' && item.manualAllocations) {
       const cogs = item.manualAllocations.reduce((acc, l) => acc + l.qty * l.unitCost, 0);
-      return { cogs, lotsPreview: item.manualAllocations };
+      const allocatedQty = item.manualAllocations.reduce((acc, l) => acc + l.qty, 0);
+      return { cogs, lotsPreview: item.manualAllocations, shortQty: Math.max(0, item.qty - allocatedQty) };
     }
 
     // Auto LCF simulation
@@ -353,24 +417,27 @@ export default function SalesPOSPage() {
       }
     }
 
+    const shortQty = Math.max(0, remainingNeeded);
     // Fallback if not enough lots recorded: compute using item.product.lowestCost
     if (remainingNeeded > 0) {
       totalCogs += remainingNeeded * (item.product.lowestCost || 0);
     }
 
-    return { cogs: totalCogs, lotsPreview: allocatedLots };
+    return { cogs: totalCogs, lotsPreview: allocatedLots, shortQty };
   };
 
   // Financial Rollups
   const cartSummary = useMemo(() => {
     let subtotal = 0;
     let totalCogs = 0;
+    let totalShort = 0;
 
     for (const item of cart) {
       const itemTotal = item.qty * item.salePrice;
-      const { cogs } = computeLCFAllocation(item);
+      const { cogs, shortQty } = computeLCFAllocation(item);
       subtotal += itemTotal;
       totalCogs += cogs;
+      totalShort += shortQty;
     }
 
     const netProfit = subtotal - totalCogs;
@@ -381,6 +448,7 @@ export default function SalesPOSPage() {
       totalCogs,
       netProfit,
       marginPct,
+      totalShort,
       totalUnits: cart.reduce((acc, item) => acc + item.qty, 0),
     };
   }, [cart, lotsMap]);
@@ -390,9 +458,19 @@ export default function SalesPOSPage() {
 
   // Checkout Execution
   const handleCheckout = async () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || isSubmittingSale) return;
 
-    const invoiceNo = `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+    // Validate if any item has 0 or invalid qty
+    const invalidItem = cart.find((it) => it.qty <= 0);
+    if (invalidItem) {
+      addNotification('error', `Cannot complete sale: "${invalidItem.product.name}" has invalid quantity (must be > 0).`);
+      return;
+    }
+
+    setIsSubmittingSale(true);
+    const timestamp = Date.now().toString().slice(-6);
+    const randomEntropy = Math.floor(100 + Math.random() * 900);
+    const invoiceNo = `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${timestamp}-${randomEntropy}`;
 
     const itemsForSale = cart.map((item) => {
       const { cogs, lotsPreview } = computeLCFAllocation(item);
@@ -445,21 +523,31 @@ export default function SalesPOSPage() {
     };
 
     try {
-      await fetch('/api/sales', {
+      const res = await fetch('/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(salePayload),
       });
+
+      const resData = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(resData.error || `Server responded with status ${res.status}`);
+      }
+
       fetchProducts();
       fetchInventory();
-    } catch (e) {
-      console.warn('Backend sale recording note:', e);
-    }
 
-    setCompletedSale(record);
-    setReceiptOpen(true);
-    setCart([]);
-    addNotification('success', `Invoice ${invoiceNo} finalized and inventory updated.`);
+      setCompletedSale(record);
+      setReceiptOpen(true);
+      setCart([]);
+      addNotification('success', `Invoice ${invoiceNo} finalized and inventory updated.`);
+    } catch (e: any) {
+      console.error('Sale finalization error:', e);
+      addNotification('error', `Failed to finalize sale: ${e.message || 'Unknown server error'}`);
+    } finally {
+      setIsSubmittingSale(false);
+    }
   };
 
   return (
@@ -535,6 +623,20 @@ export default function SalesPOSPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => setSearchFocused(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (searchResults.length > 0) {
+                    e.preventDefault();
+                    handleQuickAdd(searchResults[0]);
+                  }
+                } else if (e.key === 'ArrowDown') {
+                  if (cart.length > 0) {
+                    e.preventDefault();
+                    qtyInputRefs.current[cart[0].id]?.focus();
+                    qtyInputRefs.current[cart[0].id]?.select();
+                  }
+                }
+              }}
               placeholder="Quick search & add product by name, SKU, category, or barcode..."
               className="w-full pl-11 pr-10 py-2.5 text-xs sm:text-sm bg-background border border-border rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
             />
@@ -659,8 +761,8 @@ export default function SalesPOSPage() {
             </div>
           ) : (
             <div className="space-y-4 flex-1 overflow-y-auto">
-              {cart.map((item) => {
-                const { cogs, lotsPreview } = computeLCFAllocation(item);
+              {cart.map((item, index) => {
+                const { cogs, lotsPreview, shortQty } = computeLCFAllocation(item);
                 const lineTotal = item.qty * item.salePrice;
                 const lineProfit = lineTotal - cogs;
                 const marginPct = lineTotal > 0 ? (lineProfit / lineTotal) * 100 : 0;
@@ -680,12 +782,18 @@ export default function SalesPOSPage() {
                           <span>•</span>
                           <span>Unit: {item.product.unit}</span>
                         </div>
+                        {shortQty > 0 && (
+                          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-rose-600 dark:text-rose-400 font-semibold bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20 w-fit">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                            <span>Insufficient stock in active lots (Short by {shortQty.toFixed(1)} {item.product.unit})</span>
+                          </div>
+                        )}
                       </div>
 
                       <button
                         type="button"
                         onClick={() => handleRemoveCartItem(item.id)}
-                        className="p-1 text-muted-foreground hover:text-destructive rounded-lg transition-colors"
+                        className="p-1 text-muted-foreground hover:text-destructive rounded-lg transition-colors cursor-pointer"
                         title="Remove line item"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -699,10 +807,31 @@ export default function SalesPOSPage() {
                         <div className="flex items-center gap-1.5">
                           <label className="text-xs font-semibold text-muted-foreground">Qty:</label>
                           <input
+                            ref={(el) => { qtyInputRefs.current[item.id] = el; }}
                             type="text"
                             inputMode="numeric"
-                            value={item.qty}
+                            value={item.qtyStr !== undefined ? item.qtyStr : item.qty}
                             onChange={(e) => handleUpdateQty(item.id, e.target.value)}
+                            onBlur={() => handleBlurQty(item.id)}
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (e.shiftKey) {
+                                  if (index > 0) {
+                                    priceInputRefs.current[cart[index - 1].id]?.focus();
+                                    priceInputRefs.current[cart[index - 1].id]?.select();
+                                  } else {
+                                    searchInputRef.current?.focus();
+                                    searchInputRef.current?.select();
+                                  }
+                                } else {
+                                  priceInputRefs.current[item.id]?.focus();
+                                  priceInputRefs.current[item.id]?.select();
+                                }
+                              }
+                            }}
+                            aria-label={`Quantity for ${item.product.name}`}
                             className="w-16 px-2.5 py-1 text-center text-xs font-bold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono"
                           />
                           <span className="text-xs text-muted-foreground">{item.product.unit}</span>
@@ -716,11 +845,32 @@ export default function SalesPOSPage() {
                               ₹
                             </span>
                             <input
+                              ref={(el) => { priceInputRefs.current[item.id] = el; }}
                               type="text"
                               inputMode="decimal"
-                              value={item.salePrice}
+                              value={item.priceStr !== undefined ? item.priceStr : item.salePrice.toFixed(2)}
                               onChange={(e) => handleUpdatePrice(item.id, e.target.value)}
-                              className="w-20 pl-5 pr-2 py-1 text-right text-xs font-bold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                              onBlur={() => handleBlurPrice(item.id)}
+                              onFocus={(e) => e.target.select()}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (e.shiftKey) {
+                                    qtyInputRefs.current[item.id]?.focus();
+                                    qtyInputRefs.current[item.id]?.select();
+                                  } else {
+                                    if (index < cart.length - 1) {
+                                      qtyInputRefs.current[cart[index + 1].id]?.focus();
+                                      qtyInputRefs.current[cart[index + 1].id]?.select();
+                                    } else {
+                                      searchInputRef.current?.focus();
+                                      searchInputRef.current?.select();
+                                    }
+                                  }
+                                }
+                              }}
+                              aria-label={`Sell Price for ${item.product.name}`}
+                              className="w-24 pl-5 pr-2 py-1 text-right text-xs font-bold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono"
                             />
                           </div>
                         </div>
@@ -850,11 +1000,15 @@ export default function SalesPOSPage() {
           <button
             type="button"
             onClick={handleCheckout}
-            disabled={cart.length === 0}
+            disabled={cart.length === 0 || isSubmittingSale}
             className="w-full py-3.5 px-6 rounded-2xl bg-primary text-primary-foreground font-black text-base shadow-lg shadow-primary/25 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
-            <Receipt className="w-5 h-5" />
-            <span>Complete Sale & Print Receipt</span>
+            {isSubmittingSale ? (
+              <RefreshCw className="w-5 h-5 animate-spin" />
+            ) : (
+              <Receipt className="w-5 h-5" />
+            )}
+            <span>{isSubmittingSale ? 'Processing Sale...' : 'Complete Sale & Print Receipt'}</span>
           </button>
         </div>
       </div>

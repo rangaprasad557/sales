@@ -730,6 +730,19 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         status, _, _ = self._http_get("/api/sales/invalid-id")
         self.assertEqual(status, 400)
 
+        # 6. DELETE sale via HTTP -> 200
+        del_status, _, del_body = self._http_delete(f"/api/sales/{sale_id}")
+        self.assertEqual(del_status, 200)
+        self.assertTrue(del_body["success"])
+
+        # 7. Verify GET now returns 404
+        status, _, _ = self._http_get(f"/api/sales/{sale_id}")
+        self.assertEqual(status, 404)
+
+        # 8. DELETE again -> 404
+        del_status_2, _, _ = self._http_delete(f"/api/sales/{sale_id}")
+        self.assertEqual(del_status_2, 404)
+
     def test_e2e_09_analytics_api_filters(self):
         for gran in ["day", "week", "month", "year"]:
             status, _, body = self._http_get(f"/api/analytics?granularity={gran}")
@@ -2422,6 +2435,93 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
             self.assertIsNotNone(cur.fetchone())
             cur.execute("SELECT COUNT(*) as count FROM inventory_lots WHERE procurement_id = ?", (proc_id_2,))
             self.assertEqual(cur.fetchone()["count"], 1)
+        finally:
+            conn.close()
+
+    def test_sale_deletion_and_stock_restoration(self):
+        """
+        Verify that deleting a sales order transactionally restores the exact quantity
+        drawn back into inventory lots, sets status back to 'active', and cleans up
+        sale, sale_items, and sale_item_lots records.
+        """
+        conn = db.get_connection()
+        cur = conn.cursor()
+        try:
+            # 1. Setup product
+            cur.execute("SELECT id FROM products WHERE sku = 'SALE-DEL-ITEM-01'")
+            prod = cur.fetchone()
+            if not prod:
+                cur.execute(
+                    "INSERT INTO products (name, sku, category, unit, min_stock) VALUES ('Sale Deletion Test Item', 'SALE-DEL-ITEM-01', 'Test', 'pcs', 5)"
+                )
+                conn.commit()
+                prod_id = cur.lastrowid
+            else:
+                prod_id = prod["id"]
+
+            # 2. Add procurement with a single lot of 100 units
+            proc_res, status = server.execute_procurement(conn, cur, {
+                "invoice_no": "PROC-FOR-SALE-DEL-01",
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-14",
+                "items": [
+                    {"product_id": prod_id, "qty": 100, "unit_cost": 20.0, "batch_code": "LOT-SALE-RESTORE-01"}
+                ]
+            })
+            self.assertEqual(status, 201)
+            proc_id = proc_res["procurement_id"]
+
+            cur.execute("SELECT id, remaining_qty, status FROM inventory_lots WHERE procurement_id = ?", (proc_id,))
+            lot_before = cur.fetchone()
+            lot_id = lot_before["id"]
+            self.assertEqual(float(lot_before["remaining_qty"]), 100.0)
+
+            # 3. Execute a sale order consuming 35 units
+            sale_res, sale_status = server.execute_sale(conn, cur, {
+                "invoice_no": "INV-SALE-DEL-TEST-01",
+                "sale_date": "2026-09-14",
+                "items": [{"product_id": prod_id, "qty": 35, "unit_sale_price": 50.0}]
+            })
+            self.assertEqual(sale_status, 201)
+            sale_id = sale_res["sale_id"]
+
+            # Check lot was depleted to 65 units
+            cur.execute("SELECT remaining_qty, status FROM inventory_lots WHERE id = ?", (lot_id,))
+            lot_after_sale = cur.fetchone()
+            self.assertEqual(float(lot_after_sale["remaining_qty"]), 65.0)
+
+            # Check allocations exist
+            cur.execute("SELECT COUNT(*) as count FROM sale_item_lots sil JOIN sale_items si ON sil.sale_item_id = si.id WHERE si.sale_id = ?", (sale_id,))
+            self.assertGreater(cur.fetchone()["count"], 0)
+
+            # 4. Delete the sale order
+            del_res, del_status = server.delete_sale(conn, cur, sale_id)
+            self.assertEqual(del_status, 200)
+            self.assertTrue(del_res["success"])
+            self.assertIn("restored successfully", del_res["message"])
+
+            # 5. Verify inventory lot was 100% restored
+            cur.execute("SELECT remaining_qty, status FROM inventory_lots WHERE id = ?", (lot_id,))
+            lot_restored = cur.fetchone()
+            self.assertEqual(float(lot_restored["remaining_qty"]), 100.0)
+            self.assertEqual(lot_restored["status"], "active")
+
+            # 6. Verify sale and child rows are completely deleted
+            cur.execute("SELECT * FROM sales WHERE id = ?", (sale_id,))
+            self.assertIsNone(cur.fetchone())
+            cur.execute("SELECT COUNT(*) as count FROM sale_items WHERE sale_id = ?", (sale_id,))
+            self.assertEqual(cur.fetchone()["count"], 0)
+
+            # 7. Test 404 for non-existent sale deletion
+            del_404, status_404 = server.delete_sale(conn, cur, 999999)
+            self.assertEqual(status_404, 404)
+
+            # 8. Test 400 for invalid ID
+            del_400, status_400 = server.delete_sale(conn, cur, "not-a-number")
+            self.assertEqual(status_400, 400)
+
+            # Clean up procurement
+            server.delete_procurement(conn, cur, proc_id)
         finally:
             conn.close()
 
