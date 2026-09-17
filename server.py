@@ -269,19 +269,21 @@ def simulate_sale(cur, body):
                 lot = cur.fetchone()
                 if not lot:
                     return {"error": f"Lot {lot_id} does not exist or does not belong to product {prod['name']}", "success": False}, 400
-                if lot["remaining_qty"] < lot_take:
-                    return {"error": f"Lot {lot['batch_code']} has only {lot['remaining_qty']} available (requested {lot_take})", "success": False}, 400
+                lot_rem = float(lot["remaining_qty"])
+                lot_cost = float(lot["unit_cost"])
+                if lot_rem < lot_take:
+                    return {"error": f"Lot {lot['batch_code']} has only {lot_rem} available (requested {lot_take})", "success": False}, 400
 
                 allocated.append({
                     "lot_id": lot["id"],
                     "batch_code": lot["batch_code"],
                     "source": lot["source"],
-                    "procurement_date": lot["procurement_date"],
+                    "procurement_date": str(lot["procurement_date"]) if lot["procurement_date"] else "",
                     "qty": lot_take,
-                    "unit_cost": lot["unit_cost"],
-                    "line_cost": lot_take * lot["unit_cost"]
+                    "unit_cost": lot_cost,
+                    "line_cost": round(lot_take * lot_cost, 2)
                 })
-                item_cogs += lot_take * lot["unit_cost"]
+                item_cogs += lot_take * lot_cost
         else:
             # AUTO: Lowest Cost First
             cur.execute("""
@@ -296,17 +298,19 @@ def simulate_sale(cur, body):
             for lot in available_lots:
                 if rem <= 0:
                     break
-                take = min(rem, lot["remaining_qty"])
+                lot_rem = float(lot["remaining_qty"])
+                lot_cost = float(lot["unit_cost"])
+                take = min(rem, lot_rem)
                 allocated.append({
                     "lot_id": lot["id"],
                     "batch_code": lot["batch_code"],
                     "source": lot["source"],
-                    "procurement_date": lot["procurement_date"],
+                    "procurement_date": str(lot["procurement_date"]) if lot["procurement_date"] else "",
                     "qty": take,
-                    "unit_cost": lot["unit_cost"],
-                    "line_cost": take * lot["unit_cost"]
+                    "unit_cost": lot_cost,
+                    "line_cost": round(take * lot_cost, 2)
                 })
-                item_cogs += take * lot["unit_cost"]
+                item_cogs += take * lot_cost
                 rem -= take
 
             if rem > 0.0001:
@@ -427,12 +431,13 @@ def execute_sale(conn, cur, body):
                     continue
                 cur.execute("SELECT id, remaining_qty, unit_cost, batch_code FROM inventory_lots WHERE id = ? AND product_id = ?", (lot_id, prod_id))
                 lot = cur.fetchone()
-                if not lot or lot["remaining_qty"] < take:
+                if not lot or float(lot["remaining_qty"]) < take:
                     conn.rollback()
                     return {"error": f"Insufficient stock or invalid lot {lot_id} for product {prod_id}", "success": False}, 400
 
-                allocated.append((lot["id"], take, lot["unit_cost"]))
-                item_cogs += take * lot["unit_cost"]
+                cost = float(lot["unit_cost"])
+                allocated.append((lot["id"], take, cost))
+                item_cogs += take * cost
         else:
             # Lowest Cost First auto-allocation
             cur.execute("""
@@ -446,10 +451,12 @@ def execute_sale(conn, cur, body):
             for lot in lots:
                 if rem <= 0:
                     break
-                take = min(rem, lot["remaining_qty"])
-                allocated.append((lot["id"], take, lot["unit_cost"]))
+                lot_rem = float(lot["remaining_qty"])
+                cost = float(lot["unit_cost"])
+                take = min(rem, lot_rem)
+                allocated.append((lot["id"], take, cost))
                 rem -= take
-                item_cogs += take * lot["unit_cost"]
+                item_cogs += take * cost
 
             if rem > 0.0001:
                 if allow_backlog:

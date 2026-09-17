@@ -1161,4 +1161,10 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **Fix**: Removed SQL empty string coercion on date subqueries and safely normalized date objects in Python to ISO `"YYYY-MM-DD"`.
 - **Verification**: Verified live against Neon PostgreSQL DB (27 products returned with HTTP 200) and passed all 49 backend tests, 161 frontend Jest tests, and production build.
 
+### PR-030 Hotfix: Resolve Decimal & Float Type Mismatch in POS execute_sale
+- **Root Cause Grounded from GCP Cloud Run**: In PostgreSQL (Neon), `unit_cost` and `remaining_qty` are returned as `decimal.Decimal`. Calculating `take * lot["unit_cost"]` where `take` is a Python `float` raised `TypeError: unsupported operand type(s) for *: 'float' and 'decimal.Decimal'` with HTTP 500, blocking POS sale completion and receipt generation.
+- **Fix**: Safely converted `lot["remaining_qty"]` and `lot["unit_cost"]` to `float` across `execute_sale` and `simulate_sale`, with defensive `if not lot` guards before attribute access.
+- **Verification**: Tested live against Neon PostgreSQL creating sale (HTTP 201) with clean inventory deduction and verified 49/49 backend tests and 161/161 frontend Jest tests passing.
+
+
 
