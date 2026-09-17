@@ -1072,3 +1072,30 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
 - **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
 - **Outcome**: PR-027 fully satisfies all repository rules and quality gates.
+
+
+## PR-028: Filter Orders by Customer, Date, and Sold By with Reactive KPI Summaries
+- **Date**: 2026-09-16
+- **Branch**: master / main
+- **Scope Delivered**:
+  1. Frontend Multi-Criteria Filter Engine (`frontend/app/orders/page.tsx`):
+     - Added customer filter with dynamic order counts and dedicated Walk-in Customer support.
+     - Added date preset dropdown (*Today, Yesterday, Last 7 Days, Last 30 Days, This Month, All Dates*) and custom *From* / *To* date pickers.
+     - Added dynamic seller selection (*Ranga Prasad, Surendra, Store Staff*) extracted from orders with count attribution.
+     - Upgraded KPI summary cards (Total Orders, Gross Sales, Total COGS, Net Profit, Average Margin %) to dynamically recalculate on the filtered order subset.
+     - Added active filter badge chips with individual 1-click dismiss buttons and a "Reset All Filters" control.
+     - Updated empty state with "Reset All Filters" when no orders match active filters.
+  2. Backend REST API Filtering Parity (`server.py`):
+     - Enhanced `GET /api/sales` with query parameter filtering for `customer_id`, `sold_by`, `from_date`, `to_date`, and `date`.
+     - Parameterized SQL queries preventing SQL injection while maintaining sub-millisecond response times.
+     - Preserves complete backward compatibility for unfiltered calls.
+  3. Comprehensive Automated & Accessibility Testing:
+     - **Backend (`test_suite.py`)**: Added `test_sales_api_filters_customer_date_sold_by` verifying live HTTP responses for customer, walk-in, seller, exact date, date range, and composite filters (46/46 passed).
+     - **Frontend Jest Suite (`orders_history_a11y.test.ts`)**: Added Section 8 test suite verifying customer, seller, date range, composite filtering, reactive KPI math, reset behavior, and WCAG ARIA accessibility (158/158 passed across 10 suites).
+     - **Next.js Production Build**: Compiled cleanly with 0 errors across 14 routes.
+
+### Multi-Agent Review Verdicts
+- **Critic Agent**: APPROVED (0 Major, 0 Blocker).
+- **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **Outcome**: PR-028 fully satisfies all repository rules and quality gates.

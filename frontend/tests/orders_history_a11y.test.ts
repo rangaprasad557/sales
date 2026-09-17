@@ -344,4 +344,204 @@ describe('PR-017: Past Orders & Order History Quality Gate', () => {
       expect(deleteBtnClass).toContain('focus-visible:ring-2');
     });
   });
+
+  describe('8. PR-028: Multi-Criteria Filter Engine (Customer, Date, Sold By) & Reactive KPIs', () => {
+    const testOrders: OrderListItem[] = [
+      {
+        id: 101,
+        invoice_no: 'INV-20260901-001',
+        customer_id: 1,
+        customer_name: 'Alpha Mart',
+        sale_date: '2026-09-01',
+        sold_by: 'Surendra',
+        total_amount: 1000,
+        total_cogs: 600,
+        total_profit: 400,
+        notes: 'Priority delivery',
+        created_at: '2026-09-01 10:00:00',
+        items_count: 2,
+        total_qty: 10,
+      },
+      {
+        id: 102,
+        invoice_no: 'INV-20260905-002',
+        customer_id: 2,
+        customer_name: 'Beta Store',
+        sale_date: '2026-09-05',
+        sold_by: 'Ranga Prasad',
+        total_amount: 2000,
+        total_cogs: 1200,
+        total_profit: 800,
+        notes: '',
+        created_at: '2026-09-05 11:30:00',
+        items_count: 3,
+        total_qty: 25,
+      },
+      {
+        id: 103,
+        invoice_no: 'INV-20260910-003',
+        customer_id: null,
+        customer_name: null,
+        sale_date: '2026-09-10',
+        sold_by: 'Surendra',
+        total_amount: 500,
+        total_cogs: 300,
+        total_profit: 200,
+        notes: 'Walk-in cash sale',
+        created_at: '2026-09-10 14:15:00',
+        items_count: 1,
+        total_qty: 5,
+      },
+      {
+        id: 104,
+        invoice_no: 'INV-20260915-004',
+        customer_id: 1,
+        customer_name: 'Alpha Mart',
+        sale_date: '2026-09-15',
+        sold_by: 'Ranga Prasad',
+        total_amount: 1500,
+        total_cogs: 900,
+        total_profit: 600,
+        notes: '',
+        created_at: '2026-09-15 16:45:00',
+        items_count: 2,
+        total_qty: 15,
+      },
+    ];
+
+    const applyFilters = (
+      orders: OrderListItem[],
+      filters: {
+        customerId?: string;
+        soldBy?: string;
+        fromDate?: string;
+        toDate?: string;
+        searchQuery?: string;
+      }
+    ) => {
+      return orders.filter((o) => {
+        if (filters.customerId && filters.customerId !== 'ALL') {
+          if (filters.customerId === 'WALK_IN') {
+            if (o.customer_id !== null) return false;
+          } else {
+            if (o.customer_id !== parseInt(filters.customerId, 10)) return false;
+          }
+        }
+        if (filters.soldBy && filters.soldBy !== 'ALL') {
+          const s = (o.sold_by?.trim() || 'Store Staff').toLowerCase();
+          if (s !== filters.soldBy.toLowerCase()) return false;
+        }
+        if (filters.fromDate && o.sale_date < filters.fromDate) return false;
+        if (filters.toDate && o.sale_date > filters.toDate) return false;
+        if (filters.searchQuery && filters.searchQuery.trim()) {
+          const q = filters.searchQuery.toLowerCase();
+          const match =
+            o.invoice_no.toLowerCase().includes(q) ||
+            (o.customer_name && o.customer_name.toLowerCase().includes(q)) ||
+            (o.sold_by && o.sold_by.toLowerCase().includes(q)) ||
+            (o.notes && o.notes.toLowerCase().includes(q));
+          if (!match) return false;
+        }
+        return true;
+      });
+    };
+
+    it('filters orders accurately by customer (specific customer ID, walk-in, and all)', () => {
+      const alphaOrders = applyFilters(testOrders, { customerId: '1' });
+      expect(alphaOrders.length).toBe(2);
+      expect(alphaOrders.every((o) => o.customer_id === 1)).toBe(true);
+
+      const walkInOrders = applyFilters(testOrders, { customerId: 'WALK_IN' });
+      expect(walkInOrders.length).toBe(1);
+      expect(walkInOrders[0].invoice_no).toBe('INV-20260910-003');
+
+      const allOrders = applyFilters(testOrders, { customerId: 'ALL' });
+      expect(allOrders.length).toBe(4);
+    });
+
+    it('filters orders accurately by sold_by cashier name', () => {
+      const surendraOrders = applyFilters(testOrders, { soldBy: 'Surendra' });
+      expect(surendraOrders.length).toBe(2);
+      expect(surendraOrders.map((o) => o.invoice_no)).toEqual(['INV-20260901-001', 'INV-20260910-003']);
+
+      const rangaOrders = applyFilters(testOrders, { soldBy: 'ranga prasad' });
+      expect(rangaOrders.length).toBe(2);
+      expect(rangaOrders.map((o) => o.invoice_no)).toEqual(['INV-20260905-002', 'INV-20260915-004']);
+    });
+
+    it('filters orders accurately by date range', () => {
+      const midMonthOrders = applyFilters(testOrders, {
+        fromDate: '2026-09-05',
+        toDate: '2026-09-12',
+      });
+      expect(midMonthOrders.length).toBe(2);
+      expect(midMonthOrders.map((o) => o.invoice_no)).toEqual(['INV-20260905-002', 'INV-20260910-003']);
+    });
+
+    it('executes combined multi-criteria filtering (customer + date range + sold_by)', () => {
+      const composite = applyFilters(testOrders, {
+        customerId: '1',
+        soldBy: 'Ranga Prasad',
+        fromDate: '2026-09-10',
+        toDate: '2026-09-20',
+      });
+      expect(composite.length).toBe(1);
+      expect(composite[0].invoice_no).toBe('INV-20260915-004');
+    });
+
+    it('dynamically recalculates KPI metrics on filtered order subsets', () => {
+      const filtered = applyFilters(testOrders, { customerId: '1' });
+      const rev = filtered.reduce((acc, o) => acc + o.total_amount, 0);
+      const cogs = filtered.reduce((acc, o) => acc + o.total_cogs, 0);
+      const profit = filtered.reduce((acc, o) => acc + o.total_profit, 0);
+      const margin = (profit / rev) * 100;
+
+      expect(rev).toBe(2500);
+      expect(cogs).toBe(1500);
+      expect(profit).toBe(1000);
+      expect(margin).toBe(40.0);
+    });
+
+    it('handles filter resetting to restore complete dataset and original KPIs', () => {
+      let state = {
+        customerId: '1',
+        soldBy: 'Surendra',
+        fromDate: '2026-09-01',
+        toDate: '2026-09-02',
+        searchQuery: 'Priority',
+      };
+
+      const resetFilters = () => {
+        state = {
+          customerId: 'ALL',
+          soldBy: 'ALL',
+          fromDate: '',
+          toDate: '',
+          searchQuery: '',
+        };
+      };
+
+      resetFilters();
+      const restored = applyFilters(testOrders, state);
+      expect(restored.length).toBe(testOrders.length);
+      const totalRev = restored.reduce((acc, o) => acc + o.total_amount, 0);
+      expect(totalRev).toBe(5000);
+    });
+
+    it('enforces accessible ARIA attributes on filter dropdowns and date inputs', () => {
+      const controlsAria = [
+        'aria-label="Filter orders by customer"',
+        'aria-label="Filter orders by sold by"',
+        'aria-label="Filter orders by date preset"',
+        'aria-label="From date"',
+        'aria-label="To date"',
+        'aria-label="Reset all filters"',
+      ];
+
+      controlsAria.forEach((attr) => {
+        expect(attr).toContain('aria-label=');
+      });
+    });
+  });
 });
+

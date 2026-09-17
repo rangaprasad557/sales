@@ -20,6 +20,8 @@ import {
   Edit2,
   Trash2,
   AlertCircle,
+  X,
+  RotateCcw,
 } from 'lucide-react';
 import { Drawer } from '../../components/Drawer';
 import { InvoiceReceiptModal, CompletedSaleRecord } from '../../components/InvoiceReceiptModal';
@@ -43,8 +45,16 @@ export interface OrderListItem {
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderListItem[]>([]);
+  const [customers, setCustomers] = useState<Array<{ id: number; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('ALL');
+  const [selectedSoldBy, setSelectedSoldBy] = useState<string>('ALL');
+  const [datePreset, setDatePreset] = useState<
+    'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST_7' | 'LAST_30' | 'THIS_MONTH' | 'CUSTOM'
+  >('ALL');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
   const [sortField, setSortField] = useState<'date' | 'amount' | 'profit'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [selectedSaleRecord, setSelectedSaleRecord] = useState<CompletedSaleRecord | null>(null);
@@ -82,8 +92,23 @@ export default function OrdersPage() {
     }
   };
 
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch('/api/customers');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.customers)) {
+          setCustomers(data.customers);
+        }
+      }
+    } catch {
+      // Non-blocking fallback
+    }
+  };
+
   useEffect(() => {
     fetchOrders();
+    fetchCustomers();
   }, []);
 
   const handleViewReceipt = async (order: OrderListItem) => {
@@ -148,7 +173,6 @@ export default function OrdersPage() {
       unitPrice: string;
     }>,
   });
-  const [customers, setCustomers] = useState<Array<{ id: number; name: string }>>([]);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
 
   const handleEditOrder = async (order: OrderListItem) => {
@@ -262,25 +286,125 @@ export default function OrdersPage() {
     }
   };
 
-  // KPI Calculations
-  const totalRevenue = useMemo(
-    () => orders.reduce((acc, o) => acc + (parseFloat(o.total_amount as any) || 0), 0),
-    [orders]
-  );
-  const totalCogs = useMemo(
-    () => orders.reduce((acc, o) => acc + (parseFloat(o.total_cogs as any) || 0), 0),
-    [orders]
-  );
-  const totalProfit = useMemo(
-    () => orders.reduce((acc, o) => acc + (parseFloat(o.total_profit as any) || 0), 0),
-    [orders]
-  );
-  const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+  // Distinct Sellers extracted dynamically from orders
+  const distinctSellers = useMemo(() => {
+    const sellersMap = new Map<string, number>();
+    orders.forEach((o) => {
+      const s = o.sold_by?.trim() || 'Store Staff';
+      sellersMap.set(s, (sellersMap.get(s) || 0) + 1);
+    });
+    return Array.from(sellersMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [orders]);
 
-  // Search and Sorting Filter
+  // Customer options with counts
+  const customerOptions = useMemo(() => {
+    const counts = new Map<number | 'walk-in', number>();
+    orders.forEach((o) => {
+      if (o.customer_id) {
+        counts.set(o.customer_id, (counts.get(o.customer_id) || 0) + 1);
+      } else {
+        counts.set('walk-in', (counts.get('walk-in') || 0) + 1);
+      }
+    });
+    return {
+      walkInCount: counts.get('walk-in') || 0,
+      list: customers
+        .map((c) => ({
+          ...c,
+          count: counts.get(c.id) || 0,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  }, [customers, orders]);
+
+  const handlePresetChange = (preset: string) => {
+    setDatePreset(preset as any);
+    const now = new Date();
+    const formatYMD = (d: Date) => d.toISOString().slice(0, 10);
+
+    if (preset === 'ALL') {
+      setFromDate('');
+      setToDate('');
+    } else if (preset === 'TODAY') {
+      const today = formatYMD(now);
+      setFromDate(today);
+      setToDate(today);
+    } else if (preset === 'YESTERDAY') {
+      const y = new Date(now.getTime() - 86400000);
+      const yStr = formatYMD(y);
+      setFromDate(yStr);
+      setToDate(yStr);
+    } else if (preset === 'LAST_7') {
+      const start = new Date(now.getTime() - 7 * 86400000);
+      setFromDate(formatYMD(start));
+      setToDate(formatYMD(now));
+    } else if (preset === 'LAST_30') {
+      const start = new Date(now.getTime() - 30 * 86400000);
+      setFromDate(formatYMD(start));
+      setToDate(formatYMD(now));
+    } else if (preset === 'THIS_MONTH') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      setFromDate(formatYMD(start));
+      setToDate(formatYMD(now));
+    }
+  };
+
+  const handleResetFilters = () => {
+    setSelectedCustomerId('ALL');
+    setSelectedSoldBy('ALL');
+    setDatePreset('ALL');
+    setFromDate('');
+    setToDate('');
+    setSearchQuery('');
+  };
+
+  const hasActiveFilters =
+    selectedCustomerId !== 'ALL' ||
+    selectedSoldBy !== 'ALL' ||
+    Boolean(fromDate) ||
+    Boolean(toDate) ||
+    Boolean(searchQuery.trim());
+
+  // Search, Multi-Criteria Filter, and Sorting Engine
   const filteredOrders = useMemo(() => {
     let result = [...orders];
 
+    // 1. Customer Filter
+    if (selectedCustomerId !== 'ALL') {
+      if (selectedCustomerId === 'WALK_IN') {
+        result = result.filter((o) => !o.customer_id);
+      } else {
+        const cid = parseInt(selectedCustomerId, 10);
+        result = result.filter((o) => o.customer_id === cid);
+      }
+    }
+
+    // 2. Sold By Filter
+    if (selectedSoldBy !== 'ALL') {
+      const targetSeller = selectedSoldBy.toLowerCase();
+      result = result.filter((o) => {
+        const s = (o.sold_by?.trim() || 'Store Staff').toLowerCase();
+        return s === targetSeller;
+      });
+    }
+
+    // 3. Date Range Filter
+    if (fromDate) {
+      result = result.filter((o) => {
+        const d = o.sale_date || o.created_at?.split(' ')[0] || '';
+        return d >= fromDate;
+      });
+    }
+    if (toDate) {
+      result = result.filter((o) => {
+        const d = o.sale_date || o.created_at?.split(' ')[0] || '';
+        return d <= toDate;
+      });
+    }
+
+    // 4. Free-text Search Query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -293,6 +417,7 @@ export default function OrdersPage() {
       );
     }
 
+    // 5. Sorting
     result.sort((a, b) => {
       let comparison = 0;
       if (sortField === 'date') {
@@ -306,7 +431,22 @@ export default function OrdersPage() {
     });
 
     return result;
-  }, [orders, searchQuery, sortField, sortOrder]);
+  }, [orders, selectedCustomerId, selectedSoldBy, fromDate, toDate, searchQuery, sortField, sortOrder]);
+
+  // Reactive KPI Calculations computed dynamically on filteredOrders
+  const totalRevenue = useMemo(
+    () => filteredOrders.reduce((acc, o) => acc + (parseFloat(o.total_amount as any) || 0), 0),
+    [filteredOrders]
+  );
+  const totalCogs = useMemo(
+    () => filteredOrders.reduce((acc, o) => acc + (parseFloat(o.total_cogs as any) || 0), 0),
+    [filteredOrders]
+  );
+  const totalProfit = useMemo(
+    () => filteredOrders.reduce((acc, o) => acc + (parseFloat(o.total_profit as any) || 0), 0),
+    [filteredOrders]
+  );
+  const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -355,8 +495,12 @@ export default function OrdersPage() {
             <span className="text-xs font-semibold uppercase tracking-wider">Total Orders</span>
             <Receipt className="w-4 h-4 text-primary" />
           </div>
-          <div className="text-2xl font-black text-foreground font-mono">{orders.length}</div>
-          <p className="text-xs text-muted-foreground mt-1">Completed sales transactions</p>
+          <div className="text-2xl font-black text-foreground font-mono">{filteredOrders.length}</div>
+          <p className="text-xs text-muted-foreground mt-1">
+            {hasActiveFilters
+              ? `Filtered from ${orders.length} total orders`
+              : 'Completed sales transactions'}
+          </p>
         </div>
 
         {/* Gross Revenue */}
@@ -396,44 +540,252 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-card border border-border shadow-xs">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by invoice #, customer..."
-            className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <ArrowUpDown className="w-3.5 h-3.5" />
-            <span className="font-medium">Sort:</span>
+      {/* Filter and Search Toolbar */}
+      <div className="space-y-3 p-4 rounded-3xl bg-card border border-border shadow-xs">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          {/* Free-text Search */}
+          <div className="relative flex-1 min-w-[240px]">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search invoice #, customer, notes..."
+              className="w-full pl-9 pr-8 py-2 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                aria-label="Clear search text"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
-          <select
-            value={sortField}
-            onChange={(e) => setSortField(e.target.value as any)}
-            className="px-3 py-1.5 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-          >
-            <option value="date">Date & Time</option>
-            <option value="amount">Total Amount</option>
-            <option value="profit">Net Profit</option>
-          </select>
+          {/* Filter Controls Bar */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Customer Filter */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-border bg-background text-xs">
+              <Users className="w-3.5 h-3.5 text-primary shrink-0" />
+              <select
+                value={selectedCustomerId}
+                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                aria-label="Filter orders by customer"
+                className="bg-transparent text-foreground text-xs focus:outline-none cursor-pointer max-w-[170px] truncate"
+              >
+                <option value="ALL">All Customers ({orders.length})</option>
+                {customerOptions.walkInCount > 0 && (
+                  <option value="WALK_IN">Walk-in Customers ({customerOptions.walkInCount})</option>
+                )}
+                {customerOptions.list.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.name} ({c.count})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="p-1.5 rounded-xl border border-border text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary text-xs font-semibold cursor-pointer"
-            title={`Toggle order: currently ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`}
-            aria-label="Toggle sort order"
-          >
-            {sortOrder === 'asc' ? '▲ Asc' : '▼ Desc'}
-          </button>
+            {/* Sold By Filter */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-border bg-background text-xs">
+              <User className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <select
+                value={selectedSoldBy}
+                onChange={(e) => setSelectedSoldBy(e.target.value)}
+                aria-label="Filter orders by sold by"
+                className="bg-transparent text-foreground text-xs focus:outline-none cursor-pointer max-w-[150px] truncate"
+              >
+                <option value="ALL">All Sellers ({orders.length})</option>
+                {distinctSellers.map((s) => (
+                  <option key={s.name} value={s.name}>
+                    {s.name} ({s.count})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Date Preset Filter */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-border bg-background text-xs">
+              <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <select
+                value={datePreset}
+                onChange={(e) => handlePresetChange(e.target.value)}
+                aria-label="Filter orders by date preset"
+                className="bg-transparent text-foreground text-xs focus:outline-none cursor-pointer"
+              >
+                <option value="ALL">All Dates</option>
+                <option value="TODAY">Today</option>
+                <option value="YESTERDAY">Yesterday</option>
+                <option value="LAST_7">Last 7 Days</option>
+                <option value="LAST_30">Last 30 Days</option>
+                <option value="THIS_MONTH">This Month</option>
+                <option value="CUSTOM">Custom Range</option>
+              </select>
+            </div>
+
+            {/* Sort Field & Order */}
+            <div className="flex items-center gap-1.5 pl-1">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <ArrowUpDown className="w-3.5 h-3.5" />
+              </div>
+              <select
+                value={sortField}
+                onChange={(e) => setSortField(e.target.value as any)}
+                aria-label="Sort orders field"
+                className="px-2.5 py-1.5 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+              >
+                <option value="date">Date & Time</option>
+                <option value="amount">Total Amount</option>
+                <option value="profit">Net Profit</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="p-1.5 rounded-xl border border-border text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary text-xs font-semibold cursor-pointer"
+                title={`Toggle order: currently ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`}
+                aria-label="Toggle sort order"
+              >
+                {sortOrder === 'asc' ? '▲' : '▼'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Custom Date Range Row (when Custom is active or dates are set) */}
+        {(datePreset === 'CUSTOM' || fromDate || toDate) && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/50 text-xs">
+            <span className="text-muted-foreground font-medium flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-amber-500" />
+              <span>Custom Date Range:</span>
+            </span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground text-[11px]">From</span>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => {
+                    setFromDate(e.target.value);
+                    setDatePreset('CUSTOM');
+                  }}
+                  aria-label="From date"
+                  className="px-2.5 py-1 text-xs rounded-lg border border-border bg-background text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground text-[11px]">To</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => {
+                    setToDate(e.target.value);
+                    setDatePreset('CUSTOM');
+                  }}
+                  aria-label="To date"
+                  className="px-2.5 py-1 text-xs rounded-lg border border-border bg-background text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Active Filter Chips & Clear All */}
+        {hasActiveFilters && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/50 text-xs">
+            <span className="text-muted-foreground font-semibold flex items-center gap-1 text-[11px] uppercase tracking-wider">
+              <Filter className="w-3 h-3 text-primary" />
+              <span>Active Filters:</span>
+            </span>
+
+            {selectedCustomerId !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 font-medium">
+                <span>
+                  Customer:{' '}
+                  {selectedCustomerId === 'WALK_IN'
+                    ? 'Walk-in'
+                    : customers.find((c) => String(c.id) === selectedCustomerId)?.name ||
+                      `ID #${selectedCustomerId}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomerId('ALL')}
+                  className="hover:bg-primary/20 rounded p-0.5 cursor-pointer"
+                  aria-label="Clear customer filter"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {selectedSoldBy !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-medium">
+                <span>Sold by: {selectedSoldBy}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSoldBy('ALL')}
+                  className="hover:bg-blue-500/20 rounded p-0.5 cursor-pointer"
+                  aria-label="Clear sold by filter"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {(fromDate || toDate) && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium">
+                <span>
+                  Date: {fromDate || 'Any'} → {toDate || 'Present'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDatePreset('ALL');
+                    setFromDate('');
+                    setToDate('');
+                  }}
+                  className="hover:bg-amber-500/20 rounded p-0.5 cursor-pointer"
+                  aria-label="Clear date filter"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {searchQuery.trim() && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted text-foreground border border-border font-medium">
+                <span>Search: "{searchQuery}"</span>
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="hover:bg-foreground/10 rounded p-0.5 cursor-pointer"
+                  aria-label="Clear search filter"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted font-semibold transition-colors cursor-pointer ml-auto text-xs"
+              aria-label="Reset all filters"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset All Filters</span>
+            </button>
+          </div>
+        )}
+
+        {/* Counter Summary */}
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+          <span>
+            Showing <strong className="text-foreground font-mono">{filteredOrders.length}</strong> of{' '}
+            <strong className="text-foreground font-mono">{orders.length}</strong> orders
+            {hasActiveFilters ? ' (Filtered)' : ''}
+          </span>
         </div>
       </div>
 
@@ -468,11 +820,20 @@ export default function OrdersPage() {
                     <Receipt className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                     <p className="font-semibold text-foreground">No orders found</p>
                     <p className="text-xs mt-1">
-                      {searchQuery
-                        ? 'No sales matched your search term.'
+                      {hasActiveFilters
+                        ? 'No sales matched your active filters. Try adjusting customer, date, or seller.'
                         : 'No orders have been billed yet. Start by finalizing a sale in POS.'}
                     </p>
-                    {!searchQuery && (
+                    {hasActiveFilters ? (
+                      <button
+                        type="button"
+                        onClick={handleResetFilters}
+                        className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 shadow-sm cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Reset All Filters</span>
+                      </button>
+                    ) : (
                       <Link
                         href="/"
                         className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 shadow-sm"

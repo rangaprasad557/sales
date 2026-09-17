@@ -2525,6 +2525,135 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_sales_api_filters_customer_date_sold_by(self):
+        """
+        Verify GET /api/sales query parameter filters:
+        - customer_id: specific customer or walk-in (null)
+        - sold_by: case-insensitive seller name
+        - date: exact sale date match
+        - from_date & to_date: range filtering
+        - combined composite filters
+        """
+        conn = db.get_connection()
+        cur = conn.cursor()
+        try:
+            # 1. Setup a product and lot for test orders
+            cur.execute("SELECT id FROM products WHERE sku = 'FLT-TEST-PROD-01'")
+            prod = cur.fetchone()
+            if not prod:
+                cur.execute(
+                    "INSERT INTO products (name, sku, category, unit, min_stock) VALUES ('Filter Test Prod', 'FLT-TEST-PROD-01', 'Test', 'pcs', 5)"
+                )
+                conn.commit()
+                prod_id = cur.lastrowid
+            else:
+                prod_id = prod["id"]
+
+            proc_res, _ = server.execute_procurement(conn, cur, {
+                "invoice_no": "PROC-FOR-FILTER-TEST",
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-01",
+                "items": [{"product_id": prod_id, "qty": 200, "unit_cost": 10.0, "batch_code": "LOT-FLT-01"}]
+            })
+            proc_id = proc_res["procurement_id"]
+
+            # Setup customer
+            cur.execute("SELECT id FROM customers WHERE name = 'Filter Test Customer'")
+            cust = cur.fetchone()
+            if not cust:
+                cur.execute("INSERT INTO customers (name, phone) VALUES ('Filter Test Customer', '9998887776')")
+                conn.commit()
+                cust_id = cur.lastrowid
+            else:
+                cust_id = cust["id"]
+
+            # Create 3 test sales:
+            # Sale A: cust_id, sold_by='TestSellerAlpha', sale_date='2026-09-05'
+            # Sale B: cust_id, sold_by='TestSellerBeta',  sale_date='2026-09-10'
+            # Sale C: walk-in, sold_by='TestSellerAlpha', sale_date='2026-09-15'
+            sale_a, _ = server.execute_sale(conn, cur, {
+                "invoice_no": "INV-FLT-A-01",
+                "customer_id": cust_id,
+                "sold_by": "TestSellerAlpha",
+                "sale_date": "2026-09-05",
+                "items": [{"product_id": prod_id, "qty": 5, "unit_sale_price": 20.0}]
+            })
+            sale_b, _ = server.execute_sale(conn, cur, {
+                "invoice_no": "INV-FLT-B-02",
+                "customer_id": cust_id,
+                "sold_by": "TestSellerBeta",
+                "sale_date": "2026-09-10",
+                "items": [{"product_id": prod_id, "qty": 5, "unit_sale_price": 20.0}]
+            })
+            sale_c, _ = server.execute_sale(conn, cur, {
+                "invoice_no": "INV-FLT-C-03",
+                "customer_id": None,
+                "sold_by": "TestSellerAlpha",
+                "sale_date": "2026-09-15",
+                "items": [{"product_id": prod_id, "qty": 5, "unit_sale_price": 20.0}]
+            })
+
+            # Test 1: Filter by customer_id
+            status, _, body = self._http_get(f"/api/sales?customer_id={cust_id}")
+            self.assertEqual(status, 200)
+            data = json.loads(body)
+            invoices = [s["invoice_no"] for s in data["sales"]]
+            self.assertIn("INV-FLT-A-01", invoices)
+            self.assertIn("INV-FLT-B-02", invoices)
+            self.assertNotIn("INV-FLT-C-03", invoices)
+
+            # Test 2: Filter by walk-in (null customer_id)
+            status, _, body = self._http_get("/api/sales?customer_id=walk-in")
+            self.assertEqual(status, 200)
+            data = json.loads(body)
+            invoices = [s["invoice_no"] for s in data["sales"]]
+            self.assertIn("INV-FLT-C-03", invoices)
+            self.assertNotIn("INV-FLT-A-01", invoices)
+
+            # Test 3: Filter by sold_by (case-insensitive)
+            status, _, body = self._http_get("/api/sales?sold_by=testselleralpha")
+            self.assertEqual(status, 200)
+            data = json.loads(body)
+            invoices = [s["invoice_no"] for s in data["sales"]]
+            self.assertIn("INV-FLT-A-01", invoices)
+            self.assertIn("INV-FLT-C-03", invoices)
+            self.assertNotIn("INV-FLT-B-02", invoices)
+
+            # Test 4: Filter by exact date
+            status, _, body = self._http_get("/api/sales?date=2026-09-10")
+            self.assertEqual(status, 200)
+            data = json.loads(body)
+            invoices = [s["invoice_no"] for s in data["sales"]]
+            self.assertIn("INV-FLT-B-02", invoices)
+            self.assertNotIn("INV-FLT-A-01", invoices)
+            self.assertNotIn("INV-FLT-C-03", invoices)
+
+            # Test 5: Filter by from_date & to_date range
+            status, _, body = self._http_get("/api/sales?from_date=2026-09-08&to_date=2026-09-16")
+            self.assertEqual(status, 200)
+            data = json.loads(body)
+            invoices = [s["invoice_no"] for s in data["sales"]]
+            self.assertIn("INV-FLT-B-02", invoices)
+            self.assertIn("INV-FLT-C-03", invoices)
+            self.assertNotIn("INV-FLT-A-01", invoices)
+
+            # Test 6: Composite filter (customer_id + sold_by + date range)
+            status, _, body = self._http_get(
+                f"/api/sales?customer_id={cust_id}&sold_by=TestSellerAlpha&from_date=2026-09-01&to_date=2026-09-08"
+            )
+            self.assertEqual(status, 200)
+            data = json.loads(body)
+            invoices = [s["invoice_no"] for s in data["sales"]]
+            self.assertEqual(invoices, ["INV-FLT-A-01"])
+
+            # Clean up test sales and procurement
+            server.delete_sale(conn, cur, sale_a["sale_id"])
+            server.delete_sale(conn, cur, sale_b["sale_id"])
+            server.delete_sale(conn, cur, sale_c["sale_id"])
+            server.delete_procurement(conn, cur, proc_id)
+        finally:
+            conn.close()
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
 

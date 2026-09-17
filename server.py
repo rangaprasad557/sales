@@ -1182,14 +1182,52 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                     error_response(self, "Invalid sale ID", 400)
 
             elif path == "/api/sales":
-                cur.execute("""
+                where_clauses = ["1=1"]
+                params = []
+
+                # Optional customer_id filter
+                cust_filter = query.get("customer_id", [None])[0]
+                if cust_filter:
+                    cust_filter = cust_filter.strip()
+                    if cust_filter.lower() in ("walk-in", "walk_in", "none", "null"):
+                        where_clauses.append("s.customer_id IS NULL")
+                    elif cust_filter.isdigit():
+                        where_clauses.append("s.customer_id = ?")
+                        params.append(int(cust_filter))
+
+                # Optional sold_by filter
+                sold_by_filter = query.get("sold_by", [None])[0]
+                if sold_by_filter and sold_by_filter.strip() and sold_by_filter.upper() != "ALL":
+                    where_clauses.append("LOWER(s.sold_by) = LOWER(?)")
+                    params.append(sold_by_filter.strip())
+
+                # Optional date filters
+                exact_date = query.get("date", [None])[0]
+                from_date = query.get("from_date", [None])[0]
+                to_date = query.get("to_date", [None])[0]
+
+                if exact_date and exact_date.strip():
+                    where_clauses.append("s.sale_date = ?")
+                    params.append(exact_date.strip())
+                else:
+                    if from_date and from_date.strip():
+                        where_clauses.append("s.sale_date >= ?")
+                        params.append(from_date.strip())
+                    if to_date and to_date.strip():
+                        where_clauses.append("s.sale_date <= ?")
+                        params.append(to_date.strip())
+
+                where_sql = " AND ".join(where_clauses)
+
+                cur.execute(f"""
                     SELECT s.*, c.name as customer_name,
                            (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) as items_count,
                            (SELECT SUM(qty) FROM sale_items si WHERE si.sale_id = s.id) as total_qty
                     FROM sales s
                     LEFT JOIN customers c ON s.customer_id = c.id
+                    WHERE {where_sql}
                     ORDER BY s.sale_date DESC, s.id DESC
-                """)
+                """, params)
                 sales = [dict(r) for r in cur.fetchall()]
                 json_response(self, {"success": True, "sales": sales})
 
