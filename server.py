@@ -1119,10 +1119,7 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                                (SELECT l2.unit_cost FROM inventory_lots l2 WHERE l2.product_id = p.id ORDER BY l2.procurement_date DESC, l2.id DESC LIMIT 1),
                                0.0
                            ) as latest_procurement_cost,
-                           COALESCE(
-                               (SELECT l2.procurement_date FROM inventory_lots l2 WHERE l2.product_id = p.id ORDER BY l2.procurement_date DESC, l2.id DESC LIMIT 1),
-                               ''
-                           ) as latest_procurement_date,
+                           (SELECT l2.procurement_date FROM inventory_lots l2 WHERE l2.product_id = p.id ORDER BY l2.procurement_date DESC, l2.id DESC LIMIT 1) as latest_procurement_date,
                            COALESCE(
                                (SELECT l2.source FROM inventory_lots l2 WHERE l2.product_id = p.id ORDER BY l2.procurement_date DESC, l2.id DESC LIMIT 1),
                                ''
@@ -1135,6 +1132,13 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                     ORDER BY p.name ASC
                 """)
                 products = [dict(r) for r in cur.fetchall()]
+                for prod in products:
+                    if prod.get("latest_procurement_date") is None:
+                        prod["latest_procurement_date"] = ""
+                    elif hasattr(prod["latest_procurement_date"], "strftime"):
+                        prod["latest_procurement_date"] = prod["latest_procurement_date"].strftime("%Y-%m-%d")
+                    else:
+                        prod["latest_procurement_date"] = str(prod["latest_procurement_date"])
                 json_response(self, {"success": True, "products": products})
 
             elif path == "/api/customers":
@@ -1205,9 +1209,16 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                         ORDER BY procurement_date DESC, id DESC LIMIT 1
                     """, (item["id"],))
                     latest_lot = cur.fetchone()
-                    item["latest_procurement_cost"] = float(latest_lot["unit_cost"]) if latest_lot and latest_lot["unit_cost"] is not None else 0.0
-                    item["latest_procurement_date"] = latest_lot["procurement_date"] if latest_lot and latest_lot["procurement_date"] else ""
-                    item["latest_source"] = latest_lot["source"] if latest_lot and latest_lot["source"] else ""
+                    if latest_lot:
+                        latest_dict = dict(latest_lot)
+                        p_date = latest_dict.get("procurement_date")
+                        item["latest_procurement_cost"] = float(latest_dict["unit_cost"]) if latest_dict.get("unit_cost") is not None else 0.0
+                        item["latest_procurement_date"] = p_date.strftime("%Y-%m-%d") if hasattr(p_date, "strftime") else (str(p_date) if p_date else "")
+                        item["latest_source"] = latest_dict.get("source") or ""
+                    else:
+                        item["latest_procurement_cost"] = 0.0
+                        item["latest_procurement_date"] = ""
+                        item["latest_source"] = ""
 
                 total_valuation = sum(i["total_valuation"] for i in items)
                 total_stock = sum(i["total_stock"] for i in items)

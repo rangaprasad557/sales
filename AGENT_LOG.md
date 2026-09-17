@@ -1154,6 +1154,11 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 ### Multi-Agent Review Verdicts
 - **Critic Agent**: APPROVED (0 Major, 0 Blocker).
 - **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
-- **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
 - **Outcome**: PR-030 fully satisfies all repository rules and quality gates.
+
+### PR-030 Hotfix: PostgreSQL DATE Coercion Fix in Products & Inventory API
+- **Root Cause**: Neon PostgreSQL raised `psycopg2.errors.InvalidDatetimeFormat: invalid input syntax for type date: ""` on `COALESCE(date_column, '')` in `GET /api/products`.
+- **Fix**: Removed SQL empty string coercion on date subqueries and safely normalized date objects in Python to ISO `"YYYY-MM-DD"`.
+- **Verification**: Verified live against Neon PostgreSQL DB (27 products returned with HTTP 200) and passed all 49 backend tests, 161 frontend Jest tests, and production build.
+
 
