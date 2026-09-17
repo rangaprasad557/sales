@@ -323,8 +323,7 @@ export default function SalesPOSPage() {
       prev.map((item) => {
         if (item.id === cartId) {
           if (item.product.currentStock > 0 && val > item.product.currentStock) {
-            addNotification('warning', `Requested ${val} exceeds available stock (${item.product.currentStock}).`);
-            return { ...item, qty: item.product.currentStock, qtyStr: String(item.product.currentStock) };
+            addNotification('info', `Requested ${val} exceeds active stock (${item.product.currentStock}). Deficit will be fulfilled via backlog.`);
           }
           return { ...item, qty: val, qtyStr: clean };
         }
@@ -510,6 +509,7 @@ export default function SalesPOSPage() {
       sale_date: saleDate || new Date().toISOString().slice(0, 10),
       sold_by: currentUser?.name || 'Store Staff',
       notes: `POS Sale. Customer: ${selectedCustomer ? selectedCustomer.name : 'Walk-in'}`,
+      allow_backlog: true,
       items: cart.map((item) => ({
         product_id: item.product.id,
         qty: item.qty,
@@ -783,9 +783,11 @@ export default function SalesPOSPage() {
                           <span>Unit: {item.product.unit}</span>
                         </div>
                         {shortQty > 0 && (
-                          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-rose-600 dark:text-rose-400 font-semibold bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20 w-fit">
+                          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30 w-fit">
                             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                            <span>Insufficient stock in active lots (Short by {shortQty.toFixed(1)} {item.product.unit})</span>
+                            <span>
+                              Stock backlog: {shortQty.toFixed(1)} {item.product.unit} (billed at latest cost ₹{item.product.lowestCost.toFixed(2)})
+                            </span>
                           </div>
                         )}
                       </div>

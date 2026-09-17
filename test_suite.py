@@ -2795,6 +2795,140 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_48_products_procurement_rates_and_stock(self):
+        """Verify GET /api/products returns latest_procurement_cost, procurement_date, total_stock, and fallback lowest_cost."""
+        conn = db.get_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("INSERT INTO products (name, sku, category, unit, min_stock) VALUES (?, ?, ?, ?, ?)",
+                        ("Test Rate Stock Product", "TST-RATE-01", "Tobacco", "box", 5))
+            prod_id = cur.lastrowid
+            conn.commit()
+
+            # 1. Before any procurement: total_stock=0, latest_procurement_cost=0, lowest_cost=0
+            status, _, body = self._http_get("/api/products")
+            self.assertEqual(status, 200)
+            data = json.loads(body)
+            p = next(x for x in data["products"] if x["id"] == prod_id)
+            self.assertEqual(p["total_stock"], 0)
+            self.assertEqual(p["latest_procurement_cost"], 0.0)
+            self.assertEqual(p["lowest_cost"], 0.0)
+
+            # 2. Add first procurement lot: 10 units @ $80.00
+            res1, st1 = server.execute_procurement(conn, cur, {
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-10",
+                "items": [{"product_id": prod_id, "qty": 10, "unit_cost": 80.00, "batch_code": "LOT-R-01"}]
+            })
+            self.assertEqual(st1, 201)
+
+            # 3. Add second procurement lot: 5 units @ $95.00 on later date
+            res2, st2 = server.execute_procurement(conn, cur, {
+                "source": "E-Commerce",
+                "procurement_date": "2026-09-15",
+                "items": [{"product_id": prod_id, "qty": 5, "unit_cost": 95.00, "batch_code": "LOT-R-02"}]
+            })
+            self.assertEqual(st2, 201)
+
+            # Query /api/products
+            status, _, body = self._http_get("/api/products")
+            data = json.loads(body)
+            p = next(x for x in data["products"] if x["id"] == prod_id)
+            self.assertEqual(p["total_stock"], 15.0)
+            self.assertEqual(p["latest_procurement_cost"], 95.00)
+            self.assertEqual(p["latest_procurement_date"], "2026-09-15")
+            self.assertEqual(p["lowest_cost"], 80.00)
+
+            # 4. Deplete both lots completely
+            server.execute_sale(conn, cur, {
+                "items": [{"product_id": prod_id, "qty": 15, "unit_sale_price": 120.00, "allocation_mode": "AUTO"}]
+            })
+
+            # Check after depletion: stock is 0, but lowest_cost and latest_procurement_cost preserve $95.00
+            status, _, body = self._http_get("/api/products")
+            data = json.loads(body)
+            p = next(x for x in data["products"] if x["id"] == prod_id)
+            self.assertEqual(p["total_stock"], 0.0)
+            self.assertEqual(p["latest_procurement_cost"], 95.00)
+            self.assertEqual(p["lowest_cost"], 95.00)
+
+            # Clean up
+            cur.execute("DELETE FROM sale_item_lots WHERE sale_item_id IN (SELECT id FROM sale_items WHERE product_id = ?)", (prod_id,))
+            cur.execute("DELETE FROM sale_items WHERE product_id = ?", (prod_id,))
+            cur.execute("DELETE FROM inventory_lots WHERE product_id = ?", (prod_id,))
+            cur.execute("DELETE FROM products WHERE id = ?", (prod_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def test_49_pos_backlog_sale_completion(self):
+        """Verify POS order completion with allow_backlog=True succeeds even when stock is 0."""
+        conn = db.get_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("INSERT INTO products (name, sku, category, unit, min_stock) VALUES (?, ?, ?, ?, ?)",
+                        ("Backlog Test Cigar", "TST-BACK-01", "Cigars", "box", 2))
+            prod_id = cur.lastrowid
+            conn.commit()
+
+            # Seed a historical lot and deplete it
+            res_p, _ = server.execute_procurement(conn, cur, {
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-01",
+                "items": [{"product_id": prod_id, "qty": 1, "unit_cost": 150.00, "batch_code": "LOT-HIST-01"}]
+            })
+            server.execute_sale(conn, cur, {
+                "items": [{"product_id": prod_id, "qty": 1, "unit_sale_price": 200.00, "allocation_mode": "AUTO"}]
+            })
+
+            # Stock is now 0.
+            # Attempt 1: allow_backlog=False -> MUST fail with 400 Insufficient stock
+            res_fail, status_fail = server.execute_sale(conn, cur, {
+                "allow_backlog": False,
+                "items": [{"product_id": prod_id, "qty": 3, "unit_sale_price": 220.00, "allocation_mode": "AUTO"}]
+            })
+            self.assertEqual(status_fail, 400)
+            self.assertFalse(res_fail["success"])
+            self.assertIn("Insufficient stock", res_fail["error"])
+
+            # Attempt 2: allow_backlog=True -> MUST succeed with 201 Created and bill at last unit_cost ($150.00)
+            res_ok, status_ok = server.execute_sale(conn, cur, {
+                "allow_backlog": True,
+                "invoice_no": "INV-BACKLOG-TEST-01",
+                "items": [{"product_id": prod_id, "qty": 3, "unit_sale_price": 220.00, "allocation_mode": "AUTO"}]
+            })
+            self.assertEqual(status_ok, 201)
+            self.assertTrue(res_ok["success"])
+            self.assertEqual(res_ok["total_amount"], 660.00)
+            self.assertEqual(res_ok["total_cogs"], 450.00) # 3 * 150.00
+            self.assertEqual(res_ok["total_profit"], 210.00) # 660 - 450
+
+            # Verify sale is saved in DB
+            sale_id = res_ok["sale_id"]
+            cur.execute("SELECT * FROM sales WHERE id = ?", (sale_id,))
+            s_row = cur.fetchone()
+            self.assertIsNotNone(s_row)
+            self.assertEqual(s_row["invoice_no"], "INV-BACKLOG-TEST-01")
+
+            # Verify backlog lot was created
+            cur.execute("SELECT * FROM inventory_lots WHERE product_id = ? AND source = 'POS Backlog'", (prod_id,))
+            blot = cur.fetchone()
+            self.assertIsNotNone(blot)
+            self.assertEqual(blot["initial_qty"], 3.0)
+            self.assertEqual(blot["remaining_qty"], 0.0)
+            self.assertEqual(blot["status"], "depleted")
+            self.assertEqual(blot["unit_cost"], 150.00)
+
+            # Clean up
+            server.delete_sale(conn, cur, sale_id)
+            cur.execute("DELETE FROM sale_item_lots WHERE sale_item_id IN (SELECT id FROM sale_items WHERE product_id = ?)", (prod_id,))
+            cur.execute("DELETE FROM sale_items WHERE product_id = ?", (prod_id,))
+            cur.execute("DELETE FROM inventory_lots WHERE product_id = ?", (prod_id,))
+            cur.execute("DELETE FROM products WHERE id = ?", (prod_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
 

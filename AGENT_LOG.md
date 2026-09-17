@@ -1124,3 +1124,36 @@ The system meets 100% of functional, architectural, accessibility, data integrit
   - `critic_agent`: APPROVED (All 4 adversarial remediations implemented and re-verified).
   - `functional_reviewer`: APPROVED (Schema alignment, disambiguation, dual-mode safety verified).
   - `e2e_reviewer`: APPROVED (E2E test suite pass, production build, edge cases verified).
+
+---
+
+## PR-030: Unified Catalogue with Procurement Rates, Real-Time Stock on Hand, and Resilient POS Order Creation
+
+- **Date**: 2026-09-17
+- **Branch**: master / main
+- **Scope Delivered**:
+  1. Resilient Walk-In POS Order Completion (`server.py`):
+     - Added `allow_backlog: bool = False` to `execute_sale`.
+     - When `allow_backlog: true` (sent by walk-in POS checkout), if requested quantities exceed active lot quantities, the deficit is automatically assigned to an auto-created backlog lot (`LOT-BACKLOG-...`) billed at the product's `latest_procurement_cost`.
+     - Guarantees POS checkout always completes (HTTP 201) and generates invoices even when historical inventory lots have been exhausted.
+     - Preserves strict HTTP 400 rejection for headless API clients (`allow_backlog: false`) maintaining inventory invariant tests.
+  2. Unified Master Catalogue View (`frontend/app/catalogue/page.tsx`):
+     - Redesigned `/catalogue` into a unified single-view table showing: Product Details, SKU/Barcode, Category & Unit, Wholesale Procurement Rate (Cost Price), Current Stock on Hand, Stock Status Badges (`In Stock`, `Low Stock`, `Out of Stock`), and Quick Actions (`Restock`, `Edit`, `Delete`).
+     - Added top-level KPI metrics: Catalogue SKUs, Total Units on Hand, Stock Health, and Real-Time Inventory Valuation.
+     - Added integrated **Quick Restock Modal** prefilling latest procurement rate for 1-click replenishment directly from the Catalogue.
+  3. API Enrichment (`server.py`):
+     - Enhanced `GET /api/products` and `GET /api/inventory` with subqueries returning `latest_procurement_cost`, `latest_procurement_date`, `latest_supplier_source`, `total_procured_qty`, and `total_stock`.
+  4. POS Visual Stock Feedback (`frontend/app/sales/page.tsx`):
+     - Passes `allow_backlog: true` in checkout payload.
+     - Added warning badges on cart items when quantities exceed active stock, indicating backlog unit count and cost basis.
+  5. Comprehensive Automated & Visual Accessibility Testing:
+     - **Backend (`test_suite.py`)**: 49 / 49 passed (100%), including `test_48_products_procurement_rates_and_stock` and `test_49_pos_backlog_sale_completion`.
+     - **Frontend Jest Suite**: 161 / 161 passed across 11 suites (100%), including new test suite `frontend/tests/unified_catalogue_and_pos_resilience.test.ts`.
+     - **Next.js Production Build**: Compiled 14 routes successfully with 0 errors.
+
+### Multi-Agent Review Verdicts
+- **Critic Agent**: APPROVED (0 Major, 0 Blocker).
+- **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
+- **Outcome**: PR-030 fully satisfies all repository rules and quality gates.
+

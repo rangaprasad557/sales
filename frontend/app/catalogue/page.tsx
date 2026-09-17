@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Package,
   Plus,
@@ -21,6 +21,8 @@ import {
   RefreshCw,
   Edit2,
   Trash2,
+  PlusCircle,
+  Calendar,
 } from 'lucide-react';
 import { Drawer } from '../../components/Drawer';
 import { useUIStore } from '../../store/useUIStore';
@@ -35,79 +37,15 @@ export interface CatalogueProduct {
   currentStock: number;
   minStock: number;
   lowestCost: number;
+  latestProcurementCost?: number;
+  latestProcurementDate?: string;
+  latestSupplierSource?: string;
+  totalProcuredQty?: number;
   barcode?: string;
   description?: string;
 }
 
 const UNITS_OF_MEASURE = ['pcs', 'kg', 'box', 'liters', 'bundle', 'pack'];
-
-const SEED_CATALOGUE: CatalogueProduct[] = [
-  {
-    id: 1,
-    name: 'Royal Basmati Rice 5kg',
-    sku: 'RICE-BAS-5KG',
-    category: 'Grains & Cereals',
-    categoryId: 2,
-    unit: 'kg',
-    currentStock: 145,
-    minStock: 25,
-    lowestCost: 3.80,
-    barcode: '8901234567890',
-    description: 'Long-grain aged aromatic Basmati Rice premium harvest.',
-  },
-  {
-    id: 2,
-    name: 'Aashirvaad Whole Wheat Atta 10kg',
-    sku: 'WHEAT-ATTA-10KG',
-    category: 'Grains & Cereals',
-    categoryId: 3,
-    unit: 'kg',
-    currentStock: 80,
-    minStock: 20,
-    lowestCost: 2.20,
-    barcode: '8909876543210',
-    description: '100% stone-ground whole wheat whole grain flour.',
-  },
-  {
-    id: 3,
-    name: 'Pure Mustard Oil Cold Pressed 1L',
-    sku: 'OIL-MUST-1L',
-    category: 'Oils & Condiments',
-    categoryId: 5,
-    unit: 'liters',
-    currentStock: 12,
-    minStock: 15,
-    lowestCost: 4.10,
-    barcode: '8905551234567',
-    description: 'Traditional kachi ghani unrefined culinary mustard oil.',
-  },
-  {
-    id: 4,
-    name: 'Tata Salt Crystal Iodized 1kg',
-    sku: 'SALT-IOD-1KG',
-    category: 'Oils & Condiments',
-    categoryId: 6,
-    unit: 'pcs',
-    currentStock: 0,
-    minStock: 30,
-    lowestCost: 0.75,
-    barcode: '8904449876543',
-    description: 'Vacuum-evaporated iodized table cooking salt.',
-  },
-  {
-    id: 5,
-    name: 'Organic Red Lentils (Masoor Dal) 1kg',
-    sku: 'DAL-MASOOR-1KG',
-    category: 'Grains & Cereals',
-    categoryId: 1,
-    unit: 'kg',
-    currentStock: 65,
-    minStock: 10,
-    lowestCost: 1.95,
-    barcode: '8903332221110',
-    description: 'Split red lentils with high plant protein content.',
-  },
-];
 
 export default function CataloguePage() {
   const [products, setProducts] = useState<CatalogueProduct[]>([]);
@@ -118,7 +56,16 @@ export default function CataloguePage() {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'LOW' | 'DEPLETED'>('ALL');
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<CatalogueProduct | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { addNotification } = useUIStore();
+
+  // Quick Restock Modal State
+  const [restockProduct, setRestockProduct] = useState<CatalogueProduct | null>(null);
+  const [restockQty, setRestockQty] = useState('50');
+  const [restockCost, setRestockCost] = useState('0');
+  const [restockSource, setRestockSource] = useState('Wholesale Shop');
+  const [restockDate, setRestockDate] = useState(new Date().toISOString().slice(0, 10));
+  const [isSubmittingRestock, setIsSubmittingRestock] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -151,6 +98,10 @@ export default function CataloguePage() {
           currentStock: parseFloat(p.stock || p.current_stock || p.total_stock || '0'),
           minStock: parseInt(p.min_stock || p.minStock || '5', 10),
           lowestCost: parseFloat(p.lowest_cost || p.lowestCost || '0'),
+          latestProcurementCost: parseFloat(p.latest_procurement_cost || p.latestProcurementCost || p.lowest_cost || '0'),
+          latestProcurementDate: p.latest_procurement_date || '',
+          latestSupplierSource: p.latest_supplier_source || '',
+          totalProcuredQty: parseFloat(p.total_procured_qty || '0'),
           barcode: p.barcode || '',
           description: p.description || '',
         }));
@@ -264,8 +215,6 @@ export default function CataloguePage() {
     setFormData((prev) => ({ ...prev, sku: `${clean}-${randomSuffix}` }));
   };
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   const validateForm = () => {
     const errors: Record<string, string> = {};
     if (!formData.name.trim()) {
@@ -355,6 +304,72 @@ export default function CataloguePage() {
     }
   };
 
+  // Quick Restock Handlers
+  const openRestockModal = (product: CatalogueProduct) => {
+    setRestockProduct(product);
+    setRestockQty('50');
+    setRestockCost(
+      (product.latestProcurementCost && product.latestProcurementCost > 0)
+        ? product.latestProcurementCost.toFixed(2)
+        : product.lowestCost > 0
+        ? product.lowestCost.toFixed(2)
+        : '100.00'
+    );
+    setRestockSource(product.latestSupplierSource || 'Wholesale Shop');
+    setRestockDate(new Date().toISOString().slice(0, 10));
+  };
+
+  const handleExecuteRestock = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!restockProduct) return;
+    const qty = parseFloat(restockQty);
+    const cost = parseFloat(restockCost);
+    if (isNaN(qty) || qty <= 0) {
+      addNotification('error', 'Please enter a valid restock quantity greater than 0.');
+      return;
+    }
+    if (isNaN(cost) || cost < 0) {
+      addNotification('error', 'Please enter a valid procurement cost.');
+      return;
+    }
+
+    setIsSubmittingRestock(true);
+    try {
+      const res = await fetch('/api/procurements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: restockSource,
+          procurement_date: restockDate,
+          notes: `Quick restock for ${restockProduct.name} (${restockProduct.sku})`,
+          items: [
+            {
+              product_id: restockProduct.id,
+              qty: qty,
+              unit_cost: cost,
+            },
+          ],
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to intake stock');
+      }
+
+      addNotification(
+        'success',
+        `Successfully restocked ${qty} ${restockProduct.unit} of "${restockProduct.name}" at ₹${cost.toFixed(2)}/${restockProduct.unit}.`
+      );
+      setRestockProduct(null);
+      fetchProducts();
+    } catch (err: any) {
+      addNotification('error', err.message || 'Restock failed');
+    } finally {
+      setIsSubmittingRestock(false);
+    }
+  };
+
   // Stock status badges with icon + label + border (color-blind safe)
   const renderStatusBadge = (status: 'ACTIVE' | 'LOW_STOCK' | 'DEPLETED', current: number, min: number) => {
     switch (status) {
@@ -362,21 +377,21 @@ export default function CataloguePage() {
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>In Stock ({current})</span>
+            <span>In Stock</span>
           </span>
         );
       case 'LOW_STOCK':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30">
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Low Stock ({current} / min {min})</span>
+            <span>Low Stock</span>
           </span>
         );
       case 'DEPLETED':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/30">
             <XCircle className="w-3.5 h-3.5" />
-            <span>Depleted (0 left)</span>
+            <span>Depleted (0)</span>
           </span>
         );
     }
@@ -387,6 +402,11 @@ export default function CataloguePage() {
   const activeCount = products.filter((p) => getProductStatus(p) === 'ACTIVE').length;
   const lowCount = products.filter((p) => getProductStatus(p) === 'LOW_STOCK').length;
   const depletedCount = products.filter((p) => getProductStatus(p) === 'DEPLETED').length;
+  const totalUnitsOnHand = products.reduce((acc, p) => acc + p.currentStock, 0);
+  const totalValuation = products.reduce(
+    (acc, p) => acc + p.currentStock * (p.latestProcurementCost || p.lowestCost || 0),
+    0
+  );
 
   return (
     <div className="space-y-6">
@@ -395,24 +415,35 @@ export default function CataloguePage() {
         <div>
           <div className="flex items-center gap-2 text-primary font-medium text-xs uppercase tracking-wider mb-1">
             <Package className="w-4 h-4" />
-            <span>Master Catalogue Module</span>
+            <span>Catalogue, Procurement Rates & Stock Overview</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
-            Product Catalogue
+            Product Catalogue & Rates
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage product identifiers, SKU taxonomy, units of measure, and min-stock alert thresholds.
+            Unified view of product masters, wholesale procurement rates, active stock on hand, and fast replenishment.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openCreateDrawer}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/20 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary transition-all cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add to Catalogue</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={fetchProducts}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-all cursor-pointer"
+            title="Refresh catalogue data"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Refresh</span>
+          </button>
+          <button
+            type="button"
+            onClick={openCreateDrawer}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/20 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add to Catalogue</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Stats */}
@@ -428,29 +459,37 @@ export default function CataloguePage() {
 
         <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">In Stock (Active)</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Available Stock</span>
+            <Boxes className="w-4 h-4 text-emerald-500" />
           </div>
-          <div className="text-2xl font-black text-foreground">{activeCount}</div>
-          <p className="text-xs text-muted-foreground mt-1">Sufficient inventory</p>
+          <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+            {totalUnitsOnHand} <span className="text-sm font-semibold text-muted-foreground">units</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Active inventory on hand</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Low Stock Alerts</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Stock Health</span>
             <AlertTriangle className="w-4 h-4 text-amber-500" />
           </div>
-          <div className="text-2xl font-black text-foreground">{lowCount}</div>
-          <p className="text-xs text-muted-foreground mt-1">Below minimum threshold</p>
+          <div className="text-2xl font-black text-foreground">
+            {activeCount} <span className="text-sm font-semibold text-muted-foreground">in stock</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            {depletedCount} depleted • {lowCount} low stock
+          </p>
         </div>
 
         <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Out of Stock</span>
-            <XCircle className="w-4 h-4 text-rose-500" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Inventory Valuation</span>
+            <IndianRupee className="w-4 h-4 text-primary" />
           </div>
-          <div className="text-2xl font-black text-foreground">{depletedCount}</div>
-          <p className="text-xs text-muted-foreground mt-1">Zero units on hand</p>
+          <div className="text-2xl font-black text-foreground">
+            ₹{totalValuation.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Valued at procurement cost</p>
         </div>
       </div>
 
@@ -481,7 +520,7 @@ export default function CataloguePage() {
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {st === 'ALL' ? 'All Stock' : st === 'ACTIVE' ? 'In Stock' : st === 'LOW' ? 'Low Stock' : 'Depleted'}
+                {st === 'ALL' ? 'All Items' : st === 'ACTIVE' ? 'In Stock' : st === 'LOW' ? 'Low Stock' : 'Depleted'}
               </button>
             ))}
           </div>
@@ -551,24 +590,25 @@ export default function CataloguePage() {
         </div>
       </div>
 
-      {/* Catalogue Table */}
+      {/* Unified Catalogue Table */}
       <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-muted/50 border-b border-border text-xs uppercase text-muted-foreground font-semibold tracking-wider">
               <tr>
                 <th className="px-6 py-4">Product Details</th>
-                <th className="px-6 py-4">SKU / Barcode</th>
-                <th className="px-6 py-4">Category & Unit</th>
-                <th className="px-6 py-4">Stock Status</th>
-                <th className="px-6 py-4 text-right">Lowest Batch Cost</th>
-                <th className="px-6 py-4 text-center">Actions</th>
+                <th className="px-4 py-4">SKU / Barcode</th>
+                <th className="px-4 py-4">Category & Unit</th>
+                <th className="px-4 py-4">Procurement Rate (Cost)</th>
+                <th className="px-4 py-4">Current Stock</th>
+                <th className="px-4 py-4">Stock Status</th>
+                <th className="px-6 py-4 text-center">Quick Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
                     <Package className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
                     <p className="font-medium text-foreground">No products match your criteria</p>
                     <p className="text-xs mt-1">Try relaxing filters or add new items to the catalogue.</p>
@@ -577,31 +617,43 @@ export default function CataloguePage() {
               ) : (
                 filteredProducts.map((product) => {
                   const status = getProductStatus(product);
+                  const effectiveProcRate =
+                    (product.latestProcurementCost && product.latestProcurementCost > 0)
+                      ? product.latestProcurementCost
+                      : product.lowestCost;
+
                   return (
                     <tr
                       key={product.id}
                       className="hover:bg-muted/30 transition-colors group"
                     >
+                      {/* Product Name & Description */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center font-bold text-primary shrink-0 shadow-xs">
+                          <div className="w-10 h-10 rounded-xl bg-muted/60 border border-border flex items-center justify-center font-bold text-primary shrink-0 shadow-xs">
                             <Package className="w-5 h-5" />
                           </div>
                           <div>
-                            <span className="font-semibold text-foreground block group-hover:text-primary transition-colors">
+                            <span className="font-bold text-foreground block group-hover:text-primary transition-colors text-sm">
                               {product.name}
                             </span>
-                            {product.description && (
-                              <span className="text-xs text-muted-foreground line-clamp-1">
+                            {product.description ? (
+                              <span className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
                                 {product.description}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground/70 italic">
+                                Standard Catalogue Item
                               </span>
                             )}
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+
+                      {/* SKU / Barcode */}
+                      <td className="px-4 py-4">
                         <div className="space-y-1">
-                          <span className="inline-block font-mono text-xs font-semibold px-2 py-0.5 rounded bg-muted text-foreground border border-border">
+                          <span className="inline-block font-mono text-xs font-bold px-2 py-0.5 rounded bg-muted text-foreground border border-border">
                             {product.sku}
                           </span>
                           {product.barcode && (
@@ -612,48 +664,94 @@ export default function CataloguePage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+
+                      {/* Category & Unit */}
+                      <td className="px-4 py-4">
                         <div className="space-y-1 text-xs">
-                          <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                          <span className="inline-flex items-center gap-1 font-semibold text-foreground">
                             <Tag className="w-3 h-3 text-primary" />
                             {product.category}
                           </span>
-                          <span className="inline-block ml-2 text-[11px] font-mono px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground border border-border">
-                            {product.unit}
+                          <span className="block font-mono text-[11px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground border border-border w-fit">
+                            Unit: {product.unit}
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        {renderStatusBadge(status, product.currentStock, product.minStock)}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {product.lowestCost > 0 ? (
-                          <span className="inline-flex items-center gap-0.5 text-xs font-mono font-bold text-foreground">
-                            <IndianRupee className="w-3 h-3 text-muted-foreground" />
-                            {product.lowestCost.toFixed(2)}
-                            <span className="text-[10px] text-muted-foreground font-normal">
-                              /{product.unit}
-                            </span>
-                          </span>
+
+                      {/* Procurement Rate (Cost Price) */}
+                      <td className="px-4 py-4">
+                        {effectiveProcRate > 0 ? (
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-0.5 text-sm font-mono font-black text-foreground">
+                              <IndianRupee className="w-3.5 h-3.5 text-primary" />
+                              <span>{effectiveProcRate.toFixed(2)}</span>
+                              <span className="text-[11px] text-muted-foreground font-normal ml-0.5">
+                                /{product.unit}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                              <Calendar className="w-3 h-3" />
+                              <span>
+                                {product.latestProcurementDate
+                                  ? product.latestProcurementDate
+                                  : 'Historical baseline'}
+                              </span>
+                            </div>
+                          </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground/60 italic">No batches</span>
+                          <div className="text-xs text-muted-foreground/60 italic">
+                            No procurement recorded
+                          </div>
                         )}
                       </td>
+
+                      {/* Current Stock */}
+                      <td className="px-4 py-4">
+                        <div className="space-y-0.5">
+                          <div className="text-base font-black font-mono text-foreground">
+                            {product.currentStock}{' '}
+                            <span className="text-xs font-normal text-muted-foreground">
+                              {product.unit}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            Alert at &le; {product.minStock} {product.unit}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Stock Status Badge */}
+                      <td className="px-4 py-4">
+                        {renderStatusBadge(status, product.currentStock, product.minStock)}
+                      </td>
+
+                      {/* Quick Actions */}
                       <td className="px-6 py-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openRestockModal(product)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all cursor-pointer shadow-2xs"
+                            title={`Quick restock ${product.name}`}
+                          >
+                            <PlusCircle className="w-3.5 h-3.5" />
+                            <span>Restock</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => openEditDrawer(product)}
-                            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors"
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors cursor-pointer"
                             title={`Edit ${product.name}`}
                             aria-label={`Edit ${product.name}`}
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
+
                           <button
                             type="button"
                             onClick={() => handleDelete(product)}
-                            className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive transition-colors"
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive transition-colors cursor-pointer"
                             title={`Delete ${product.name}`}
                             aria-label={`Delete ${product.name}`}
                           >
@@ -669,6 +767,149 @@ export default function CataloguePage() {
           </table>
         </div>
       </div>
+
+      {/* Quick Restock Modal */}
+      {restockProduct && (
+        <div
+          className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center p-4 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="restock-title"
+        >
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+            onClick={() => setRestockProduct(null)}
+            aria-hidden="true"
+          />
+
+          <div className="relative w-full max-w-md bg-card border border-border rounded-3xl shadow-2xl z-10 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 border-b border-border bg-muted/40 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                <PlusCircle className="w-5 h-5 text-emerald-500" />
+                <span id="restock-title">Quick Restock Batch</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRestockProduct(null)}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteRestock} className="p-6 space-y-4">
+              <div className="p-3 rounded-xl bg-muted/50 border border-border">
+                <div className="font-bold text-foreground text-sm">{restockProduct.name}</div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                  <span className="font-mono">{restockProduct.sku}</span>
+                  <span>•</span>
+                  <span>Unit: {restockProduct.unit}</span>
+                  <span>•</span>
+                  <span>Current Stock: {restockProduct.currentStock}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                    Restock Quantity ({restockProduct.unit}) <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="any"
+                    value={restockQty}
+                    onChange={(e) => setRestockQty(e.target.value)}
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                    Procurement Cost (₹/{restockProduct.unit}) <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={restockCost}
+                    onChange={(e) => setRestockCost(e.target.value)}
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                    Procurement Source
+                  </label>
+                  <select
+                    value={restockSource}
+                    onChange={(e) => setRestockSource(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="Wholesale Shop">Wholesale Shop</option>
+                    <option value="Quick Commerce">Quick Commerce</option>
+                    <option value="E-Commerce">E-Commerce</option>
+                    <option value="Direct Distributor">Direct Distributor</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                    Procurement Date
+                  </label>
+                  <input
+                    type="date"
+                    value={restockDate}
+                    onChange={(e) => setRestockDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between text-xs">
+                <span className="font-medium text-muted-foreground">Total Batch Cost:</span>
+                <span className="font-mono font-black text-foreground text-sm">
+                  ₹
+                  {((parseFloat(restockQty) || 0) * (parseFloat(restockCost) || 0)).toFixed(2)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRestockProduct(null)}
+                  className="px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingRestock}
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-md shadow-emerald-600/25 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingRestock ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Intaking...</span>
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="w-4 h-4" />
+                      <span>Confirm & Intake Stock</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Slide-over Drawer for Add/Edit Product */}
       <Drawer

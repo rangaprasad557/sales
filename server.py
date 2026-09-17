@@ -392,6 +392,8 @@ def execute_sale(conn, cur, body):
     total_sale_amount = 0.0
     total_cogs_amount = 0.0
 
+    allow_backlog = bool(body.get("allow_backlog", False))
+
     for it in items:
         prod_id = int(it.get("product_id"))
         cur.execute("SELECT id FROM products WHERE id = ?", (prod_id,))
@@ -450,8 +452,30 @@ def execute_sale(conn, cur, body):
                 item_cogs += take * lot["unit_cost"]
 
             if rem > 0.0001:
-                conn.rollback()
-                return {"error": f"Insufficient stock for product {prod_id}. Short by {round(rem, 2)}", "success": False}, 400
+                if allow_backlog:
+                    # Retrieve the latest procurement cost or fallback
+                    cur.execute("""
+                        SELECT unit_cost FROM inventory_lots
+                        WHERE product_id = ?
+                        ORDER BY procurement_date DESC, id DESC
+                        LIMIT 1
+                    """, (prod_id,))
+                    last_lot = cur.fetchone()
+                    fallback_cost = float(last_lot["unit_cost"]) if last_lot and last_lot["unit_cost"] is not None else 0.0
+
+                    backlog_batch = f"LOT-BACKLOG-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
+                    cur.execute("""
+                        INSERT INTO inventory_lots (product_id, batch_code, initial_qty, remaining_qty, unit_cost, procurement_date, source, status)
+                        VALUES (?, ?, ?, ?, ?, ?, 'POS Backlog', 'depleted')
+                    """, (prod_id, backlog_batch, rem, rem, fallback_cost, sale_date))
+                    backlog_lot_id = cur.lastrowid
+
+                    allocated.append((backlog_lot_id, rem, fallback_cost))
+                    item_cogs += rem * fallback_cost
+                    rem = 0.0
+                else:
+                    conn.rollback()
+                    return {"error": f"Insufficient stock for product {prod_id}. Short by {round(rem, 2)}", "success": False}, 400
 
         item_profit = item_total_sale - item_cogs
         total_sale_amount += item_total_sale
@@ -1084,12 +1108,29 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
             if path == "/api/products":
                 cur.execute("""
                     SELECT p.*, 
-                           COALESCE(SUM(l.remaining_qty), 0) as total_stock,
+                           COALESCE(SUM(CASE WHEN l.remaining_qty > 0 THEN l.remaining_qty ELSE 0 END), 0) as total_stock,
                            COUNT(CASE WHEN l.remaining_qty > 0 THEN 1 END) as active_lots_count,
-                           COALESCE(MIN(CASE WHEN l.remaining_qty > 0 THEN l.unit_cost END), 0.0) as lowest_cost,
+                           COALESCE(
+                               MIN(CASE WHEN l.remaining_qty > 0 THEN l.unit_cost END),
+                               (SELECT l2.unit_cost FROM inventory_lots l2 WHERE l2.product_id = p.id ORDER BY l2.procurement_date DESC, l2.id DESC LIMIT 1),
+                               0.0
+                           ) as lowest_cost,
+                           COALESCE(
+                               (SELECT l2.unit_cost FROM inventory_lots l2 WHERE l2.product_id = p.id ORDER BY l2.procurement_date DESC, l2.id DESC LIMIT 1),
+                               0.0
+                           ) as latest_procurement_cost,
+                           COALESCE(
+                               (SELECT l2.procurement_date FROM inventory_lots l2 WHERE l2.product_id = p.id ORDER BY l2.procurement_date DESC, l2.id DESC LIMIT 1),
+                               ''
+                           ) as latest_procurement_date,
+                           COALESCE(
+                               (SELECT l2.source FROM inventory_lots l2 WHERE l2.product_id = p.id ORDER BY l2.procurement_date DESC, l2.id DESC LIMIT 1),
+                               ''
+                           ) as latest_supplier_source,
+                           COALESCE(SUM(l.initial_qty), 0) as total_procured_qty,
                            COALESCE(SUM(CASE WHEN l.remaining_qty > 0 THEN l.remaining_qty * l.unit_cost END) / NULLIF(SUM(CASE WHEN l.remaining_qty > 0 THEN l.remaining_qty END), 0), 0.0) as avg_cost
                     FROM products p
-                    LEFT JOIN inventory_lots l ON p.id = l.product_id AND l.remaining_qty > 0
+                    LEFT JOIN inventory_lots l ON p.id = l.product_id
                     GROUP BY p.id
                     ORDER BY p.name ASC
                 """)
@@ -1156,6 +1197,17 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                     """, (item["id"],))
                     item["lots"] = [dict(l) for l in cur.fetchall()]
                     item["avg_cost"] = (item["total_valuation"] / item["total_stock"]) if item["total_stock"] > 0 else 0.0
+                    
+                    cur.execute("""
+                        SELECT unit_cost, procurement_date, source
+                        FROM inventory_lots
+                        WHERE product_id = ?
+                        ORDER BY procurement_date DESC, id DESC LIMIT 1
+                    """, (item["id"],))
+                    latest_lot = cur.fetchone()
+                    item["latest_procurement_cost"] = float(latest_lot["unit_cost"]) if latest_lot and latest_lot["unit_cost"] is not None else 0.0
+                    item["latest_procurement_date"] = latest_lot["procurement_date"] if latest_lot and latest_lot["procurement_date"] else ""
+                    item["latest_source"] = latest_lot["source"] if latest_lot and latest_lot["source"] else ""
 
                 total_valuation = sum(i["total_valuation"] for i in items)
                 total_stock = sum(i["total_stock"] for i in items)
