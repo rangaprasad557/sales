@@ -1099,3 +1099,28 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 - **Functional Reviewer**: APPROVED (0 Major, 0 Blocker).
 - **E2E Integration Reviewer**: APPROVED (0 Major, 0 Blocker).
 - **Outcome**: PR-028 fully satisfies all repository rules and quality gates.
+
+---
+
+## PR-029: Sale Order Editing Schema Alignment, Lot Allocation Resilience & Order Saving Fix
+
+- **Objective**: Resolve failure when saving edited sale orders (HTTP 500) and eliminate schema mismatches / ambiguous column errors.
+- **Changes**:
+  - `server.py`:
+    - Disambiguated `SELECT sil.lot_id, sil.qty FROM sale_item_lots sil JOIN sale_items si ON sil.sale_item_id = si.id WHERE si.sale_id = ?`.
+    - Corrected schema column names in `sale_items`: `total_sale_price`, `total_cost`, `profit`, `allocation_type`.
+    - Added dual-mode update: in-place atomic update for metadata & sell price changes vs. lot restoration and LCF re-allocation for quantity alterations.
+    - Added input validation: non-empty items array (400), non-negative unit price (400).
+    - Added aggregate product stock verification across duplicate line items in incoming payloads.
+    - Added post-allocation shortage check (`remaining_to_draw > 0.0001`) with transaction rollback.
+    - Applied explicit 2-decimal rounding to `total_amount`, `total_cogs`, and `net_profit`.
+  - `test_suite.py`:
+    - Added `test_e2e_sale_update_via_put_api` testing in-place updates, quantity expansions, insufficient stock, empty items, negative prices, duplicate line items exceeding aggregate stock, 400 invalid IDs, and 404 non-existent orders.
+- **Verification**:
+  - Backend `test_suite.py`: 47 / 47 passed (100%).
+  - Frontend Jest: 158 / 158 passed across 10 suites (100%).
+  - Next.js Production Build: Compiled 14 routes successfully.
+- **Reviewer Verdicts**:
+  - `critic_agent`: APPROVED (All 4 adversarial remediations implemented and re-verified).
+  - `functional_reviewer`: APPROVED (Schema alignment, disambiguation, dual-mode safety verified).
+  - `e2e_reviewer`: APPROVED (E2E test suite pass, production build, edge cases verified).

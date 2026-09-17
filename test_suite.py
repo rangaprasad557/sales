@@ -2654,6 +2654,147 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_e2e_sale_update_via_put_api(self):
+        """Test PUT /api/sales/<id> for editing orders: metadata, price changes, quantity changes, and validation."""
+        conn = db.get_connection()
+        cur = conn.cursor()
+        try:
+            # 1. Setup product and stock
+            cur.execute("INSERT INTO products (name, sku, category, unit, min_stock) VALUES ('Edit Test Product', 'SKU-EDT-01', 'TestCat', 'pcs', 5)")
+            conn.commit()
+            prod_id = cur.lastrowid
+
+            proc_res, _ = server.execute_procurement(conn, cur, {
+                "invoice_no": "PROC-FOR-EDIT-TEST",
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-01",
+                "items": [{"product_id": prod_id, "qty": 50.0, "unit_cost": 10.0, "batch_code": "LOT-EDT-01"}]
+            })
+            proc_id = proc_res["procurement_id"]
+
+            cur.execute("SELECT id FROM customers LIMIT 1")
+            cust_row = cur.fetchone()
+            if cust_row:
+                cust_id = cust_row["id"]
+            else:
+                cur.execute("INSERT INTO customers (name, phone) VALUES ('Edit Test Cust', '9998887771')")
+                conn.commit()
+                cust_id = cur.lastrowid
+
+            # 2. Create initial sale: 10 units @ 20.00
+            sale_res, _ = server.execute_sale(conn, cur, {
+                "invoice_no": "INV-EDIT-TEST-01",
+                "customer_id": cust_id,
+                "sold_by": "Initial Cashier",
+                "sale_date": "2026-09-05",
+                "notes": "Original sale notes",
+                "items": [{"product_id": prod_id, "qty": 10.0, "unit_sale_price": 20.0}]
+            })
+            sale_id = sale_res["sale_id"]
+
+            # Remaining stock should be 50 - 10 = 40
+            cur.execute("SELECT remaining_qty FROM inventory_lots WHERE procurement_id = ?", (proc_id,))
+            self.assertEqual(float(cur.fetchone()["remaining_qty"]), 40.0)
+
+            # Test A: In-place update (metadata and price change, same quantity)
+            put_payload_inplace = {
+                "customer_id": None, # Convert to walk-in
+                "sale_date": "2026-09-17",
+                "sold_by": "Updated Cashier",
+                "notes": "Updated sale notes",
+                "items": [{"product_id": prod_id, "qty": 10.0, "unit_sale_price": 25.0}]
+            }
+            status, _, res = self._http_put(f"/api/sales/{sale_id}", put_payload_inplace)
+            self.assertEqual(status, 200)
+            self.assertTrue(res["success"])
+
+            # Verify in-place update totals
+            cur.execute("SELECT * FROM sales WHERE id = ?", (sale_id,))
+            updated_sale = dict(cur.fetchone())
+            self.assertIsNone(updated_sale["customer_id"])
+            self.assertEqual(updated_sale["sold_by"], "Updated Cashier")
+            self.assertEqual(updated_sale["sale_date"], "2026-09-17")
+            self.assertEqual(updated_sale["notes"], "Updated sale notes")
+            self.assertEqual(float(updated_sale["total_amount"]), 250.0) # 10 * 25
+            self.assertEqual(float(updated_sale["total_cogs"]), 100.0)   # 10 * 10
+            self.assertEqual(float(updated_sale["total_profit"]), 150.0) # 250 - 100
+
+            # Verify inventory lot was NOT touched (remains 40.0)
+            cur.execute("SELECT remaining_qty FROM inventory_lots WHERE procurement_id = ?", (proc_id,))
+            self.assertEqual(float(cur.fetchone()["remaining_qty"]), 40.0)
+
+            # Test B: Quantity modification (from 10 to 15 units)
+            put_payload_qty = {
+                "customer_id": cust_id,
+                "sale_date": "2026-09-17",
+                "sold_by": "Updated Cashier",
+                "notes": "Updated qty notes",
+                "items": [{"product_id": prod_id, "qty": 15.0, "unit_sale_price": 30.0}]
+            }
+            status, _, res = self._http_put(f"/api/sales/{sale_id}", put_payload_qty)
+            self.assertEqual(status, 200)
+            self.assertTrue(res["success"])
+
+            # Stock should now be 50 - 15 = 35
+            cur.execute("SELECT remaining_qty FROM inventory_lots WHERE procurement_id = ?", (proc_id,))
+            self.assertEqual(float(cur.fetchone()["remaining_qty"]), 35.0)
+
+            # Verify updated sale record
+            cur.execute("SELECT * FROM sales WHERE id = ?", (sale_id,))
+            updated_sale_2 = dict(cur.fetchone())
+            self.assertEqual(float(updated_sale_2["total_amount"]), 450.0) # 15 * 30
+            self.assertEqual(float(updated_sale_2["total_cogs"]), 150.0)   # 15 * 10
+            self.assertEqual(float(updated_sale_2["total_profit"]), 300.0) # 450 - 150
+
+            # Test C: Insufficient stock rejection when editing order
+            put_payload_too_much = {
+                "items": [{"product_id": prod_id, "qty": 9999.0, "unit_sale_price": 30.0}]
+            }
+            status, _, res = self._http_put(f"/api/sales/{sale_id}", put_payload_too_much)
+            self.assertEqual(status, 400)
+            self.assertFalse(res["success"])
+            self.assertIn("Insufficient stock", res["error"])
+
+            # Test D: Empty items array rejection (400)
+            status, _, res = self._http_put(f"/api/sales/{sale_id}", {"items": []})
+            self.assertEqual(status, 400)
+            self.assertFalse(res["success"])
+            self.assertIn("At least one item is required", res["error"])
+
+            # Test E: Negative price rejection (400)
+            status, _, res = self._http_put(f"/api/sales/{sale_id}", {
+                "items": [{"product_id": prod_id, "qty": 5.0, "unit_sale_price": -10.0}]
+            })
+            self.assertEqual(status, 400)
+            self.assertFalse(res["success"])
+            self.assertIn("cannot be negative", res["error"])
+
+            # Test F: Duplicate product line items exceeding aggregate stock (400)
+            # Available stock is 50. Two lines of 30 = 60 requested. Must reject cleanly.
+            status, _, res = self._http_put(f"/api/sales/{sale_id}", {
+                "items": [
+                    {"product_id": prod_id, "qty": 30.0, "unit_sale_price": 30.0},
+                    {"product_id": prod_id, "qty": 30.0, "unit_sale_price": 30.0}
+                ]
+            })
+            self.assertEqual(status, 400)
+            self.assertFalse(res["success"])
+            self.assertIn("Insufficient stock", res["error"])
+
+            # Test G: Non-existent sale ID (404) and invalid ID (400)
+            status, _, res = self._http_put("/api/sales/999999", {"notes": "test"})
+            self.assertEqual(status, 404)
+            status, _, res = self._http_put("/api/sales/not-a-number", {"notes": "test"})
+            self.assertEqual(status, 400)
+
+            # Clean up
+            server.delete_sale(conn, cur, sale_id)
+            server.delete_procurement(conn, cur, proc_id)
+            cur.execute("DELETE FROM products WHERE id = ?", (prod_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
 

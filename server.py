@@ -765,85 +765,181 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                     error_response(self, "Sale not found", 404)
                     return
 
-                customer_id = body.get("customer_id", existing_sale["customer_id"])
+                raw_customer_id = body.get("customer_id")
+                if raw_customer_id is None or raw_customer_id == "" or str(raw_customer_id).lower() in ("null", "none"):
+                    customer_id = None
+                else:
+                    try:
+                        customer_id = int(raw_customer_id)
+                    except (ValueError, TypeError):
+                        customer_id = None
+
                 sale_date = body.get("sale_date", existing_sale["sale_date"])
                 sold_by = body.get("sold_by", existing_sale["sold_by"] if "sold_by" in existing_sale.keys() else "Store Staff")
                 notes = body.get("notes", existing_sale["notes"] or "").strip()
 
                 if "items" in body and isinstance(body["items"], list):
-                    # 1. Restore all drawn lots for this sale
-                    cur.execute("SELECT lot_id, qty FROM sale_item_lots sil JOIN sale_items si ON sil.sale_item_id = si.id WHERE si.sale_id = ?", (sale_id,))
-                    drawn_lots = cur.fetchall()
-                    for dl in drawn_lots:
-                        cur.execute("""
-                            UPDATE inventory_lots 
-                            SET remaining_qty = remaining_qty + ?, status = 'active'
-                            WHERE id = ?
-                        """, (dl["qty"], dl["lot_id"]))
-
-                    # 2. Delete old sale_items and sale_item_lots
-                    cur.execute("DELETE FROM sale_item_lots WHERE sale_item_id IN (SELECT id FROM sale_items WHERE sale_id = ?)", (sale_id,))
-                    cur.execute("DELETE FROM sale_items WHERE sale_id = ?", (sale_id,))
-
-                    # 3. Re-allocate new items
                     new_items = body["items"]
-                    total_amount = 0.0
-                    total_cogs = 0.0
+                    if not new_items:
+                        conn.rollback()
+                        error_response(self, "At least one item is required in a sale", 400)
+                        return
 
                     for item in new_items:
-                        p_id = int(item["product_id"])
-                        qty_needed = float(item["qty"])
-                        unit_sale_price = float(item["unit_sale_price"])
-                        subtotal_amount = qty_needed * unit_sale_price
-                        total_amount += subtotal_amount
-
-                        cur.execute("SELECT COALESCE(SUM(remaining_qty), 0) as available FROM inventory_lots WHERE product_id = ? AND remaining_qty > 0", (p_id,))
-                        avail = cur.fetchone()["available"]
-                        if avail < qty_needed:
+                        if float(item.get("unit_sale_price", 0)) < 0:
                             conn.rollback()
-                            error_response(self, f"Insufficient stock for product {p_id}. Available: {avail}, Requested: {qty_needed}", 400)
+                            error_response(self, "Unit sale price cannot be negative", 400)
                             return
 
-                        cur.execute("""
-                            INSERT INTO sale_items (sale_id, product_id, qty, unit_sale_price, subtotal_amount, subtotal_cogs, subtotal_profit)
-                            VALUES (?, ?, ?, ?, ?, 0, 0)
-                        """, (sale_id, p_id, qty_needed, unit_sale_price, subtotal_amount))
-                        sale_item_id = cur.lastrowid
+                    # Fetch existing items in this sale
+                    cur.execute("SELECT * FROM sale_items WHERE sale_id = ? ORDER BY id ASC", (sale_id,))
+                    existing_items = [dict(r) for r in cur.fetchall()]
 
-                        cur.execute("""
-                            SELECT id, remaining_qty, unit_cost 
-                            FROM inventory_lots 
-                            WHERE product_id = ? AND remaining_qty > 0 
-                            ORDER BY unit_cost ASC, procurement_date ASC
-                        """, (p_id,))
-                        available_lots = cur.fetchall()
-
-                        item_cogs = 0.0
-                        remaining_to_draw = qty_needed
-                        for lot in available_lots:
-                            if remaining_to_draw <= 0:
+                    # Check if item products and quantities are identical (in-place price/metadata update)
+                    can_do_inplace = False
+                    if len(new_items) == len(existing_items):
+                        matched_all = True
+                        for ni, ei in zip(new_items, existing_items):
+                            if int(ni.get("product_id", 0)) != int(ei["product_id"]) or abs(float(ni.get("qty", 0)) - float(ei["qty"])) > 0.0001:
+                                matched_all = False
                                 break
-                            lot_draw = min(lot["remaining_qty"], remaining_to_draw)
-                            item_cogs += lot_draw * lot["unit_cost"]
-                            remaining_to_draw -= lot_draw
-                            new_rem = lot["remaining_qty"] - lot_draw
-                            new_st = 'depleted' if new_rem <= 0 else 'active'
-                            cur.execute("UPDATE inventory_lots SET remaining_qty = ?, status = ? WHERE id = ?", (new_rem, new_st, lot["id"]))
-                            lot_profit = (unit_sale_price - lot["unit_cost"]) * lot_draw
-                            cur.execute("INSERT INTO sale_item_lots (sale_item_id, lot_id, qty, unit_cost, lot_profit) VALUES (?, ?, ?, ?, ?)", (sale_item_id, lot["id"], lot_draw, lot["unit_cost"], lot_profit))
+                        if matched_all:
+                            can_do_inplace = True
 
-                        total_cogs += item_cogs
-                        item_profit = subtotal_amount - item_cogs
-                        cur.execute("UPDATE sale_items SET subtotal_cogs = ?, subtotal_profit = ? WHERE id = ?", (item_cogs, item_profit, sale_item_id))
+                    if can_do_inplace:
+                        # In-place update: Adjust sale prices and profits without altering inventory lots
+                        total_amount = 0.0
+                        total_cogs = float(existing_sale["total_cogs"] or 0.0)
 
-                    net_profit = total_amount - total_cogs
-                    margin_pct = (net_profit / total_amount * 100.0) if total_amount > 0 else 0.0
+                        for ni, ei in zip(new_items, existing_items):
+                            new_price = float(ni.get("unit_sale_price", ei["unit_sale_price"]))
+                            item_qty = float(ei["qty"])
+                            total_sale_price = round(item_qty * new_price, 2)
+                            item_cogs = float(ei["total_cost"])
+                            item_profit = round(total_sale_price - item_cogs, 2)
+                            total_amount += total_sale_price
 
-                    cur.execute("""
-                        UPDATE sales 
-                        SET customer_id = ?, sale_date = ?, total_amount = ?, total_cogs = ?, total_profit = ?, sold_by = ?, notes = ?
-                        WHERE id = ?
-                    """, (customer_id, sale_date, total_amount, total_cogs, net_profit, sold_by, notes, sale_id))
+                            cur.execute("""
+                                UPDATE sale_items
+                                SET unit_sale_price = ?, total_sale_price = ?, profit = ?
+                                WHERE id = ?
+                            """, (new_price, total_sale_price, item_profit, ei["id"]))
+
+                            # Update lot_profit in sale_item_lots proportionally
+                            cur.execute("SELECT id, qty, unit_cost FROM sale_item_lots WHERE sale_item_id = ?", (ei["id"],))
+                            item_lots = cur.fetchall()
+                            for il in item_lots:
+                                il_profit = round((new_price - float(il["unit_cost"])) * float(il["qty"]), 2)
+                                cur.execute("UPDATE sale_item_lots SET lot_profit = ? WHERE id = ?", (il_profit, il["id"]))
+
+                        total_amount = round(total_amount, 2)
+                        total_cogs = round(total_cogs, 2)
+                        net_profit = round(total_amount - total_cogs, 2)
+                        cur.execute("""
+                            UPDATE sales
+                            SET customer_id = ?, sale_date = ?, total_amount = ?, total_profit = ?, sold_by = ?, notes = ?
+                            WHERE id = ?
+                        """, (customer_id, sale_date, total_amount, net_profit, sold_by, notes, sale_id))
+
+                    else:
+                        # Quantity or product changed: Restore previously drawn lots and re-allocate via Lowest-Cost-First
+                        # 1. Restore all drawn lots for this sale
+                        cur.execute("SELECT sil.lot_id, sil.qty FROM sale_item_lots sil JOIN sale_items si ON sil.sale_item_id = si.id WHERE si.sale_id = ?", (sale_id,))
+                        drawn_lots = cur.fetchall()
+                        for dl in drawn_lots:
+                            cur.execute("""
+                                UPDATE inventory_lots 
+                                SET remaining_qty = remaining_qty + ?, status = 'active'
+                                WHERE id = ?
+                            """, (dl["qty"], dl["lot_id"]))
+
+                        # 2. Delete old sale_items and sale_item_lots
+                        cur.execute("DELETE FROM sale_item_lots WHERE sale_item_id IN (SELECT id FROM sale_items WHERE sale_id = ?)", (sale_id,))
+                        cur.execute("DELETE FROM sale_items WHERE sale_id = ?", (sale_id,))
+
+                        # 3. Check aggregate stock availability per product before allocating
+                        needed_by_product = {}
+                        for item in new_items:
+                            p_id = int(item["product_id"])
+                            qty_needed = float(item["qty"])
+                            if qty_needed <= 0:
+                                conn.rollback()
+                                error_response(self, f"Item quantity must be greater than zero for product {p_id}", 400)
+                                return
+                            needed_by_product[p_id] = needed_by_product.get(p_id, 0.0) + qty_needed
+
+                        for p_id, total_needed in needed_by_product.items():
+                            cur.execute("SELECT COALESCE(SUM(remaining_qty), 0) as available FROM inventory_lots WHERE product_id = ? AND remaining_qty > 0", (p_id,))
+                            avail = float(cur.fetchone()["available"])
+                            if avail < total_needed:
+                                conn.rollback()
+                                error_response(self, f"Insufficient stock for product {p_id}. Available: {avail}, Requested: {total_needed}", 400)
+                                return
+
+                        # 4. Re-allocate new items
+                        total_amount = 0.0
+                        total_cogs = 0.0
+
+                        for item in new_items:
+                            p_id = int(item["product_id"])
+                            qty_needed = float(item["qty"])
+                            unit_sale_price = float(item["unit_sale_price"])
+                            item_total_sale = round(qty_needed * unit_sale_price, 2)
+                            total_amount += item_total_sale
+
+                            cur.execute("""
+                                SELECT id, remaining_qty, unit_cost 
+                                FROM inventory_lots 
+                                WHERE product_id = ? AND remaining_qty > 0 
+                                ORDER BY unit_cost ASC, procurement_date ASC
+                            """, (p_id,))
+                            available_lots = cur.fetchall()
+
+                            item_cogs = 0.0
+                            remaining_to_draw = qty_needed
+                            lot_allocations = []
+                            for lot in available_lots:
+                                if remaining_to_draw <= 0:
+                                    break
+                                lot_draw = min(float(lot["remaining_qty"]), remaining_to_draw)
+                                item_cogs += lot_draw * float(lot["unit_cost"])
+                                remaining_to_draw -= lot_draw
+                                new_rem = float(lot["remaining_qty"]) - lot_draw
+                                new_st = 'depleted' if new_rem <= 0 else 'active'
+                                cur.execute("UPDATE inventory_lots SET remaining_qty = ?, status = ? WHERE id = ?", (new_rem, new_st, lot["id"]))
+                                lot_profit = round((unit_sale_price - float(lot["unit_cost"])) * lot_draw, 2)
+                                lot_allocations.append((lot["id"], lot_draw, float(lot["unit_cost"]), lot_profit))
+
+                            if remaining_to_draw > 0.0001:
+                                conn.rollback()
+                                error_response(self, f"Insufficient stock for product {p_id}. Short by {round(remaining_to_draw, 2)}", 400)
+                                return
+
+                            item_cogs = round(item_cogs, 2)
+                            item_profit = round(item_total_sale - item_cogs, 2)
+                            total_cogs += item_cogs
+
+                            cur.execute("""
+                                INSERT INTO sale_items (sale_id, product_id, qty, unit_sale_price, total_sale_price, total_cost, profit, allocation_type)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (sale_id, p_id, qty_needed, unit_sale_price, item_total_sale, item_cogs, item_profit, 'AUTO_LOWEST_COST'))
+                            sale_item_id = cur.lastrowid
+
+                            for lot_id, lot_draw, unit_cost, lot_profit in lot_allocations:
+                                cur.execute("""
+                                    INSERT INTO sale_item_lots (sale_item_id, lot_id, qty, unit_cost, lot_profit)
+                                    VALUES (?, ?, ?, ?, ?)
+                                """, (sale_item_id, lot_id, lot_draw, unit_cost, lot_profit))
+
+                        total_amount = round(total_amount, 2)
+                        total_cogs = round(total_cogs, 2)
+                        net_profit = round(total_amount - total_cogs, 2)
+                        cur.execute("""
+                            UPDATE sales 
+                            SET customer_id = ?, sale_date = ?, total_amount = ?, total_cogs = ?, total_profit = ?, sold_by = ?, notes = ?
+                            WHERE id = ?
+                        """, (customer_id, sale_date, total_amount, total_cogs, net_profit, sold_by, notes, sale_id))
+
                 else:
                     cur.execute("""
                         UPDATE sales 
