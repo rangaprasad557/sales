@@ -22,11 +22,14 @@ import { useUIStore } from '../../store/useUIStore';
 
 export interface IntakeItemRow {
   id: string;
+  lotId?: number;
   productId: string;
   productName: string;
   unitCost: string;
   quantity: string;
   batchCode: string;
+  remainingQty?: number;
+  alreadySold?: number;
 }
 
 interface CatalogueProductItem {
@@ -71,6 +74,7 @@ export default function ProcurementPage() {
   const [consignmentSearch, setConsignmentSearch] = useState('');
   const [consignmentTab, setConsignmentTab] = useState<'products' | 'lots'>('products');
   const [intakeItems, setIntakeItems] = useState<IntakeItemRow[]>([]);
+  const [editViewMode, setEditViewMode] = useState<'grid' | 'manifest'>('grid');
   const { addNotification } = useUIStore();
 
   // Form State
@@ -201,6 +205,8 @@ export default function ProcurementPage() {
         unitCost: '10.00',
         quantity: '50',
         batchCode: '',
+        remainingQty: 50,
+        alreadySold: 0,
       },
     ]);
 
@@ -214,6 +220,7 @@ export default function ProcurementPage() {
     setIntakeItems([]);
     setConsignmentSearch('');
     setConsignmentTab('products');
+    setEditViewMode('grid');
 
     let resolvedSupplierName = proc.supplierName || '';
     let resolvedSource = proc.source || 'Wholesale Shop';
@@ -239,6 +246,24 @@ export default function ProcurementPage() {
         if (p.notes) itemNotes = p.notes;
         if (p.items && p.items.length > 0) {
           setConsignmentItems(p.items);
+          const mappedItems: IntakeItemRow[] = p.items.map((it: any) => {
+            const initQty = parseFloat(it.initial_qty || it.qty || '0');
+            const remQty = parseFloat(it.remaining_qty ?? it.initial_qty ?? '0');
+            const sold = Math.max(0, parseFloat((initQty - remQty).toFixed(4)));
+            return {
+              id: String(it.id || Math.random().toString(36).substring(2, 9)),
+              lotId: it.id ? Number(it.id) : undefined,
+              productId: String(it.product_id || ''),
+              productName: it.product_name || '',
+              unitCost: String(it.unit_cost !== undefined ? it.unit_cost : '10.00'),
+              quantity: String(it.initial_qty || it.qty || '50'),
+              batchCode: it.batch_code || '',
+              remainingQty: remQty,
+              alreadySold: sold,
+            };
+          });
+          setIntakeItems(mappedItems);
+
           const it = p.items[0];
           itemProdId = String(it.product_id || '');
           itemProdName = it.product_name || '';
@@ -247,10 +272,34 @@ export default function ProcurementPage() {
           itemBatchCode = it.batch_code || '';
         } else {
           setConsignmentItems([]);
+          setIntakeItems([
+            {
+              id: Math.random().toString(36).substring(2, 9),
+              productId: itemProdId,
+              productName: itemProdName,
+              unitCost: itemUnitCost,
+              quantity: itemQty,
+              batchCode: itemBatchCode,
+              remainingQty: parseFloat(itemQty) || 0,
+              alreadySold: 0,
+            },
+          ]);
         }
       }
     } catch {
       setConsignmentItems([]);
+      setIntakeItems([
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          productId: itemProdId,
+          productName: itemProdName,
+          unitCost: itemUnitCost,
+          quantity: itemQty,
+          batchCode: itemBatchCode,
+          remainingQty: parseFloat(itemQty) || 0,
+          alreadySold: 0,
+        },
+      ]);
     }
 
     // Refresh suppliers list and match supplier
@@ -319,6 +368,8 @@ export default function ProcurementPage() {
       unitCost: '10.00',
       quantity: '50',
       batchCode: '',
+      remainingQty: 50,
+      alreadySold: 0,
     };
     setIntakeItems((prev) => [...prev, newRow]);
   };
@@ -326,6 +377,14 @@ export default function ProcurementPage() {
   const removeIntakeRow = (id: string) => {
     if (intakeItems.length <= 1) {
       addNotification('error', 'Consignment intake must contain at least one catalogue product.');
+      return;
+    }
+    const itemToRemove = intakeItems.find((it) => it.id === id);
+    if (itemToRemove && itemToRemove.alreadySold && itemToRemove.alreadySold > 0.0001) {
+      addNotification(
+        'error',
+        `Cannot remove lot '${itemToRemove.batchCode || itemToRemove.productName}' which already has ${itemToRemove.alreadySold} units sold.`
+      );
       return;
     }
     setIntakeItems((prev) => prev.filter((it) => it.id !== id));
@@ -463,45 +522,33 @@ export default function ProcurementPage() {
       addNotification('error', 'Procurement date is required');
     }
 
-    if (!editingProcurement) {
-      if (intakeItems.length === 0) {
-        errors.general = 'Please add at least one product to the consignment';
-        addNotification('error', 'Please add at least one product to the consignment');
+    if (intakeItems.length === 0) {
+      errors.general = 'Please add at least one product to the consignment';
+      addNotification('error', 'Please add at least one product to the consignment');
+    }
+    for (let i = 0; i < intakeItems.length; i++) {
+      const item = intakeItems[i];
+      if (!item.productId) {
+        errors[`item_${item.id}_productId`] = `Product #${i + 1} is required`;
+        addNotification('error', `Please select a product for line #${i + 1}`);
+        break;
       }
-      for (let i = 0; i < intakeItems.length; i++) {
-        const item = intakeItems[i];
-        if (!item.productId) {
-          errors[`item_${item.id}_productId`] = `Product #${i + 1} is required`;
-          addNotification('error', `Please select a product for line #${i + 1}`);
-          break;
-        }
-        const cost = parseFloat(item.unitCost);
-        if (isNaN(cost) || cost < 0) {
-          errors[`item_${item.id}_unitCost`] = `Unit cost must be >= 0`;
-          addNotification('error', `Unit acquisition cost for line #${i + 1} must be >= 0`);
-          break;
-        }
-        const qty = parseFloat(item.quantity);
-        if (isNaN(qty) || qty <= 0) {
-          errors[`item_${item.id}_quantity`] = `Quantity must be > 0`;
-          addNotification('error', `Quantity for line #${i + 1} must be > 0`);
-          break;
-        }
+      const cost = parseFloat(item.unitCost);
+      if (isNaN(cost) || cost < 0) {
+        errors[`item_${item.id}_unitCost`] = `Unit cost must be >= 0`;
+        addNotification('error', `Unit acquisition cost for line #${i + 1} must be >= 0`);
+        break;
       }
-    } else if (!isMultiItemConsignment) {
-      if (!formData.productId) {
-        errors.productId = 'Please select a product from the catalogue';
-        addNotification('error', 'Please select a product from the catalogue');
-      }
-      const cost = parseFloat(formData.unitCost);
-      if (isNaN(cost) || cost <= 0) {
-        errors.unitCost = 'Unit cost must be greater than 0';
-        addNotification('error', 'Unit acquisition cost must be greater than 0');
-      }
-      const qty = parseFloat(formData.quantity);
+      const qty = parseFloat(item.quantity);
       if (isNaN(qty) || qty <= 0) {
-        errors.quantity = 'Quantity must be greater than 0';
-        addNotification('error', 'Quantity received must be greater than 0');
+        errors[`item_${item.id}_quantity`] = `Quantity must be > 0`;
+        addNotification('error', `Quantity for line #${i + 1} must be > 0`);
+        break;
+      }
+      if (item.alreadySold && item.alreadySold > 0 && qty < item.alreadySold - 0.0001) {
+        errors[`item_${item.id}_quantity`] = `Quantity cannot be less than already sold units (${item.alreadySold} pcs)`;
+        addNotification('error', `Cannot reduce quantity for line #${i + 1} below already sold quantity (${item.alreadySold} pcs)`);
+        break;
       }
     }
 
@@ -521,76 +568,36 @@ export default function ProcurementPage() {
 
     const userNotes = formData.notes.trim();
 
+    const itemsPayload = intakeItems.map((it, idx) => {
+      const prodId = parseInt(it.productId, 10);
+      const qtyVal = parseFloat(it.quantity);
+      const costVal = parseFloat(it.unitCost);
+      const bCode = it.batchCode.trim() || (it.lotId ? it.batchCode : `LOT-${Math.floor(1000 + Math.random() * 9000)}-${idx + 1}`);
+      return {
+        lot_id: it.lotId,
+        product_id: prodId,
+        qty: qtyVal,
+        unit_cost: costVal,
+        batch_code: bCode,
+      };
+    });
+
+    const productNamesSummary = intakeItems
+      .map((it) => {
+        const p = products.find((pr) => String(pr.id) === it.productId);
+        return p ? `${p.name} (${it.quantity})` : it.productName;
+      })
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(', ');
+
+    const moreCount = intakeItems.length > 3 ? ` +${intakeItems.length - 3} more` : '';
+    const formattedNotes = `Supplier: ${finalSupplierName}. Products: ${productNamesSummary}${moreCount}.${userNotes ? ' ' + userNotes : ''}`.trim();
+
     let payload: any;
     let successMsg = '';
 
     if (editingProcurement) {
-      if (isMultiItemConsignment) {
-        const formattedNotes = `Supplier: ${finalSupplierName}.${userNotes ? ' ' + userNotes : ''}`.trim();
-        payload = {
-          invoice_no: formData.invoiceNo.trim(),
-          source: formData.source,
-          procurement_date: formData.procurementDate,
-          notes: formattedNotes,
-          is_multi_item: true,
-        };
-        successMsg = `Consignment invoice ${formData.invoiceNo} header updated successfully!`;
-      } else {
-        const prodId = parseInt(formData.productId, 10);
-        const qtyVal = parseFloat(formData.quantity);
-        const costVal = parseFloat(formData.unitCost);
-        const batchCode = formData.batchCode.trim() || `LOT-${Math.floor(1000 + Math.random() * 9000)}`;
-
-        const chosenProduct = products.find((p) => p.id === prodId);
-        const finalProductName = chosenProduct ? chosenProduct.name : formData.productName;
-        const formattedNotes = `Supplier: ${finalSupplierName}. Product: ${finalProductName}.${userNotes ? ' ' + userNotes : ''}`.trim();
-
-        payload = {
-          invoice_no: formData.invoiceNo.trim(),
-          source: formData.source,
-          procurement_date: formData.procurementDate,
-          unit_cost: costVal,
-          quantity: qtyVal,
-          product_id: prodId,
-          notes: formattedNotes,
-          items: [
-            {
-              product_id: prodId,
-              qty: qtyVal,
-              unit_cost: costVal,
-              batch_code: batchCode,
-            },
-          ],
-        };
-        successMsg = `Procurement invoice ${formData.invoiceNo} updated successfully!`;
-      }
-    } else {
-      // New multi-product consignment intake
-      const itemsPayload = intakeItems.map((it, idx) => {
-        const prodId = parseInt(it.productId, 10);
-        const qtyVal = parseFloat(it.quantity);
-        const costVal = parseFloat(it.unitCost);
-        const bCode = it.batchCode.trim() || `LOT-${Math.floor(1000 + Math.random() * 9000)}-${idx + 1}`;
-        return {
-          product_id: prodId,
-          qty: qtyVal,
-          unit_cost: costVal,
-          batch_code: bCode,
-        };
-      });
-
-      const productNamesSummary = intakeItems
-        .map((it) => {
-          const p = products.find((pr) => String(pr.id) === it.productId);
-          return p ? `${p.name} (${it.quantity})` : it.productName;
-        })
-        .filter(Boolean)
-        .slice(0, 3)
-        .join(', ');
-
-      const moreCount = intakeItems.length > 3 ? ` +${intakeItems.length - 3} more` : '';
-      const formattedNotes = `Supplier: ${finalSupplierName}. Products: ${productNamesSummary}${moreCount}.${userNotes ? ' ' + userNotes : ''}`.trim();
-
       payload = {
         invoice_no: formData.invoiceNo.trim(),
         source: formData.source,
@@ -598,7 +605,15 @@ export default function ProcurementPage() {
         notes: formattedNotes,
         items: itemsPayload,
       };
-
+      successMsg = `Procurement invoice ${formData.invoiceNo} and ${intakeItems.length} product lots updated successfully!`;
+    } else {
+      payload = {
+        invoice_no: formData.invoiceNo.trim(),
+        source: formData.source,
+        procurement_date: formData.procurementDate,
+        notes: formattedNotes,
+        items: itemsPayload,
+      };
       successMsg = `Stock intake committed! Consignment ${formData.invoiceNo} saved with ${intakeItems.length} products (${intakeSummary.totalUnits} units total).`;
     }
 
@@ -721,7 +736,7 @@ export default function ProcurementPage() {
             <IndianRupee className="w-4 h-4 text-emerald-500" />
           </div>
           <div className="text-2xl font-black text-foreground">
-            ₹{totalCapitalSpent.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            ₹{totalCapitalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-muted-foreground mt-1">Total procurement value</p>
         </div>
@@ -874,19 +889,15 @@ export default function ProcurementPage() {
           setConsignmentItems([]);
           setIntakeItems([]);
         }}
-        width={editingProcurement && !isMultiItemConsignment ? 'md' : 'xl'}
+        width="xl"
         title={
           editingProcurement
-            ? consignmentItems.length > 1
-              ? `Consignment: ${formData.invoiceNo}`
-              : 'Edit Stock Intake'
+            ? `Edit Consignment: ${formData.invoiceNo}`
             : 'Record New Multi-Product Intake'
         }
         description={
           editingProcurement
-            ? consignmentItems.length > 1
-              ? `Consignment manifest with ${consignmentProductsRollup.length} products and ${consignmentItems.length} inventory lots.`
-              : 'Update procurement details, unit cost, or batch allocation.'
+            ? 'Update procurement invoice details, edit unit acquisition costs (₹), quantities, or add new catalogue items.'
             : 'Register incoming inventory consignments across multiple catalogue products with multi-batch costing.'
         }
         footer={
@@ -1068,14 +1079,50 @@ export default function ProcurementPage() {
             />
           </div>
 
-          {!editingProcurement ? (
+          {editingProcurement && consignmentItems.length > 1 && (
+            <div className="flex items-center justify-between pb-2 border-b border-border">
+              <div className="flex items-center gap-1.5 p-1 bg-muted rounded-xl border border-border">
+                <button
+                  type="button"
+                  onClick={() => setEditViewMode('grid')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer ${
+                    editViewMode === 'grid'
+                      ? 'bg-card text-foreground shadow-xs font-bold'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Editable Items Grid ({intakeItems.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditViewMode('manifest')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer ${
+                    editViewMode === 'manifest'
+                      ? 'bg-card text-foreground shadow-xs font-bold'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Boxes className="w-3.5 h-3.5" />
+                  <span>Audit Manifest ({consignmentSummary.productsCount} Products)</span>
+                </button>
+              </div>
+              <span className="text-[11px] text-muted-foreground hidden sm:inline">
+                {editViewMode === 'grid' ? 'Directly edit acquisition costs and quantities' : 'Read-only lot audit'}
+              </span>
+            </div>
+          )}
+
+          {(!editingProcurement || editViewMode === 'grid' || consignmentItems.length <= 1) ? (
             <div className="space-y-4 pt-2 border-t border-border">
               {/* Consignment Overview Banner */}
               <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Boxes className="w-5 h-5 text-primary" />
-                    <h3 className="text-sm font-bold text-foreground">Consignment Summary</h3>
+                    <h3 className="text-sm font-bold text-foreground">
+                      {editingProcurement ? 'Consignment Intake Summary' : 'Consignment Summary'}
+                    </h3>
                   </div>
                   <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
                     {intakeSummary.productsCount} Unique Products &bull; {intakeSummary.itemsCount} Line Items
@@ -1114,10 +1161,12 @@ export default function ProcurementPage() {
               <div className="flex items-center justify-between pt-1">
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                    Consignment Product Items ({intakeItems.length})
+                    {editingProcurement ? 'Editable Consignment Product Lots' : 'Consignment Product Items'} ({intakeItems.length})
                   </h4>
                   <p className="text-xs text-muted-foreground">
-                    Add multiple catalogue products received in this invoice to generate lots at their respective costs.
+                    {editingProcurement
+                      ? 'Modify unit acquisition cost (₹), revise received quantities, or add new lots. Safety invariants protect units already sold.'
+                      : 'Add multiple catalogue products received in this invoice to generate lots at their respective costs.'}
                   </p>
                 </div>
                 <button
@@ -1135,6 +1184,7 @@ export default function ProcurementPage() {
                 {intakeItems.map((item, idx) => {
                   const lineTotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.unitCost) || 0);
                   const selectedProd = products.find((p) => String(p.id) === item.productId);
+                  const hasSales = Boolean(item.alreadySold && item.alreadySold > 0.0001);
 
                   return (
                     <div
@@ -1143,18 +1193,27 @@ export default function ProcurementPage() {
                     >
                       {/* Row Top Header */}
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted text-foreground text-[11px] font-bold border border-border">
                             {idx + 1}
                           </span>
                           <span className="text-xs font-semibold text-foreground">
-                            {selectedProd ? selectedProd.name : 'Select Product'}
+                            {selectedProd ? selectedProd.name : item.productName || 'Select Product'}
                           </span>
                           {selectedProd?.sku && (
                             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
                               {selectedProd.sku}
                             </span>
                           )}
+                          {hasSales ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" title="Units already allocated to customer sales orders">
+                              Sold: {item.alreadySold} pcs &bull; On Hand: {item.remainingQty} pcs
+                            </span>
+                          ) : editingProcurement ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              All {item.quantity} On Hand
+                            </span>
+                          ) : null}
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="text-right">
@@ -1163,7 +1222,17 @@ export default function ProcurementPage() {
                               ₹{lineTotal.toFixed(2)}
                             </span>
                           </div>
-                          {intakeItems.length > 1 && (
+                          {hasSales ? (
+                            <button
+                              type="button"
+                              disabled
+                              className="p-1 rounded-md text-muted-foreground/30 cursor-not-allowed"
+                              title={`Cannot remove lot with ${item.alreadySold} units sold`}
+                              aria-label={`Cannot remove lot with ${item.alreadySold} units sold`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          ) : intakeItems.length > 1 ? (
                             <button
                               type="button"
                               onClick={() => removeIntakeRow(item.id)}
@@ -1173,7 +1242,7 @@ export default function ProcurementPage() {
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
-                          )}
+                          ) : null}
                         </div>
                       </div>
 
@@ -1196,8 +1265,12 @@ export default function ProcurementPage() {
                         {products.length > 0 ? (
                           <select
                             value={item.productId}
+                            disabled={hasSales}
                             onChange={(e) => updateIntakeRow(item.id, 'productId', e.target.value)}
+                            title={hasSales ? `Product locked: ${item.alreadySold} units already sold` : 'Select catalogue product'}
                             className={`w-full px-3 py-2 rounded-lg border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary ${
+                              hasSales ? 'opacity-70 cursor-not-allowed bg-muted' : ''
+                            } ${
                               formErrors[`item_${item.id}_productId`] ? 'border-destructive' : 'border-border'
                             }`}
                           >
@@ -1216,6 +1289,11 @@ export default function ProcurementPage() {
                             </a>{' '}
                             first.
                           </div>
+                        )}
+                        {hasSales && (
+                          <p className="mt-1 text-[10px] text-muted-foreground">
+                            Product cannot be changed because {item.alreadySold} units have already been sold in customer orders.
+                          </p>
                         )}
                         {formErrors[`item_${item.id}_productId`] && (
                           <p className="mt-1 text-[11px] text-destructive flex items-center gap-1">
@@ -1263,6 +1341,11 @@ export default function ProcurementPage() {
                               formErrors[`item_${item.id}_quantity`] ? 'border-destructive' : 'border-border'
                             }`}
                           />
+                          {hasSales && (
+                            <p className="mt-1 text-[10px] text-muted-foreground">
+                              Min required: {item.alreadySold} pcs (already sold)
+                            </p>
+                          )}
                           {formErrors[`item_${item.id}_quantity`] && (
                             <p className="mt-1 text-[11px] text-destructive flex items-center gap-1">
                               <AlertCircle className="w-3 h-3" />
@@ -1279,7 +1362,7 @@ export default function ProcurementPage() {
                             type="text"
                             value={item.batchCode}
                             onChange={(e) => updateIntakeRow(item.id, 'batchCode', e.target.value)}
-                            placeholder="Auto-generated if blank"
+                            placeholder={item.lotId ? item.batchCode : "Auto-generated if blank"}
                             className="w-full px-3 py-1.5 rounded-lg border border-border bg-background text-foreground text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary"
                           />
                         </div>
@@ -1299,7 +1382,7 @@ export default function ProcurementPage() {
                 <span>+ Add Another Catalogue Product to this Consignment</span>
               </button>
             </div>
-          ) : isMultiItemConsignment ? (
+          ) : (
             <div className="space-y-4 pt-2 border-t border-border">
               {/* Consignment Overview Banner */}
               <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-3">
@@ -1478,123 +1561,6 @@ export default function ProcurementPage() {
                 )}
               </div>
             </div>
-          ) : (
-            <>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-foreground uppercase tracking-wider">
-                    Product Item (from Catalogue) <span className="text-destructive">*</span>
-                  </label>
-                  <a
-                    href="/catalogue"
-                    className="text-xs text-primary hover:underline font-medium inline-flex items-center gap-0.5"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <span>Catalogue</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-                {products.length > 0 ? (
-                  <select
-                    value={formData.productId}
-                    onChange={(e) => {
-                      const selId = e.target.value;
-                      const selProd = products.find((p) => String(p.id) === selId);
-                      setFormData((prev) => ({
-                        ...prev,
-                        productId: selId,
-                        productName: selProd ? selProd.name : prev.productName,
-                      }));
-                    }}
-                    className={`w-full px-3.5 py-2.5 rounded-xl border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary ${
-                      formErrors.productId ? 'border-destructive' : 'border-border'
-                    }`}
-                  >
-                    <option value="">-- Select Product from Catalogue --</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} [{p.sku}] ({p.unit})
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="p-3 rounded-xl border border-dashed border-amber-300 bg-amber-50 dark:bg-amber-950/20 text-xs text-amber-800 dark:text-amber-300">
-                    No products found in catalogue. Please{' '}
-                    <a href="/catalogue" className="font-bold underline text-primary">
-                      create a product in the Catalogue
-                    </a>{' '}
-                    first.
-                  </div>
-                )}
-                {formErrors.productId && (
-                  <p className="mt-1 text-xs text-destructive flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {formErrors.productId}
-                  </p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
-                    Unit Acquisition Cost (₹) <span className="text-destructive">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={formData.unitCost}
-                    onChange={(e) => setFormData({ ...formData, unitCost: e.target.value })}
-                    className={`w-full px-3.5 py-2.5 rounded-xl border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary ${
-                      formErrors.unitCost ? 'border-destructive' : 'border-border'
-                    }`}
-                  />
-                  {formErrors.unitCost && (
-                    <p className="mt-1 text-xs text-destructive flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      {formErrors.unitCost}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
-                    Quantity Received <span className="text-destructive">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={formData.quantity}
-                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                    className={`w-full px-3.5 py-2.5 rounded-xl border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary ${
-                      formErrors.quantity ? 'border-destructive' : 'border-border'
-                    }`}
-                  />
-                  {formErrors.quantity && (
-                    <p className="mt-1 text-xs text-destructive flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      {formErrors.quantity}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
-                  Batch Code <span className="text-muted-foreground font-normal lowercase">(not required - auto-generated if left blank)</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.batchCode}
-                  onChange={(e) => setFormData({ ...formData, batchCode: e.target.value })}
-                  placeholder="e.g. LOT-202609-01 (leave blank to auto-generate)"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Optional lot identifier. If omitted, the system generates LOT-&lt;id&gt;-&lt;num&gt; automatically.
-                </p>
-              </div>
-            </>
           )}
         </form>
       </Drawer>

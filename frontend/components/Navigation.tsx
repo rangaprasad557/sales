@@ -18,6 +18,7 @@ import {
   Receipt,
   Download,
   Upload,
+  WalletCards,
 } from 'lucide-react';
 import { useUIStore } from '../store/useUIStore';
 import { ThemeToggle } from './ThemeToggle';
@@ -135,6 +136,7 @@ export function Navigation() {
     { href: '/categories', label: 'Categories', icon: Layers },
     { href: '/procurement', label: 'Procurement', icon: Truck },
     { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { href: '/charges', label: 'Charges', icon: WalletCards },
     { href: '/customers', label: 'Customers', icon: Users },
     { href: '/suppliers', label: 'Suppliers', icon: Building2 },
   ];

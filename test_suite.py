@@ -12,6 +12,7 @@ import threading
 import socketserver
 import urllib.request
 import urllib.error
+import uuid
 import db
 import server
 from datetime import datetime
@@ -2929,8 +2930,341 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_50_editable_procurement_cost_and_qty_revision(self):
+        """Test PR-031: Editable procurement grid with cost & quantity revision and inventory safety invariants."""
+        conn = db.get_connection()
+        cur = conn.cursor()
+        try:
+            # 1. Create two test products
+            cur.execute("INSERT INTO products (name, sku, category, unit, min_stock) VALUES ('Test Rev Prod 1', 'REV-P1-001', 'Test', 'pcs', 5)")
+            p1_id = cur.lastrowid
+            cur.execute("INSERT INTO products (name, sku, category, unit, min_stock) VALUES ('Test Rev Prod 2', 'REV-P2-002', 'Test', 'pcs', 5)")
+            p2_id = cur.lastrowid
+            conn.commit()
+
+            # 2. Create multi-item procurement
+            proc_payload = {
+                "invoice_no": f"PROC-REV-TEST-{uuid.uuid4().hex[:6].upper()}",
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-15",
+                "notes": "Initial procurement with cost mistake",
+                "items": [
+                    {"product_id": p1_id, "qty": 50, "unit_cost": 100.0, "batch_code": "LOT-REV-1"},
+                    {"product_id": p2_id, "qty": 20, "unit_cost": 200.0, "batch_code": "LOT-REV-2"}
+                ]
+            }
+            c_status, _, c_res = self._http_post("/api/procurements", proc_payload)
+            self.assertEqual(c_status, 201)
+            proc_id = c_res["procurement_id"]
+            self.assertEqual(c_res["total_amount"], 9000.0) # 50*100 + 20*200
+
+            # Fetch created lots
+            g_status, _, g_body = self._http_get(f"/api/procurements/{proc_id}")
+            self.assertEqual(g_status, 200)
+            items = json.loads(g_body)["procurement"]["items"]
+            self.assertEqual(len(items), 2)
+            lot1_id = next(it["id"] for it in items if it["product_id"] == p1_id)
+            lot2_id = next(it["id"] for it in items if it["product_id"] == p2_id)
+
+            # 3. Edit procurement: correct Item 1 cost to 85.0 (mistake fix) and increase qty to 60.
+            # Correct Item 2 cost to 190.0.
+            put_payload = {
+                "invoice_no": proc_payload["invoice_no"],
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-15",
+                "notes": "Corrected procurement cost entry",
+                "items": [
+                    {"lot_id": lot1_id, "product_id": p1_id, "qty": 60, "unit_cost": 85.0, "batch_code": "LOT-REV-1"},
+                    {"lot_id": lot2_id, "product_id": p2_id, "qty": 20, "unit_cost": 190.0, "batch_code": "LOT-REV-2"}
+                ]
+            }
+            u_status, _, u_res = self._http_put(f"/api/procurements/{proc_id}", put_payload)
+            self.assertEqual(u_status, 200)
+            self.assertTrue(u_res["success"])
+
+            # Verify updated lots and procurement total
+            cur.execute("SELECT * FROM inventory_lots WHERE id = ?", (lot1_id,))
+            up_lot1 = cur.fetchone()
+            self.assertEqual(float(up_lot1["unit_cost"]), 85.0)
+            self.assertEqual(float(up_lot1["initial_qty"]), 60.0)
+            self.assertEqual(float(up_lot1["remaining_qty"]), 60.0)
+
+            cur.execute("SELECT * FROM inventory_lots WHERE id = ?", (lot2_id,))
+            up_lot2 = cur.fetchone()
+            self.assertEqual(float(up_lot2["unit_cost"]), 190.0)
+
+            cur.execute("SELECT total_amount FROM procurements WHERE id = ?", (proc_id,))
+            self.assertEqual(float(cur.fetchone()["total_amount"]), 8900.0) # 60*85 + 20*190
+
+            # 4. Sell 15 units of Product 1 via POS
+            sale_payload = {
+                "invoice_no": f"INV-REV-SALE-{uuid.uuid4().hex[:6].upper()}",
+                "customer_id": None,
+                "sale_date": "2026-09-18",
+                "sold_by": "Cashier Test",
+                "notes": "Test sale",
+                "allow_backlog": False,
+                "items": [
+                    {"product_id": p1_id, "qty": 15, "unit_sale_price": 120.0, "allocation_mode": "AUTO"}
+                ]
+            }
+            s_status, _, s_res = self._http_post("/api/sales", sale_payload)
+            self.assertEqual(s_status, 201)
+            sale_id = s_res["sale_id"]
+
+            # Remaining stock for lot1 is now 60 - 15 = 45
+            cur.execute("SELECT remaining_qty FROM inventory_lots WHERE id = ?", (lot1_id,))
+            self.assertEqual(float(cur.fetchone()["remaining_qty"]), 45.0)
+
+            # 5. Attempt invalid quantity reduction: try to reduce initial qty to 10 (less than 15 sold)
+            invalid_put_payload = {
+                "invoice_no": proc_payload["invoice_no"],
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-15",
+                "items": [
+                    {"lot_id": lot1_id, "product_id": p1_id, "qty": 10, "unit_cost": 85.0},
+                    {"lot_id": lot2_id, "product_id": p2_id, "qty": 20, "unit_cost": 190.0}
+                ]
+            }
+            inv_status, _, inv_res = self._http_put(f"/api/procurements/{proc_id}", invalid_put_payload)
+            self.assertEqual(inv_status, 400)
+            self.assertIn("Cannot reduce quantity", inv_res["error"])
+
+            # 6. Attempt negative cost: should be rejected
+            neg_cost_payload = {
+                "invoice_no": proc_payload["invoice_no"],
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-15",
+                "items": [
+                    {"lot_id": lot1_id, "product_id": p1_id, "qty": 60, "unit_cost": -10.0}
+                ]
+            }
+            neg_status, _, neg_res = self._http_put(f"/api/procurements/{proc_id}", neg_cost_payload)
+            self.assertEqual(neg_status, 400)
+            self.assertIn("Unit cost cannot be negative", neg_res["error"])
+
+            # 7. Edit cost while units are sold (e.g. adjust cost to 80.0) -> should succeed and recalculate profits
+            cost_fix_payload = {
+                "invoice_no": proc_payload["invoice_no"],
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-15",
+                "items": [
+                    {"lot_id": lot1_id, "product_id": p1_id, "qty": 60, "unit_cost": 80.0, "batch_code": "LOT-REV-1"},
+                    {"lot_id": lot2_id, "product_id": p2_id, "qty": 20, "unit_cost": 190.0, "batch_code": "LOT-REV-2"}
+                ]
+            }
+            fix_status, _, fix_res = self._http_put(f"/api/procurements/{proc_id}", cost_fix_payload)
+            self.assertEqual(fix_status, 200)
+
+            # Verify lot cost is 80.0
+            cur.execute("SELECT unit_cost FROM inventory_lots WHERE id = ?", (lot1_id,))
+            self.assertEqual(float(cur.fetchone()["unit_cost"]), 80.0)
+
+            # Verify sale lot profit retroactively recalculated:
+            # 15 units sold at 120.0 with new cost 80.0 => COGS = 1200.0, Profit = (120 - 80) * 15 = 600.0
+            cur.execute("SELECT unit_cost, lot_profit FROM sale_item_lots WHERE lot_id = ?", (lot1_id,))
+            sil_row = cur.fetchone()
+            self.assertEqual(float(sil_row["unit_cost"]), 80.0)
+            self.assertEqual(float(sil_row["lot_profit"]), 600.0)
+
+            cur.execute("SELECT total_cogs, total_profit FROM sales WHERE id = ?", (sale_id,))
+            s_updated = cur.fetchone()
+            self.assertEqual(float(s_updated["total_cogs"]), 1200.0)
+            self.assertEqual(float(s_updated["total_profit"]), 600.0)
+
+            # 8. Adversarial Test: Reject changing product_id on a lot that has sales
+            change_prod_payload = {
+                "invoice_no": proc_payload["invoice_no"],
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-15",
+                "items": [
+                    {"lot_id": lot1_id, "product_id": p2_id, "qty": 60, "unit_cost": 80.0, "batch_code": "LOT-REV-1"},
+                    {"lot_id": lot2_id, "product_id": p2_id, "qty": 20, "unit_cost": 190.0, "batch_code": "LOT-REV-2"}
+                ]
+            }
+            chg_status, _, chg_res = self._http_put(f"/api/procurements/{proc_id}", change_prod_payload)
+            self.assertEqual(chg_status, 400)
+            self.assertIn("Cannot change product for lot", chg_res["error"])
+
+            # 9. Adversarial Test: Reject duplicate lot_id in payload
+            dup_lot_payload = {
+                "invoice_no": proc_payload["invoice_no"],
+                "source": "Wholesale Shop",
+                "procurement_date": "2026-09-15",
+                "items": [
+                    {"lot_id": lot1_id, "product_id": p1_id, "qty": 60, "unit_cost": 80.0, "batch_code": "LOT-REV-1"},
+                    {"lot_id": lot1_id, "product_id": p1_id, "qty": 10, "unit_cost": 80.0, "batch_code": "LOT-REV-1"}
+                ]
+            }
+            dup_status, _, dup_res = self._http_put(f"/api/procurements/{proc_id}", dup_lot_payload)
+            self.assertEqual(dup_status, 400)
+            self.assertIn("Duplicate lot ID", dup_res["error"])
+
+            # Clean up
+            server.delete_sale(conn, cur, sale_id)
+            server.delete_procurement(conn, cur, proc_id)
+            cur.execute("DELETE FROM products WHERE id IN (?, ?)", (p1_id, p2_id))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def test_e2e_51_business_charges_crud_and_net_profit_recalculation(self):
+        """Verify Business Charges CRUD API, input validation, date/search filters, and Net Profit recalculation."""
+        conn = db.get_connection()
+        cur = conn.cursor()
+        try:
+            # 1. Input Validation Negative Tests
+            st, _, r = self._http_post("/api/charges", {"charge_date": "2026-09-18", "amount": -50.0, "notes": "Invalid Neg"})
+            self.assertEqual(st, 400)
+            self.assertIn("greater than zero", r["error"])
+
+            st, _, r = self._http_post("/api/charges", {"charge_date": "2026-09-18", "notes": "No Amount"})
+            self.assertEqual(st, 400)
+            self.assertIn("Amount is required", r["error"])
+
+            st, _, r = self._http_post("/api/charges", {"charge_date": "invalid-date", "amount": 100.0, "notes": "Bad Date"})
+            self.assertEqual(st, 400)
+            self.assertIn("Invalid date format", r["error"])
+
+            # 2. Create Charge 1 (2026-09-10: 250.00)
+            st1, _, r1 = self._http_post("/api/charges", {
+                "charge_date": "2026-09-10",
+                "amount": 250.0,
+                "notes": "Instamart Packaging & Courier"
+            })
+            self.assertEqual(st1, 201)
+            self.assertTrue(r1["success"])
+            chg1_id = r1["id"]
+            self.assertEqual(r1["amount"], 250.0)
+
+            # 3. Create Charge 2 (2026-09-12: 120.50)
+            st2, _, r2 = self._http_post("/api/charges", {
+                "charge_date": "2026-09-12",
+                "amount": 120.50,
+                "notes": "Local Transport - Auto Rikshaw"
+            })
+            self.assertEqual(st2, 201)
+            chg2_id = r2["id"]
+
+            # 4. GET /api/charges/<id>
+            st_g, _, raw_g = self._http_get(f"/api/charges/{chg1_id}")
+            self.assertEqual(st_g, 200)
+            r_g = json.loads(raw_g)
+            self.assertEqual(r_g["charge"]["id"], chg1_id)
+            self.assertEqual(float(r_g["charge"]["amount"]), 250.0)
+            self.assertEqual(r_g["charge"]["notes"], "Instamart Packaging & Courier")
+
+            # 404 on non-existent charge
+            st_404, _, _ = self._http_get("/api/charges/9999999")
+            self.assertEqual(st_404, 404)
+
+            # 5. GET /api/charges (list & filtering)
+            # All charges
+            st_list, _, raw_list = self._http_get("/api/charges")
+            self.assertEqual(st_list, 200)
+            r_list = json.loads(raw_list)
+            self.assertTrue(r_list["success"])
+            self.assertGreaterEqual(r_list["summary"]["total_count"], 2)
+            self.assertGreaterEqual(r_list["summary"]["total_amount"], 370.50)
+
+            # Date filter
+            st_filt, _, raw_filt = self._http_get("/api/charges?from_date=2026-09-11&to_date=2026-09-13")
+            self.assertEqual(st_filt, 200)
+            r_filt = json.loads(raw_filt)
+            filt_ids = [c["id"] for c in r_filt["charges"]]
+            self.assertIn(chg2_id, filt_ids)
+            self.assertNotIn(chg1_id, filt_ids)
+
+            # Search filter
+            st_srch, _, raw_srch = self._http_get("/api/charges?search=Courier")
+            self.assertEqual(st_srch, 200)
+            r_srch = json.loads(raw_srch)
+            srch_ids = [c["id"] for c in r_srch["charges"]]
+            self.assertIn(chg1_id, srch_ids)
+            self.assertNotIn(chg2_id, srch_ids)
+
+            # 6. PUT /api/charges/<id>
+            st_u, _, r_u = self._http_put(f"/api/charges/{chg1_id}", {
+                "charge_date": "2026-09-10",
+                "amount": 300.0,
+                "notes": "Instamart Packaging & Courier - Revised"
+            })
+            self.assertEqual(st_u, 200)
+            self.assertEqual(r_u["amount"], 300.0)
+            self.assertEqual(r_u["notes"], "Instamart Packaging & Courier - Revised")
+
+            # Verify updated in GET
+            _, _, raw_v = self._http_get(f"/api/charges/{chg1_id}")
+            r_v = json.loads(raw_v)
+            self.assertEqual(float(r_v["charge"]["amount"]), 300.0)
+
+            # PUT validation
+            st_u_bad, _, _ = self._http_put(f"/api/charges/{chg1_id}", {"amount": -10})
+            self.assertEqual(st_u_bad, 400)
+            st_u_404, _, _ = self._http_put("/api/charges/9999999", {"amount": 50})
+            self.assertEqual(st_u_404, 404)
+
+            # 7. Verify /api/analytics Net Profit computation
+            st_ana, _, raw_ana = self._http_get("/api/analytics?granularity=month&from_date=2026-09-01&to_date=2026-09-30")
+            self.assertEqual(st_ana, 200)
+            r_ana = json.loads(raw_ana)
+            summary = r_ana["summary"]
+            self.assertIn("gross_profit", summary)
+            self.assertIn("total_charges", summary)
+            self.assertIn("net_profit", summary)
+
+            expected_charges = 300.0 + 120.50
+            self.assertAlmostEqual(summary["total_charges"], expected_charges, places=2)
+            self.assertAlmostEqual(summary["net_profit"], summary["gross_profit"] - expected_charges, places=2)
+            self.assertEqual(summary["total_profit"], summary["net_profit"])
+
+            # Verify timeline has charges and net_profit
+            timeline = r_ana["timeline"]
+            self.assertIsInstance(timeline, list)
+            sept_bucket = next((b for b in timeline if "2026-09" in b["time_bucket"]), None)
+            self.assertIsNotNone(sept_bucket)
+            self.assertAlmostEqual(sept_bucket["charges"], expected_charges, places=2)
+            self.assertAlmostEqual(sept_bucket["net_profit"], sept_bucket["gross_profit"] - expected_charges, places=2)
+
+            # 8. DELETE /api/charges/<id>
+            st_d, _, r_d = self._http_delete(f"/api/charges/{chg1_id}")
+            self.assertEqual(st_d, 200)
+            self.assertTrue(r_d["success"])
+
+            st_d2, _, _ = self._http_delete(f"/api/charges/{chg2_id}")
+            self.assertEqual(st_d2, 200)
+
+            st_after, _, _ = self._http_get(f"/api/charges/{chg1_id}")
+            self.assertEqual(st_after, 404)
+
+        finally:
+            conn.close()
+
+    def test_e2e_52_excel_charges_import_reconciliation(self):
+        """Verify extraction and reconciliation of Charges.xlsx with exact checksum ₹8,041.76 and 231 records."""
+        from scripts.import_charges import extract_charges_from_excel, DEFAULT_EXCEL_PATH, EXPECTED_RECORD_COUNT, EXPECTED_GRAND_TOTAL
+        if not os.path.isfile(DEFAULT_EXCEL_PATH):
+            self.skipTest(f"Excel file {DEFAULT_EXCEL_PATH} not present in environment")
+
+        records = extract_charges_from_excel(DEFAULT_EXCEL_PATH)
+        self.assertEqual(len(records), EXPECTED_RECORD_COUNT, f"Must extract exactly {EXPECTED_RECORD_COUNT} records")
+
+        total_amount = round(sum(r["amount"] for r in records), 2)
+        self.assertAlmostEqual(total_amount, EXPECTED_GRAND_TOTAL, places=2, msg="Grand total of charges must equal 8041.76")
+
+        # Verify formula rows evaluated properly
+        calc_rows = [r for r in records if r["raw_formula"]]
+        self.assertGreater(len(calc_rows), 50, "At least 50 formula rows must be identified and evaluated")
+        for cr in calc_rows:
+            self.assertGreater(cr["amount"], 0, f"Evaluated formula amount must be > 0 for row {cr['row_idx']}")
+
+        # Verify date resolution
+        for r in records:
+            self.assertRegex(r["charge_date"], r"^\d{4}-\d{2}-\d{2}$", f"Date must be YYYY-MM-DD for row {r['row_idx']}")
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
+
 
 
 

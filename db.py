@@ -355,6 +355,15 @@ def _init_postgres_db(seed_if_empty=False):
         value TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS charges (
+        id SERIAL PRIMARY KEY,
+        charge_date DATE NOT NULL,
+        amount NUMERIC(12, 2) NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_charges_date ON charges(charge_date DESC, id DESC);
+
     CREATE INDEX IF NOT EXISTS idx_lots_product_cost ON inventory_lots(product_id, unit_cost, remaining_qty);
     CREATE INDEX IF NOT EXISTS idx_lots_procurement_id ON inventory_lots(procurement_id);
     CREATE INDEX IF NOT EXISTS idx_lots_product_rem ON inventory_lots(product_id, remaining_qty);
@@ -598,6 +607,18 @@ def _init_sqlite_db(seed_if_empty=False):
         value TEXT NOT NULL
     )
     """)
+
+    # Business operating charges table
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS charges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        charge_date TEXT NOT NULL,
+        amount REAL NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_charges_date ON charges(charge_date DESC, id DESC)")
     conn.commit()
 
     # Check if database has products or was explicitly cleared

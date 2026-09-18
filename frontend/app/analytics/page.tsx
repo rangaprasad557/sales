@@ -14,11 +14,15 @@ import {
   Tag,
   ArrowUpRight,
   Filter,
+  WalletCards,
+  TrendingDown,
 } from 'lucide-react';
 
 interface AnalyticsSummary {
   totalRevenue: number;
   totalCogs: number;
+  grossProfit: number;
+  totalCharges: number;
   totalProfit: number;
   marginPct: number;
   orderCount: number;
@@ -38,8 +42,10 @@ interface ProductPerformance {
 const SEED_SUMMARY: AnalyticsSummary = {
   totalRevenue: 2840.5,
   totalCogs: 1820.0,
-  totalProfit: 1020.5,
-  marginPct: 35.9,
+  grossProfit: 1020.5,
+  totalCharges: 120.0,
+  totalProfit: 900.5,
+  marginPct: 31.7,
   orderCount: 24,
   unitsSold: 320,
 };
@@ -86,6 +92,8 @@ const SEED_PRODUCTS: ProductPerformance[] = [
 const EMPTY_SUMMARY: AnalyticsSummary = {
   totalRevenue: 0,
   totalCogs: 0,
+  grossProfit: 0,
+  totalCharges: 0,
   totalProfit: 0,
   marginPct: 0,
   orderCount: 0,
@@ -103,10 +111,18 @@ export default function AnalyticsPage() {
       .then((data) => {
         if (data && data.summary) {
           const sum = data.summary;
+          const rev = parseFloat(sum.total_revenue ?? sum.revenue ?? 0) || 0;
+          const cogs = parseFloat(sum.total_cogs ?? sum.cogs ?? 0) || 0;
+          const gross = parseFloat(sum.gross_profit ?? (rev - cogs)) || 0;
+          const charges = parseFloat(sum.total_charges ?? sum.charges ?? 0) || 0;
+          const net = parseFloat(sum.net_profit ?? sum.total_profit ?? (gross - charges)) || 0;
+
           setSummary({
-            totalRevenue: parseFloat(sum.total_revenue ?? sum.revenue ?? 0) || 0,
-            totalCogs: parseFloat(sum.total_cogs ?? sum.cogs ?? 0) || 0,
-            totalProfit: parseFloat(sum.total_profit ?? sum.profit ?? 0) || 0,
+            totalRevenue: rev,
+            totalCogs: cogs,
+            grossProfit: gross,
+            totalCharges: charges,
+            totalProfit: net,
             marginPct: parseFloat(sum.margin_pct ?? 0) || 0,
             orderCount: parseInt(sum.order_count ?? sum.total_orders ?? 0, 10) || 0,
             unitsSold: parseFloat(sum.units_sold ?? sum.total_units_sold ?? 0) || 0,
@@ -166,7 +182,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Total Revenue</span>
@@ -180,7 +196,7 @@ export default function AnalyticsPage() {
 
         <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Cost of Goods (COGS)</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Cost of Goods</span>
             <Layers className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-2xl font-black text-foreground font-mono">
@@ -191,24 +207,46 @@ export default function AnalyticsPage() {
 
         <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">Gross Profit</span>
+            <TrendingUp className="w-4 h-4 text-blue-500" />
+          </div>
+          <div className="text-2xl font-black text-foreground font-mono">
+            ₹{summary.grossProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Revenue − COGS</p>
+        </div>
+
+        <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">Operating Charges</span>
+            <WalletCards className="w-4 h-4 text-amber-500" />
+          </div>
+          <div className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono">
+            -₹{summary.totalCharges.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Deducted expenses</p>
+        </div>
+
+        <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Net Store Profit</span>
             <TrendingUp className="w-4 h-4 text-emerald-500" />
           </div>
-          <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-            +₹{summary.totalProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          <div className={`text-2xl font-black font-mono ${summary.totalProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+            {summary.totalProfit >= 0 ? '+' : ''}₹{summary.totalProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-muted-foreground mt-1">True net profitability</p>
         </div>
 
         <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Gross Margin</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Net Margin</span>
             <Tag className="w-4 h-4 text-primary" />
           </div>
           <div className="text-2xl font-black text-primary font-mono">
             {summary.marginPct.toFixed(1)}%
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Across {summary.unitsSold} units billed</p>
+          <p className="text-xs text-muted-foreground mt-1">Across {summary.unitsSold} units</p>
         </div>
       </div>
 

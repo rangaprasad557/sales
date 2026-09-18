@@ -16,6 +16,7 @@ import {
   X,
   ArrowRight,
   Receipt,
+  WalletCards,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
@@ -114,6 +115,17 @@ export function CommandPalette() {
       icon: BarChart3,
       action: () => {
         router.push('/analytics');
+        setCommandPaletteOpen(false);
+      },
+    },
+    {
+      id: 'charges',
+      title: 'Business Charges & Expenses',
+      subtitle: 'Manage operational charges, transport, packaging, and net profit deductions',
+      category: 'Navigation',
+      icon: WalletCards,
+      action: () => {
+        router.push('/charges');
         setCommandPaletteOpen(false);
       },
     },

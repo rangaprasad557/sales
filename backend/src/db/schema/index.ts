@@ -8,4 +8,5 @@ export * from './inventory_lots';
 export * from './sales';
 export * from './sale_items';
 export * from './sale_item_lots';
+export * from './charges';
 export * from './relations';

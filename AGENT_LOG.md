@@ -1168,3 +1168,50 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 
 
 
+### [2026-09-18] PR-031: Editable Procurement Items Grid & Cost Revision
+- **Scope**: Upgraded procurement edit drawer on `/procurement` to an interactive, editable items grid allowing managers to correct mistakes in unit acquisition costs (₹), update quantities, and add new catalogue products to existing procurements.
+- **Invariants Enforced**:
+  - Units Sold Invariant: `qty >= already_sold` enforced client-side (`validateForm`) and server-side (`PUT /api/procurements/:id`).
+  - Product Immutability on Sold Lots: `<select disabled={hasSales}>` in frontend and backend HTTP 400 rejection preventing cross-product lot leakage.
+  - Active Lot Deletion Guard: Unsold lots can be removed; lots with sales cannot be deleted or omitted.
+  - Duplicate Lot Protection: Backend rejects duplicate `lot_id` submissions.
+  - Retroactive Recalculation: Cost changes cascade to `sale_item_lots`, `sale_items`, and `sales` rollups with SQL `ROUND(..., 2)`.
+- **Test Executions**:
+  - `python test_suite.py`: 50 / 50 PASSED (100% in 1.76s).
+  - Frontend Jest (`npm test`): 174 / 174 PASSED across all 12 test suites.
+  - Next.js Production Build (`npm run build`): Compiled successfully across all 14 routes.
+- **Multi-Agent Review**:
+  - Functional Reviewer: **APPROVED**
+  - E2E Reviewer: **APPROVED**
+  - Critic Agent: **APPROVED** (after product immutability, duplicate check, and decimal rounding hardening)
+
+### [2026-09-18] PR-032: Business Charges, Excel Migration (Charges.xlsx), Net Profit Recalculation & Accessible Charges Management
+- **User Request**: Business operating charges from `C:\Users\singarirangaprasad\Downloads\Charges.xlsx` (with fields Date, Notes, Amount, and formulas e.g. `qty * rate`) must be tracked in the application and excluded from store profit (`Net Profit = Revenue - COGS - Business Charges`). Needed app-level changes and migration script.
+- **Architectural Deliverables**:
+  1. **Database Schema & Indexing**:
+     - Added `charges` table and compound index `idx_charges_date ON charges(charge_date DESC, id DESC)` in `db.py` for both PostgreSQL (Production/Neon/Cloud Run) and SQLite (Dev/Test).
+     - Defined Drizzle ORM schema in `backend/src/db/schema/charges.ts` and re-exported in `index.ts`.
+  2. **Backend REST API (`server.py`)**:
+     - Implemented CRUD: `GET /api/charges`, `GET /api/charges/<id>`, `POST /api/charges`, `PUT /api/charges/<id>`, `DELETE /api/charges/<id>`.
+     - Supports date filtering (`from_date`, `to_date`), text search (`search`), pagination (`limit`, `offset`), and returns `{ total_count, total_amount, average_amount }`.
+     - Analytics recalculation: Updated `handle_analytics_get` to compute `total_charges`, `gross_profit = revenue - cogs`, `net_profit = gross_profit - total_charges`, and time-bucketed charges across Day, Week, Month, and Year timelines.
+  3. **Zero-Dependency Excel Migration Script (`scripts/import_charges.py`)**:
+     - Built on standard library `zipfile` + `xml.etree.ElementTree`.
+     - Normalized Excel serial dates (`1899-12-30` epoch) and typo years (e.g. `0206` -> `2026`).
+     - Safely evaluated arithmetic expressions (`29*6`, `24*D224`, `D240*11`, `6+18`, etc.) with strict character whitelist without ACE risk.
+     - Extracted all 231 records across rows 2-242 and reconciled exact checksum of ₹8,041.76.
+  4. **Frontend UI & Accessibility (`frontend`)**:
+     - Created `/charges` page (`frontend/app/charges/page.tsx`) with KPI cards, search/date filter bar, interactive ledger table, slide-over drawer (`Add / Edit Charge`), and delete confirmation modal.
+     - Updated `/analytics` page (`frontend/app/analytics/page.tsx`) with 6 responsive KPI cards (Total Revenue, COGS, Gross Profit, Operating Charges, Net Store Profit, Net Margin).
+     - Integrated `/charges` into global navigation (`Navigation.tsx`) and Command Palette (`CommandPalette.tsx`).
+- **Test Executions**:
+  - `python -m unittest test_suite.py`: **52 / 52 PASSED (100%)**, including `test_e2e_51` and `test_e2e_52`.
+  - Frontend Jest (`npm test -- --runInBand`): **186 / 186 PASSED across all 13 test suites (100%)**, including `charges_management.test.ts`.
+  - Next.js Production Build (`npm run build`): **15 / 15 static routes compiled cleanly** (including `/charges`).
+  - WCAG 2.1 AA/AAA visual contrast verified (Emerald-700 yields 5.53:1 contrast against white).
+- **Multi-Agent Review**:
+  - Functional Reviewer: **APPROVED**
+  - E2E Reviewer: **APPROVED**
+  - Critic Agent: **APPROVED**
+
+

@@ -728,33 +728,177 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
 
                 invoice_no = body.get("invoice_no", existing_proc["invoice_no"]).strip()
                 source = body.get("source", existing_proc["source"]).strip()
-                procurement_date = body.get("procurement_date", existing_proc["procurement_date"]).strip()
+                procurement_date = body.get("procurement_date", existing_proc["procurement_date"])
+                if hasattr(procurement_date, "strftime"):
+                    procurement_date = procurement_date.strftime("%Y-%m-%d")
+                else:
+                    procurement_date = str(procurement_date).strip()
                 notes = body.get("notes", existing_proc["notes"] or "").strip()
-                supplier_id = body.get("supplier_id")
-                unit_cost = body.get("unit_cost")
-                quantity = body.get("quantity")
-                product_id = body.get("product_id")
 
-                is_multi = body.get("is_multi_item", False)
+                items = body.get("items")
+
+                # Fetch all current lots for this procurement
                 cur.execute("SELECT * FROM inventory_lots WHERE procurement_id = ?", (proc_id,))
-                existing_lots = cur.fetchall()
+                raw_lots = cur.fetchall()
+                existing_lots = {int(l["id"]): dict(l) for l in raw_lots}
 
-                if not is_multi and len(existing_lots) <= 1 and unit_cost is not None and quantity is not None:
-                    new_cost = float(unit_cost)
-                    new_qty = float(quantity)
+                if items is not None and isinstance(items, list):
+                    if not items:
+                        error_response(self, "Procurement must contain at least one product item", 400)
+                        return
+
+                    incoming_lot_ids = set()
+                    validated_items = []
+
+                    # Validation pass
+                    for idx, it in enumerate(items, 1):
+                        p_id = it.get("product_id")
+                        if not p_id:
+                            error_response(self, f"Product ID is required for item #{idx}", 400)
+                            return
+                        p_id = int(p_id)
+                        qty = float(it.get("qty", it.get("quantity", 0)))
+                        cost = round(float(it.get("unit_cost", 0)), 2)
+                        if qty <= 0:
+                            error_response(self, f"Quantity must be greater than zero for item #{idx}", 400)
+                            return
+                        if cost < 0:
+                            error_response(self, f"Unit cost cannot be negative for item #{idx}", 400)
+                            return
+
+                        lot_id = it.get("lot_id") or it.get("id")
+                        if lot_id is not None:
+                            try:
+                                lot_id = int(lot_id)
+                            except (ValueError, TypeError):
+                                lot_id = None
+
+                        if lot_id is not None and lot_id in existing_lots:
+                            if lot_id in incoming_lot_ids:
+                                error_response(self, f"Duplicate lot ID {lot_id} in items list", 400)
+                                return
+                            e_lot = existing_lots[lot_id]
+                            init_qty = float(e_lot["initial_qty"])
+                            rem_qty = float(e_lot["remaining_qty"])
+                            already_sold = init_qty - rem_qty
+                            if p_id != int(e_lot["product_id"]) and already_sold > 0.0001:
+                                error_response(self, f"Cannot change product for lot '{e_lot.get('batch_code', lot_id)}' which already has {already_sold:.2f} units sold", 400)
+                                return
+                            if qty < already_sold - 0.0001:
+                                error_response(self, f"Cannot reduce quantity for lot '{e_lot.get('batch_code', lot_id)}' below already sold quantity ({already_sold:.2f} units sold)", 400)
+                                return
+                            incoming_lot_ids.add(lot_id)
+
+                        b_code = str(it.get("batch_code", "")).strip()
+                        validated_items.append({
+                            "lot_id": lot_id,
+                            "product_id": p_id,
+                            "qty": qty,
+                            "unit_cost": cost,
+                            "batch_code": b_code
+                        })
+
+                    # Check for omitted lots with sales
+                    for e_id, e_lot in existing_lots.items():
+                        if e_id not in incoming_lot_ids:
+                            init_qty = float(e_lot["initial_qty"])
+                            rem_qty = float(e_lot["remaining_qty"])
+                            already_sold = init_qty - rem_qty
+                            if already_sold > 0.0001:
+                                error_response(self, f"Cannot remove lot '{e_lot.get('batch_code', e_id)}' which already has {already_sold:.2f} units sold", 400)
+                                return
+
+                    # Execution pass
+                    total_amount = 0.0
+                    for it in validated_items:
+                        qty = it["qty"]
+                        cost = it["unit_cost"]
+                        total_amount += qty * cost
+                        lot_id = it["lot_id"]
+
+                        if lot_id is not None and lot_id in existing_lots:
+                            e_lot = existing_lots[lot_id]
+                            init_qty = float(e_lot["initial_qty"])
+                            rem_qty = float(e_lot["remaining_qty"])
+                            already_sold = init_qty - rem_qty
+                            new_rem = qty - already_sold
+                            new_status = 'depleted' if new_rem <= 0.0001 else 'active'
+                            b_code = it["batch_code"] if it["batch_code"] else e_lot["batch_code"]
+
+                            cur.execute("""
+                                UPDATE inventory_lots
+                                SET product_id = ?, batch_code = ?, unit_cost = ?, initial_qty = ?, remaining_qty = ?, procurement_date = ?, source = ?, status = ?
+                                WHERE id = ? AND procurement_id = ?
+                            """, (it["product_id"], b_code, cost, qty, new_rem, procurement_date, source, new_status, lot_id, proc_id))
+
+                            # If unit cost changed and units were sold, retroactively recalculate sale profits
+                            if abs(cost - float(e_lot["unit_cost"])) > 0.0001 and already_sold > 0.0001:
+                                cur.execute("""
+                                    SELECT sil.id, sil.sale_item_id, sil.qty, si.unit_sale_price, si.sale_id
+                                    FROM sale_item_lots sil
+                                    JOIN sale_items si ON sil.sale_item_id = si.id
+                                    WHERE sil.lot_id = ?
+                                """, (lot_id,))
+                                affected_allocs = [dict(a) for a in cur.fetchall()]
+                                for a in affected_allocs:
+                                    lot_q = float(a["qty"])
+                                    u_price = float(a["unit_sale_price"])
+                                    new_lot_prof = round((u_price - cost) * lot_q, 2)
+                                    cur.execute("UPDATE sale_item_lots SET unit_cost = ?, lot_profit = ? WHERE id = ?", (cost, new_lot_prof, a["id"]))
+                                    
+                                    # Recalculate parent sale item with ROUND(..., 2)
+                                    cur.execute("""
+                                        UPDATE sale_items
+                                        SET total_cost = (SELECT ROUND(COALESCE(SUM(qty * unit_cost), 0.0), 2) FROM sale_item_lots WHERE sale_item_id = ?),
+                                            profit = ROUND(total_sale_price - (SELECT COALESCE(SUM(qty * unit_cost), 0.0) FROM sale_item_lots WHERE sale_item_id = ?), 2)
+                                        WHERE id = ?
+                                    """, (a["sale_item_id"], a["sale_item_id"], a["sale_item_id"]))
+
+                                    # Recalculate parent sale header with ROUND(..., 2)
+                                    cur.execute("""
+                                        UPDATE sales
+                                        SET total_cogs = (SELECT ROUND(COALESCE(SUM(total_cost), 0.0), 2) FROM sale_items WHERE sale_id = ?),
+                                            total_profit = ROUND(total_amount - (SELECT COALESCE(SUM(total_cost), 0.0) FROM sale_items WHERE sale_id = ?), 2)
+                                        WHERE id = ?
+                                    """, (a["sale_id"], a["sale_id"], a["sale_id"]))
+
+                        else:
+                            # New lot added to consignment
+                            b_code = it["batch_code"] if it["batch_code"] else f"LOT-{proc_id}-{uuid.uuid4().hex[:4].upper()}"
+                            cur.execute("""
+                                INSERT INTO inventory_lots
+                                (procurement_id, product_id, batch_code, unit_cost, initial_qty, remaining_qty, procurement_date, source, status)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
+                            """, (proc_id, it["product_id"], b_code, cost, qty, qty, procurement_date, source))
+
+                    # Remove omitted unsold lots
+                    for e_id in set(existing_lots.keys()) - incoming_lot_ids:
+                        cur.execute("DELETE FROM inventory_lots WHERE id = ? AND procurement_id = ?", (e_id, proc_id))
+
+                    total_amount = round(total_amount, 2)
+                    cur.execute("""
+                        UPDATE procurements
+                        SET invoice_no = ?, source = ?, procurement_date = ?, total_amount = ?, notes = ?
+                        WHERE id = ?
+                    """, (invoice_no, source, procurement_date, total_amount, notes, proc_id))
+
+                elif body.get("unit_cost") is not None and body.get("quantity") is not None and len(existing_lots) <= 1:
+                    # Legacy single-item edit
+                    new_cost = float(body["unit_cost"])
+                    new_qty = float(body["quantity"])
                     if new_qty <= 0 or new_cost < 0:
                         error_response(self, "Quantity must be > 0 and unit cost >= 0", 400)
                         return
 
                     if existing_lots:
-                        first_lot = existing_lots[0]
+                        first_lot = list(existing_lots.values())[0]
                         already_sold = float(first_lot["initial_qty"]) - float(first_lot["remaining_qty"])
-                        if new_qty < already_sold:
+                        if new_qty < already_sold - 0.0001:
                             error_response(self, f"Cannot reduce quantity below already sold quantity ({already_sold:.1f} units sold)", 400)
                             return
                         new_remaining = new_qty - already_sold
-                        new_status = 'depleted' if new_remaining <= 0 else 'active'
-                        target_prod_id = int(product_id) if product_id else first_lot["product_id"]
+                        new_status = 'depleted' if new_remaining <= 0.0001 else 'active'
+                        target_prod_id = int(body.get("product_id")) if body.get("product_id") else first_lot["product_id"]
 
                         cur.execute("""
                             UPDATE inventory_lots 
@@ -762,13 +906,15 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                             WHERE id = ?
                         """, (target_prod_id, new_qty, new_remaining, new_cost, procurement_date, source, new_status, first_lot["id"]))
 
-                    total_amount = new_qty * new_cost
+                    total_amount = round(new_qty * new_cost, 2)
                     cur.execute("""
                         UPDATE procurements
                         SET invoice_no = ?, source = ?, procurement_date = ?, total_amount = ?, notes = ?
                         WHERE id = ?
                     """, (invoice_no, source, procurement_date, total_amount, notes, proc_id))
+
                 else:
+                    # Header-only update (preserves all existing lots)
                     cur.execute("""
                         UPDATE procurements
                         SET invoice_no = ?, source = ?, procurement_date = ?, notes = ?
@@ -981,6 +1127,58 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 conn.commit()
                 json_response(self, {"success": True, "id": sale_id, "message": "Sale order updated successfully"})
 
+            # PUT /api/charges/<id>
+            elif path.startswith("/api/charges/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid charge ID", 400)
+                    return
+                charge_id = int(entity_id)
+                cur.execute("SELECT id, charge_date, amount, notes FROM charges WHERE id = ?", (charge_id,))
+                existing_charge = cur.fetchone()
+                if not existing_charge:
+                    error_response(self, "Charge not found", 404)
+                    return
+
+                charge_date = body.get("charge_date", existing_charge["charge_date"])
+                if hasattr(charge_date, "strftime"):
+                    charge_date = charge_date.strftime("%Y-%m-%d")
+                else:
+                    charge_date = str(charge_date).strip()
+
+                try:
+                    datetime.strptime(charge_date, "%Y-%m-%d")
+                except ValueError:
+                    error_response(self, "Invalid date format for charge_date. Expected YYYY-MM-DD", 400)
+                    return
+
+                raw_amount = body.get("amount", existing_charge["amount"])
+                try:
+                    amount = float(raw_amount)
+                except (ValueError, TypeError):
+                    error_response(self, "Amount must be a valid number", 400)
+                    return
+
+                if amount <= 0:
+                    error_response(self, "Amount must be greater than zero", 400)
+                    return
+
+                notes = body.get("notes", existing_charge["notes"] or "").strip()
+
+                cur.execute(
+                    "UPDATE charges SET charge_date = ?, amount = ?, notes = ? WHERE id = ?",
+                    (charge_date, round(amount, 2), notes, charge_id)
+                )
+                conn.commit()
+                json_response(self, {
+                    "success": True,
+                    "id": charge_id,
+                    "charge_date": charge_date,
+                    "amount": round(amount, 2),
+                    "notes": notes,
+                    "message": "Business charge updated successfully"
+                })
+
             else:
                 error_response(self, "Endpoint not found", 404)
 
@@ -1062,6 +1260,21 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 entity_id = path.split("/")[-1]
                 res, status = delete_sale(conn, cur, entity_id)
                 json_response(self, res, status)
+
+            # DELETE /api/charges/<id>
+            elif path.startswith("/api/charges/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid charge ID", 400)
+                    return
+                charge_id = int(entity_id)
+                cur.execute("SELECT id FROM charges WHERE id = ?", (charge_id,))
+                if not cur.fetchone():
+                    error_response(self, "Charge not found", 404)
+                    return
+                cur.execute("DELETE FROM charges WHERE id = ?", (charge_id,))
+                conn.commit()
+                json_response(self, {"success": True, "id": charge_id, "message": "Charge deleted successfully"})
 
             else:
                 error_response(self, "Endpoint not found", 404)
@@ -1432,6 +1645,63 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 }
                 json_response(self, {"success": True, "backup": backup_payload})
 
+            elif path == "/api/charges" or path.startswith("/api/charges/"):
+                parts = path.strip("/").split("/")
+                if len(parts) == 3 and parts[2].isdigit():
+                    charge_id = int(parts[2])
+                    cur.execute("SELECT id, charge_date, amount, notes, created_at FROM charges WHERE id = ?", (charge_id,))
+                    row = cur.fetchone()
+                    if not row:
+                        error_response(self, "Charge not found", 404)
+                        return
+                    json_response(self, {"success": True, "charge": dict(row)})
+                    return
+
+                from_date = query.get("from_date", [None])[0] or query.get("fromDate", [None])[0]
+                to_date = query.get("to_date", [None])[0] or query.get("toDate", [None])[0]
+                search = query.get("search", [""])[0].strip()
+                limit = int(query.get("limit", [500])[0])
+                offset = int(query.get("offset", [0])[0])
+
+                where_clauses = ["1=1"]
+                params = []
+                if from_date:
+                    where_clauses.append("charge_date >= ?")
+                    params.append(from_date)
+                if to_date:
+                    where_clauses.append("charge_date <= ?")
+                    params.append(to_date)
+                if search:
+                    where_clauses.append("notes LIKE ?")
+                    params.append(f"%{search}%")
+
+                where_sql = " AND ".join(where_clauses)
+
+                cur.execute(f"SELECT COUNT(*) as total_count, COALESCE(SUM(amount), 0.0) as total_amount FROM charges WHERE {where_sql}", params)
+                sum_row = cur.fetchone()
+                total_count = int(sum_row["total_count"]) if sum_row else 0
+                total_amount = round(float(sum_row["total_amount"]), 2) if sum_row else 0.0
+
+                query_sql = f"""
+                    SELECT id, charge_date, amount, notes, created_at
+                    FROM charges
+                    WHERE {where_sql}
+                    ORDER BY charge_date DESC, id DESC
+                    LIMIT ? OFFSET ?
+                """
+                cur.execute(query_sql, params + [limit, offset])
+                charges_list = [dict(r) for r in cur.fetchall()]
+
+                json_response(self, {
+                    "success": True,
+                    "charges": charges_list,
+                    "summary": {
+                        "total_count": total_count,
+                        "total_amount": total_amount,
+                        "average_amount": round(total_amount / total_count, 2) if total_count > 0 else 0.0
+                    }
+                })
+
             elif path == "/api/analytics":
                 self.handle_analytics_get(cur, query)
 
@@ -1459,6 +1729,22 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
 
         where_sql = " AND ".join(where_clauses)
 
+        # Query Charges in the same date window
+        charges_where = ["1=1"]
+        charges_params = []
+        if from_date:
+            charges_where.append("charge_date >= ?")
+            charges_params.append(from_date)
+        if to_date:
+            charges_where.append("charge_date <= ?")
+            charges_params.append(to_date)
+        charges_sql = " AND ".join(charges_where)
+
+        cur.execute(f"SELECT COALESCE(SUM(amount), 0.0) as total_charges, COUNT(*) as charges_count FROM charges WHERE {charges_sql}", charges_params)
+        charges_row = cur.fetchone()
+        total_charges = float(charges_row["total_charges"]) if charges_row and charges_row["total_charges"] is not None else 0.0
+        charges_count = int(charges_row["charges_count"]) if charges_row and charges_row["charges_count"] is not None else 0
+
         # 1. Summary KPIs (Line-item sums prevent row multiplication across multi-item sales)
         cur.execute(f"""
             SELECT 
@@ -1474,8 +1760,10 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
         sum_row = cur.fetchone()
         revenue = float(sum_row["total_revenue"]) if sum_row and sum_row["total_revenue"] is not None else 0.0
         cogs = float(sum_row["total_cogs"]) if sum_row and sum_row["total_cogs"] is not None else 0.0
-        profit = float(sum_row["total_profit"]) if sum_row and sum_row["total_profit"] is not None else 0.0
-        margin_pct = (profit / revenue * 100) if revenue > 0 else 0.0
+        gross_profit = float(sum_row["total_profit"]) if sum_row and sum_row["total_profit"] is not None else 0.0
+        net_profit = gross_profit - total_charges
+        margin_pct = (net_profit / revenue * 100) if revenue > 0 else 0.0
+        gross_margin_pct = (gross_profit / revenue * 100) if revenue > 0 else 0.0
         units = float(sum_row["total_units_sold"]) if sum_row and sum_row["total_units_sold"] is not None else 0.0
         orders_cnt = int(sum_row["total_orders"]) if sum_row and sum_row["total_orders"] is not None else 0
 
@@ -1486,9 +1774,16 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
             "revenue": round(revenue, 2),
             "total_cogs": round(cogs, 2),
             "cogs": round(cogs, 2),
-            "total_profit": round(profit, 2),
-            "profit": round(profit, 2),
+            "gross_profit": round(gross_profit, 2),
+            "total_charges": round(total_charges, 2),
+            "charges": round(total_charges, 2),
+            "charges_count": charges_count,
+            "total_profit": round(net_profit, 2),
+            "net_profit": round(net_profit, 2),
+            "profit": round(net_profit, 2),
             "margin_pct": round(margin_pct, 1),
+            "net_margin_pct": round(margin_pct, 1),
+            "gross_margin_pct": round(gross_margin_pct, 1),
             "total_units_sold": round(units, 2),
             "units_sold": round(units, 2)
         }
@@ -1497,21 +1792,29 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
         if db.is_postgres():
             if granularity == "day":
                 date_group = "TO_CHAR(s.sale_date, 'YYYY-MM-DD')"
+                charge_date_group = "TO_CHAR(charge_date, 'YYYY-MM-DD')"
             elif granularity == "week":
                 date_group = "TO_CHAR(s.sale_date, 'IYYY-\"W\"IW')"
+                charge_date_group = "TO_CHAR(charge_date, 'IYYY-\"W\"IW')"
             elif granularity == "year":
                 date_group = "TO_CHAR(s.sale_date, 'YYYY')"
+                charge_date_group = "TO_CHAR(charge_date, 'YYYY')"
             else:
                 date_group = "TO_CHAR(s.sale_date, 'YYYY-MM')"
+                charge_date_group = "TO_CHAR(charge_date, 'YYYY-MM')"
         else:
             if granularity == "day":
                 date_group = "strftime('%Y-%m-%d', s.sale_date)"
+                charge_date_group = "strftime('%Y-%m-%d', charge_date)"
             elif granularity == "week":
                 date_group = "strftime('%Y-W%W', s.sale_date)"
+                charge_date_group = "strftime('%Y-W%W', charge_date)"
             elif granularity == "year":
                 date_group = "strftime('%Y', s.sale_date)"
+                charge_date_group = "strftime('%Y', charge_date)"
             else:
                 date_group = "strftime('%Y-%m', s.sale_date)"
+                charge_date_group = "strftime('%Y-%m', charge_date)"
 
         cur.execute(f"""
             SELECT 
@@ -1527,7 +1830,42 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
             GROUP BY time_bucket
             ORDER BY time_bucket ASC
         """, params)
-        timeline = [dict(r) for r in cur.fetchall()]
+        raw_timeline = [dict(r) for r in cur.fetchall()]
+
+        # Query charges grouped by bucket
+        cur.execute(f"""
+            SELECT {charge_date_group} as time_bucket, COALESCE(SUM(amount), 0.0) as charges
+            FROM charges
+            WHERE {charges_sql}
+            GROUP BY time_bucket
+        """, charges_params)
+        charges_by_bucket = {r["time_bucket"]: float(r["charges"]) for r in cur.fetchall() if r["time_bucket"]}
+
+        all_buckets = sorted(list(set(b["time_bucket"] for b in raw_timeline if b.get("time_bucket")) | set(charges_by_bucket.keys())))
+        timeline_dict = {b["time_bucket"]: b for b in raw_timeline if b.get("time_bucket")}
+        timeline = []
+        for b_key in all_buckets:
+            if b_key not in timeline_dict:
+                timeline_dict[b_key] = {
+                    "time_bucket": b_key,
+                    "orders_count": 0,
+                    "revenue": 0.0,
+                    "cogs": 0.0,
+                    "profit": 0.0,
+                    "units_sold": 0.0
+                }
+            b_item = dict(timeline_dict[b_key])
+            b_chg = round(charges_by_bucket.get(b_key, 0.0), 2)
+            b_rev = float(b_item.get("revenue", 0.0))
+            b_cogs = float(b_item.get("cogs", 0.0))
+            b_gross = round(b_rev - b_cogs, 2)
+            b_net = round(b_gross - b_chg, 2)
+            b_item["charges"] = b_chg
+            b_item["gross_profit"] = b_gross
+            b_item["net_profit"] = b_net
+            b_item["profit"] = b_net
+            b_item["margin_pct"] = round((b_net / b_rev * 100), 1) if b_rev > 0 else 0.0
+            timeline.append(b_item)
 
         # 3. Item-Level Breakdown (Filtered subquery ensures date range is strictly respected)
         cur.execute(f"""
@@ -1783,6 +2121,48 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
 
                 conn.commit()
                 json_response(self, {"success": True, "message": "Database restored successfully.", "products_count": len(data.get("products", []))})
+
+            elif path == "/api/charges":
+                charge_date = body.get("charge_date", "").strip()
+                raw_amount = body.get("amount", None)
+                notes = body.get("notes", "").strip()
+
+                if not charge_date:
+                    charge_date = datetime.now().strftime("%Y-%m-%d")
+                else:
+                    try:
+                        datetime.strptime(charge_date, "%Y-%m-%d")
+                    except ValueError:
+                        error_response(self, "Invalid date format for charge_date. Expected YYYY-MM-DD", 400)
+                        return
+
+                if raw_amount is None:
+                    error_response(self, "Amount is required for charge", 400)
+                    return
+                try:
+                    amount = float(raw_amount)
+                except (ValueError, TypeError):
+                    error_response(self, "Amount must be a valid number", 400)
+                    return
+
+                if amount <= 0:
+                    error_response(self, "Amount must be greater than zero", 400)
+                    return
+
+                cur.execute(
+                    "INSERT INTO charges (charge_date, amount, notes) VALUES (?, ?, ?)",
+                    (charge_date, round(amount, 2), notes)
+                )
+                conn.commit()
+                charge_id = cur.lastrowid
+                json_response(self, {
+                    "success": True,
+                    "id": charge_id,
+                    "charge_date": charge_date,
+                    "amount": round(amount, 2),
+                    "notes": notes,
+                    "message": "Business charge recorded successfully"
+                }, 201)
 
             else:
                 error_response(self, "Endpoint not found", 404)

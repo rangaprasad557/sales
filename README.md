@@ -53,10 +53,15 @@ Open your browser at: **[http://localhost:8000](http://localhost:8000)**
   - **Month**: Monthly financial summaries.
   - **Year**: Year-over-year performance.
   - **Custom Date Range**: Specific start and end dates.
+- **True Net Profit Recalculation**: Gross Profit (`Revenue - COGS`) minus operating business charges (`Net Profit = Gross Profit - Operating Charges`).
 - **Per-Item Profitability Table**: Units sold, revenue, COGS, net profit, margin %, and average selling price vs average procurement cost.
 - **Audit Trail**: Click any product to inspect all procurement batches and sales history.
 
-### 6. Sales POS & Receipts
+### 6. Business Operating Charges Management & Excel Migration
+- **Charges Ledger (`/charges`)**: Manage operational, transit, packaging, and incidental expenses (Date, Notes, Amount) deducted from store Net Profit.
+- **Excel Migration CLI (`scripts/import_charges.py`)**: Zero-dependency migration importing and reconciling from `Charges.xlsx`, handling dynamic arithmetic formulas (`qty * rate`) with 100% checksum verification.
+
+### 7. Sales POS & Receipts
 - **Customer Selection & Quick-Add**: Retail walk-ins or recurring corporate clients.
 - **Printable Invoices**: Professional customer receipt with customer details, item quantities, prices, and total bill.
 
