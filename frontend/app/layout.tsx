@@ -20,7 +20,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
+      <body className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary overflow-x-hidden">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -28,9 +28,9 @@ export default function RootLayout({
           disableTransitionOnChange={false}
         >
           <AuthGuard>
-            <div className="relative min-h-screen flex flex-col">
+            <div className="relative min-h-screen flex flex-col overflow-x-hidden">
               <Navigation />
-              <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 min-w-0">
                 {children}
               </main>
               <CommandPalette />

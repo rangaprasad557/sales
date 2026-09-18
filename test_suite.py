@@ -1601,8 +1601,8 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         self.assertIn("logout", nav_code)
         # Overview must not be in navLinks
         self.assertNotIn("label: 'Overview'", nav_code)
-        # POS Billing must be at root '/'
-        self.assertIn("{ href: '/', label: 'POS Billing'", nav_code)
+        # In PR-033: POS Billing removed from desktop navbar, accessible via New Sale (POS) in drawer and Orders
+        self.assertIn("New Sale (POS)", nav_code)
 
         # 4. Verify Root Page renders POS Billing directly
         root_page_path = os.path.join(app_dir, "page.tsx")
@@ -3261,6 +3261,106 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         # Verify date resolution
         for r in records:
             self.assertRegex(r["charge_date"], r"^\d{4}-\d{2}-\d{2}$", f"Date must be YYYY-MM-DD for row {r['row_idx']}")
+
+    def test_e2e_53_analytics_granularity_period_filters_and_timeline(self):
+        """PR-033: Verify /api/analytics with period presets, granular timelines (day/week/month/year), and bucket financial math."""
+        conn = db.get_connection()
+        cur = conn.cursor()
+        try:
+            # 1. Verify period presets calculate correct bounds on server
+            st_today, _, raw_today = self._http_get("/api/analytics?period=today")
+            self.assertEqual(st_today, 200)
+            res_today = json.loads(raw_today)
+            self.assertTrue(res_today["success"])
+            now_str = datetime.now().strftime("%Y-%m-%d")
+            self.assertEqual(res_today["from_date"], now_str)
+            self.assertEqual(res_today["to_date"], now_str)
+
+            st_month, _, raw_month = self._http_get("/api/analytics?period=this_month")
+            self.assertEqual(st_month, 200)
+            res_month = json.loads(raw_month)
+            self.assertTrue(res_month["success"])
+            self.assertTrue(res_month["from_date"].endswith("-01"))
+
+            st_year, _, raw_year = self._http_get("/api/analytics?period=this_year")
+            self.assertEqual(st_year, 200)
+            res_year = json.loads(raw_year)
+            self.assertTrue(res_year["success"])
+            self.assertTrue(res_year["from_date"].endswith("-01-01"))
+            self.assertTrue(res_year["to_date"].endswith("-12-31"))
+
+            # 2. Test granularities: day, week, month, year
+            for gran in ["day", "week", "month", "year"]:
+                st_g, _, raw_g = self._http_get(f"/api/analytics?granularity={gran}")
+                self.assertEqual(st_g, 200)
+                res_g = json.loads(raw_g)
+                self.assertEqual(res_g["granularity"], gran)
+                self.assertIn("timeline", res_g)
+                self.assertIn("summary", res_g)
+                self.assertIn("items_breakdown", res_g)
+                self.assertIsInstance(res_g["timeline"], list)
+
+                # Check math integrity on all returned timeline buckets
+                for bucket in res_g["timeline"]:
+                    self.assertIn("time_bucket", bucket)
+                    rev = bucket["revenue"]
+                    cogs = bucket["cogs"]
+                    chg = bucket["charges"]
+                    gross = bucket["gross_profit"]
+                    net = bucket["net_profit"]
+                    margin = bucket["margin_pct"]
+
+                    self.assertAlmostEqual(gross, round(rev - cogs, 2), places=2)
+                    self.assertAlmostEqual(net, round(gross - chg, 2), places=2)
+                    if rev > 0:
+                        expected_margin = round((net / rev) * 100, 1)
+                        self.assertAlmostEqual(margin, expected_margin, places=1)
+
+            # 3. Insert controlled test sale and charge, verify appearance in timeline
+            cur.execute("SELECT id FROM products WHERE sku = 'PROD-ANA-TEST-01'")
+            p = cur.fetchone()
+            if not p:
+                cur.execute("INSERT INTO products (name, sku, category, unit, min_stock) VALUES ('Analytics Test Item', 'PROD-ANA-TEST-01', 'Test', 'pcs', 1)")
+                conn.commit()
+                p_id = cur.lastrowid
+            else:
+                p_id = p["id"]
+
+            test_date = "2026-05-15"
+            # Ingest lot
+            server.execute_procurement(conn, cur, {
+                "invoice_no": "PROC-ANA-TEST-01",
+                "source": "Wholesale Shop",
+                "procurement_date": test_date,
+                "items": [{"product_id": p_id, "qty": 10, "unit_cost": 40.0}]
+            })
+            # Sale
+            server.execute_sale(conn, cur, {
+                "invoice_no": "INV-ANA-TEST-01",
+                "sale_date": test_date,
+                "items": [{"product_id": p_id, "qty": 5, "unit_sale_price": 100.0}]
+            })
+            # Operating charge on same date
+            cur.execute(
+                "INSERT INTO charges (charge_date, amount, notes) VALUES (?, ?, ?)",
+                (test_date, 50.0, "Analytics Bucket Test Charge")
+            )
+            conn.commit()
+
+            # Query month granularity scoped to 2026-05
+            st_may, _, raw_may = self._http_get(f"/api/analytics?granularity=month&from_date={test_date}&to_date={test_date}")
+            self.assertEqual(st_may, 200)
+            res_may = json.loads(raw_may)
+            may_bucket = next((b for b in res_may["timeline"] if b["time_bucket"] == "2026-05"), None)
+            self.assertIsNotNone(may_bucket, "2026-05 bucket must exist in timeline")
+            self.assertGreaterEqual(may_bucket["revenue"], 500.0) # 5 * 100
+            self.assertGreaterEqual(may_bucket["cogs"], 200.0)    # 5 * 40
+            self.assertGreaterEqual(may_bucket["charges"], 50.0)
+            expected_net = may_bucket["gross_profit"] - may_bucket["charges"]
+            self.assertAlmostEqual(may_bucket["net_profit"], expected_net, places=2)
+
+        finally:
+            conn.close()
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

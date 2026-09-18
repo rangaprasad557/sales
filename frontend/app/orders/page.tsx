@@ -488,15 +488,17 @@ export default function OrdersPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
         {/* Total Orders */}
-        <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
+        <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-card border border-border shadow-xs min-w-0 overflow-hidden">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Total Orders</span>
             <Receipt className="w-4 h-4 text-primary" />
           </div>
-          <div className="text-2xl font-black text-foreground font-mono">{filteredOrders.length}</div>
-          <p className="text-xs text-muted-foreground mt-1">
+          <div className="text-xl sm:text-2xl font-black text-foreground font-mono tracking-tight truncate tabular-nums">
+            {filteredOrders.length}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 truncate">
             {hasActiveFilters
               ? `Filtered from ${orders.length} total orders`
               : 'Completed sales transactions'}
@@ -504,39 +506,40 @@ export default function OrdersPage() {
         </div>
 
         {/* Gross Revenue */}
-        <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
+        <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-card border border-border shadow-xs min-w-0 overflow-hidden">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Gross Sales</span>
             <IndianRupee className="w-4 h-4 text-primary" />
           </div>
-          <div className="text-2xl font-black text-foreground font-mono">
+          <div className="text-xl sm:text-2xl font-black text-foreground font-mono tracking-tight truncate tabular-nums" title={`₹${totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}>
             ₹{totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Total revenue collected</p>
+          <p className="text-xs text-muted-foreground mt-1 truncate">Total revenue collected</p>
         </div>
 
         {/* Total COGS */}
-        <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
+        <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-card border border-border shadow-xs min-w-0 overflow-hidden">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Total COGS</span>
             <Layers className="w-4 h-4 text-amber-500" />
           </div>
-          <div className="text-2xl font-black text-foreground font-mono">
+          <div className="text-xl sm:text-2xl font-black text-foreground font-mono tracking-tight truncate tabular-nums" title={`₹${totalCogs.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}>
             ₹{totalCogs.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Acquisition lot costs</p>
+          <p className="text-xs text-muted-foreground mt-1 truncate">Acquisition lot costs</p>
         </div>
 
         {/* Net Profit */}
-        <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
+        <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-card border border-border shadow-xs min-w-0 overflow-hidden">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Net Profit</span>
             <TrendingUp className="w-4 h-4 text-emerald-500" />
           </div>
-          <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-            +₹{totalProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          <div className={`text-xl sm:text-2xl font-black font-mono tracking-tight truncate tabular-nums flex items-baseline ${totalProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`} title={`${totalProfit >= 0 ? '+' : ''}₹${totalProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}>
+            <span className="mr-0.5">{totalProfit >= 0 ? '+' : ''}</span>
+            <span>₹{totalProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">{avgMargin.toFixed(1)}% average margin</p>
+          <p className="text-xs text-muted-foreground mt-1 truncate">{avgMargin.toFixed(1)}% average margin</p>
         </div>
       </div>
 

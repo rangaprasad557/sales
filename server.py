@@ -1717,6 +1717,27 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
         granularity = query.get("granularity", ["month"])[0].lower()
         from_date = query.get("from_date", [None])[0]
         to_date = query.get("to_date", [None])[0]
+        period = query.get("period", [None])[0]
+
+        if period and not from_date and not to_date:
+            now = datetime.now()
+            p_lower = period.lower().strip()
+            if p_lower == "today":
+                from_date = now.strftime("%Y-%m-%d")
+                to_date = now.strftime("%Y-%m-%d")
+            elif p_lower in ("this_week", "week"):
+                start_of_week = now - timedelta(days=now.weekday())
+                end_of_week = start_of_week + timedelta(days=6)
+                from_date = start_of_week.strftime("%Y-%m-%d")
+                to_date = end_of_week.strftime("%Y-%m-%d")
+            elif p_lower in ("this_month", "month"):
+                from_date = now.strftime("%Y-%m-01")
+                import calendar
+                _, last_day = calendar.monthrange(now.year, now.month)
+                to_date = f"{now.year}-{now.month:02d}-{last_day:02d}"
+            elif p_lower in ("this_year", "year"):
+                from_date = f"{now.year}-01-01"
+                to_date = f"{now.year}-12-31"
 
         where_clauses = ["1=1"]
         params = []
@@ -1924,6 +1945,8 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
         json_response(self, {
             "success": True,
             "granularity": granularity,
+            "from_date": from_date,
+            "to_date": to_date,
             "summary": summary,
             "timeline": timeline,
             "items_breakdown": items_breakdown,

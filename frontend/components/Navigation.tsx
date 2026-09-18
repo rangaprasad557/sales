@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -19,6 +19,7 @@ import {
   Download,
   Upload,
   WalletCards,
+  ChevronDown,
 } from 'lucide-react';
 import { useUIStore } from '../store/useUIStore';
 import { ThemeToggle } from './ThemeToggle';
@@ -28,6 +29,9 @@ export function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [isMastersOpen, setIsMastersOpen] = useState(false);
+  const mastersRef = useRef<HTMLDivElement>(null);
+
   const {
     currentUser,
     logout,
@@ -38,11 +42,29 @@ export function Navigation() {
 
   useEffect(() => {
     setMounted(true);
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (mastersRef.current && !mastersRef.current.contains(e.target as Node)) {
+        setIsMastersOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsMastersOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   const handleLogout = () => {
     logout();
     setMobileSidebarOpen(false);
+    setIsMastersOpen(false);
     router.replace('/login');
   };
 
@@ -128,25 +150,30 @@ export function Navigation() {
     );
   }
 
-  // POS Billing is now the root view; Overview has been removed as requested
+  // Core operational links shown directly in top bar
   const navLinks = [
-    { href: '/', label: 'POS Billing', icon: ShoppingCart },
     { href: '/orders', label: 'Orders', icon: Receipt },
-    { href: '/catalogue', label: 'Catalogue', icon: Package },
-    { href: '/categories', label: 'Categories', icon: Layers },
     { href: '/procurement', label: 'Procurement', icon: Truck },
-    { href: '/analytics', label: 'Analytics', icon: BarChart3 },
     { href: '/charges', label: 'Charges', icon: WalletCards },
-    { href: '/customers', label: 'Customers', icon: Users },
-    { href: '/suppliers', label: 'Suppliers', icon: Building2 },
+    { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { href: '/catalogue', label: 'Catalogue', icon: Package },
   ];
+
+  // Secondary master entities grouped into sleek dropdown
+  const masterLinks = [
+    { href: '/customers', label: 'Customers', icon: Users, description: 'Customer directory & credit limits' },
+    { href: '/suppliers', label: 'Suppliers', icon: Building2, description: 'Vendors & procurement sources' },
+    { href: '/categories', label: 'Categories', icon: Layers, description: 'Product taxonomy & icons' },
+  ];
+
+  const isMastersActive = ['/customers', '/suppliers', '/categories'].includes(pathname);
 
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-border bg-card/80 backdrop-blur-md">
-        <div className="w-full max-w-[1600px] mx-auto px-3 sm:px-4 lg:px-6 h-16 flex items-center justify-between gap-2 lg:gap-4">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
           {/* Brand & Desktop Navigation */}
-          <div className="flex items-center gap-2 lg:gap-4 shrink-0 min-w-0">
+          <div className="flex items-center gap-2 lg:gap-3 shrink-0 min-w-0">
             <button
               type="button"
               onClick={() => setMobileSidebarOpen(true)}
@@ -156,12 +183,12 @@ export function Navigation() {
               <Menu className="w-5 h-5" />
             </button>
 
-            {/* Cigarette Sales Brand Emblem without text */}
+            {/* Cigarette Sales Brand Emblem linking to POS billing */}
             <Link
               href="/"
               className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 shadow-xs group transition-all shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               aria-label="Apex Cigarette Sales Home"
-              title="Apex Cigarette Sales POS"
+              title="New Sale (POS)"
             >
               <CigaretteIcon className="w-6 h-6 group-hover:scale-110 transition-transform" />
             </Link>
@@ -170,15 +197,12 @@ export function Navigation() {
             <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5" aria-label="Main Navigation">
               {navLinks.map((link) => {
                 const Icon = link.icon;
-                const isActive =
-                  link.href === '/'
-                    ? pathname === '/' || pathname === '/sales'
-                    : pathname === link.href;
+                const isActive = pathname === link.href;
                 return (
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`flex items-center gap-1.5 px-2 py-1.5 xl:px-2.5 xl:py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                       isActive
                         ? 'bg-primary/10 text-primary border border-primary/20 shadow-xs'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -189,11 +213,60 @@ export function Navigation() {
                   </Link>
                 );
               })}
+
+              {/* Masters Dropdown */}
+              <div className="relative" ref={mastersRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsMastersOpen((prev) => !prev)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer ${
+                    isMastersActive
+                      ? 'bg-primary/10 text-primary border border-primary/20 shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                  aria-expanded={isMastersOpen}
+                  aria-haspopup="true"
+                  aria-label="Master entities menu"
+                >
+                  <Layers className="w-3.5 h-3.5 xl:w-4 xl:h-4 shrink-0" />
+                  <span>Masters</span>
+                  <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isMastersOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isMastersOpen && (
+                  <div className="absolute top-full left-0 mt-1.5 w-60 rounded-2xl bg-card border border-border shadow-xl p-1.5 z-50 animate-in fade-in-0 zoom-in-95">
+                    {masterLinks.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = pathname === item.href;
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setIsMastersOpen(false)}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-colors ${
+                            isActive
+                              ? 'bg-primary/10 text-primary font-semibold'
+                              : 'text-foreground hover:bg-muted font-medium'
+                          }`}
+                        >
+                          <div className="p-1.5 rounded-lg bg-muted text-muted-foreground shrink-0">
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-foreground truncate">{item.label}</div>
+                            <div className="text-[10px] text-muted-foreground truncate">{item.description}</div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </nav>
           </div>
 
-          {/* Right Action Bar (Properly aligned with equal heights) */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          {/* Right Action Bar */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Theme Toggle */}
             <ThemeToggle />
 
@@ -241,18 +314,18 @@ export function Navigation() {
                 aria-hidden="true"
               />
             ) : currentUser ? (
-              <div className="flex items-center gap-2 pl-2 pr-1.5 py-1 h-9 rounded-lg bg-card border border-border shadow-xs shrink-0 max-w-fit">
+              <div className="flex items-center gap-2 pl-2 pr-1.5 py-1 h-9 rounded-lg bg-card border border-border shadow-xs shrink-0">
                 <div
                   className="w-6 h-6 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-[10px] shrink-0"
-                  title={currentUser.name}
+                  title={`${currentUser.name} (Full Access)`}
                 >
                   {currentUser.name.charAt(0).toUpperCase()}
                 </div>
-                <div className="flex flex-col text-left leading-tight mr-1 min-w-0">
-                  <span className="text-xs font-semibold text-foreground truncate max-w-[100px] xl:max-w-[150px]">
-                    {currentUser.name}
+                <div className="hidden sm:flex flex-col text-left leading-tight mr-1 min-w-0">
+                  <span className="text-xs font-semibold text-foreground truncate max-w-[90px] lg:max-w-[120px]">
+                    {currentUser.name.split(' ')[0]}
                   </span>
-                  <span className="text-[9px] uppercase tracking-wider font-extrabold text-emerald-600 dark:text-emerald-400">
+                  <span className="text-[9px] uppercase tracking-wider font-bold text-emerald-600 dark:text-emerald-400">
                     Full Access
                   </span>
                 </div>
@@ -289,34 +362,50 @@ export function Navigation() {
           aria-label="Mobile navigation drawer"
         >
           <div
-            className="fixed inset-y-0 left-0 w-72 bg-card border-r border-border p-6 shadow-2xl flex flex-col justify-between animate-in slide-in-from-left duration-200"
+            className="fixed inset-y-0 left-0 w-72 bg-card border-r border-border p-6 shadow-2xl flex flex-col justify-between animate-in slide-in-from-left duration-200 overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div>
               <div className="flex items-center justify-between pb-6 border-b border-border">
-                {/* Mobile Drawer Brand Icon (no text) */}
-                <div className="flex items-center gap-2">
+                {/* Mobile Drawer Brand Icon */}
+                <Link
+                  href="/"
+                  onClick={() => setMobileSidebarOpen(false)}
+                  className="flex items-center gap-2.5"
+                >
                   <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
                     <CigaretteIcon className="w-6 h-6" />
                   </div>
-                </div>
+                  <span className="font-extrabold text-sm tracking-tight text-foreground">Retail Sales</span>
+                </Link>
                 <button
                   type="button"
                   onClick={() => setMobileSidebarOpen(false)}
-                  className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+                  className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
                   aria-label="Close menu"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="mt-6 flex flex-col gap-1.5">
+              {/* Mobile Primary Actions */}
+              <div className="mt-4 flex flex-col gap-1">
+                <Link
+                  href="/"
+                  onClick={() => setMobileSidebarOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                    pathname === '/' || pathname === '/sales'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  <span>New Sale (POS)</span>
+                </Link>
+
                 {navLinks.map((link) => {
                   const Icon = link.icon;
-                  const isActive =
-                    link.href === '/'
-                      ? pathname === '/' || pathname === '/sales'
-                      : pathname === link.href;
+                  const isActive = pathname === link.href;
                   return (
                     <Link
                       key={link.href}
@@ -333,6 +422,32 @@ export function Navigation() {
                     </Link>
                   );
                 })}
+
+                {/* Master Entities section in mobile */}
+                <div className="pt-3 mt-2 border-t border-border/60">
+                  <div className="px-3 pb-1.5 text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                    Master Entities
+                  </div>
+                  {masterLinks.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMobileSidebarOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all ${
+                          isActive
+                            ? 'bg-primary text-primary-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 

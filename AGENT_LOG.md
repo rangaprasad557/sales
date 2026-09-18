@@ -1209,9 +1209,36 @@ The system meets 100% of functional, architectural, accessibility, data integrit
   - Frontend Jest (`npm test -- --runInBand`): **186 / 186 PASSED across all 13 test suites (100%)**, including `charges_management.test.ts`.
   - Next.js Production Build (`npm run build`): **15 / 15 static routes compiled cleanly** (including `/charges`).
   - WCAG 2.1 AA/AAA visual contrast verified (Emerald-700 yields 5.53:1 contrast against white).
-- **Multi-Agent Review**:
+### [2026-09-18] PR-033: Analytics Timeline Ledger, Period Refresh, Compact Navigation & Responsive Typography
+- **User Requests**:
+  1. *"the anaylytics - day/month/week/year not refreshing data; address do not push"*
+  2. *"This screen why right scroll is coming - the icons and menu at top created messy scroll; Large nubers crossing box area not fit; Remove POS billing menu; From orders with new sale(POS) I can navigate to new sale; suggest best naviagation with out compramizing fitting view"*
+- **Architectural Deliverables**:
+  1. **Dynamic Financial Timeline & Performance Ledger (`/analytics`)**:
+     - Binds and displays `data.timeline` across `day`, `week`, `month`, and `year` buckets.
+     - Columns: Time Period, Orders Count, Units Sold, Revenue, COGS, Charges, Net Profit (with emerald/rose polarity badge), and Margin %.
+     - Interactive Bucket Scoping: Clicking any row scopes the 6 KPI cards and Catalogue Item table to that specific bucket's timeframe, with an active badge and a "✕ Reset" button.
+  2. **Quick Period Presets Bar & Real-time Refresh**:
+     - Added interactive presets: `[ All Time ]`, `[ This Year ]`, `[ This Month ]`, `[ This Week ]`, `[ Today ]` alongside custom `From` and `To` date pickers.
+     - Updated backend `handle_analytics_get` in `server.py` to parse `period`, compute date bounds on the server, and return `from_date` and `to_date`.
+  3. **Mobbin-Grade Compact Navigation & Horizontal Scroll Elimination**:
+     - Added `overflow-x-hidden` to `layout.tsx` wrapper and `<body>` to permanently guard against document horizontal overflow.
+     - Removed redundant "POS Billing" tab from desktop nav in `Navigation.tsx` (accessible via Orders "New Sale (POS)" and mobile drawer).
+     - Consolidated secondary master entities into a sleek **"Masters"** dropdown: Customers, Suppliers, Categories.
+     - Compacted user profile badge to first name + "Full Access" badge, shrinking desktop nav width from 1,320px+ down to ~780px.
+     - Preserved full navigation with dedicated "New Sale (POS)" and "Master Entities" sections in the mobile slide-out drawer (`< lg`).
+  4. **Fluid Typography & Responsive KPI Card Containment**:
+     - Re-styled KPI cards on `/orders` and `/analytics` with `min-w-0 overflow-hidden`, `tracking-tight truncate tabular-nums`, and fluid sizes (`text-lg sm:text-xl xl:text-[1.25rem] 2xl:text-2xl`), eliminating spillage for 14+ digit Indian rupee amounts (`₹44,96,580.02`).
+     - Explicit polarity prefixes (`+` / `-`) for WCAG 2.1 AA/AAA non-reliance on color alone.
+- **Test Executions**:
+  - `python test_suite.py`: **53 / 53 PASSED (100%)**, including `test_e2e_53_analytics_granularity_period_filters_and_timeline`.
+  - Frontend Jest (`npm test -- --runInBand`): **200 / 200 PASSED across all 14 test suites (100%)**, including `analytics_timeline_and_refresh.test.ts`.
+  - Next.js Production Build (`npm run build`): Cleanly compiled all 15 static routes with 0 errors.
+- **Quality Gate Multi-Agent Review**:
   - Functional Reviewer: **APPROVED**
   - E2E Reviewer: **APPROVED**
   - Critic Agent: **APPROVED**
+- **Git Push Constraint**: Preserved strictly local per user instruction: *"address do not push"*.
+
 
 
