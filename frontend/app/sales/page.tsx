@@ -895,17 +895,18 @@ export default function SalesPOSPage() {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 font-mono">
-                          +₹{lineProfit.toFixed(2)} ({marginPct.toFixed(0)}%)
+                          {lineProfit >= 0 ? '+' : ''}₹{lineProfit.toFixed(2)}
                         </span>
                         <button
                           type="button"
                           onClick={() => setOverrideTargetItem(item)}
-                          className="text-[10px] font-bold text-primary hover:underline flex items-center gap-0.5 cursor-pointer"
+                          className="p-1 text-primary hover:bg-primary/10 rounded-md transition-colors cursor-pointer"
+                          title="Manual lot override"
+                          aria-label={`Manual lot override for ${item.product.name}`}
                         >
-                          <Layers className="w-3 h-3" />
-                          <span>Override</span>
+                          <Layers className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>

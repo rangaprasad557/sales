@@ -212,7 +212,7 @@ export function ProductPickerModal({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Fuzzy search by name (e.g. 'bsmt', 'wht'), SKU, barcode, or category..."
-                className="w-full h-8.5 pl-8.5 pr-8 py-1 text-xs bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
+                className="w-full h-8.5 pl-9 pr-8 py-1 text-xs bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                 autoFocus
               />
               {searchQuery && (

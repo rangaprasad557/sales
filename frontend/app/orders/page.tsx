@@ -554,7 +554,7 @@ export default function OrdersPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search invoice #, customer, notes..."
-              className="w-full h-8.5 pl-8.5 pr-8 py-1.5 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full h-8.5 pl-9 pr-8 py-1.5 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {searchQuery && (
               <button

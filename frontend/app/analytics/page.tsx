@@ -100,6 +100,7 @@ export default function AnalyticsPage() {
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
   const [selectedBucket, setSelectedBucket] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [summary, setSummary] = useState<AnalyticsSummary>(EMPTY_SUMMARY);
@@ -250,7 +251,7 @@ export default function AnalyticsPage() {
       .finally(() => {
         setIsLoading(false);
       });
-  }, [granularity, fromDate, toDate, selectedBucket]);
+  }, [granularity, fromDate, toDate, selectedBucket, refreshTrigger]);
 
   const handleBucketClick = (bucket: string) => {
     if (selectedBucket === bucket) {
@@ -276,35 +277,32 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-3.5 sm:space-y-4 animate-in fade-in duration-300">
-      {/* Top Compact Bar: Analytics Badge + Granularity Switcher */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 px-3 h-9 rounded-xl bg-card border border-border shadow-xs shrink-0">
-          <BarChart3 className="w-4 h-4 text-primary shrink-0" />
-          <span className="font-bold text-xs text-foreground">Analytics</span>
-          {isLoading && (
-            <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
-          )}
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <BarChart3 className="w-4 h-4" />
+            </div>
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground">
+              Profit & Sales Analytics
+            </h1>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Financial ledger, revenue, COGS, operating charges, and itemized margins.
+          </p>
         </div>
 
-        {/* Granularity Switcher */}
-        <div className="flex items-center gap-1 bg-card p-1 rounded-xl border border-border shadow-xs shrink-0">
-          {(['day', 'week', 'month', 'year'] as const).map((g) => (
-            <button
-              key={g}
-              type="button"
-              onClick={() => {
-                setGranularity(g);
-                setSelectedBucket(null);
-              }}
-              className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                granularity === g
-                  ? 'bg-primary text-primary-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              }`}
-            >
-              {g}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setRefreshTrigger((prev) => prev + 1)}
+            className="h-8.5 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-bold text-foreground transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+            title="Refresh analytics data"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
         </div>
       </div>
 

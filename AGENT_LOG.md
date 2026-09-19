@@ -1305,3 +1305,31 @@ The system meets 100% of functional, architectural, accessibility, data integrit
   - Critic Agent: **APPROVED**
   - E2E Reviewer: **APPROVED**
 - **Git Push Constraint**: Preserved strictly local until explicit user approval to push.
+
+### [2026-09-19] PR-036: Search Padding Glitch Fix, POS Cart Mobile Ergonomics & Analytics Granularity Cleanup
+- **User Requests**:
+  1. *"1. UI glick mater mark behind icon , search text also overlapped by icon - all list grids quick search bar has same problem."*
+  2. *"2. Override can be just icon like trash on line show mobile view lot infor can be seen more. Also remove profit percentage from line level order level is enough."*
+  3. *"3. why day week month year not removed from analtics page top right corner - remove it, no need to retain not functiononing one."*
+- **Architectural Deliverables**:
+  1. **Search Bar Padding Glitch Fix (`pl-9`)**:
+     - Standardized padding to `pl-9` (36px) across all 8 search inputs in `ProductPickerModal.tsx`, `catalogue/page.tsx`, `categories/page.tsx`, `suppliers/page.tsx`, `customers/page.tsx`, `procurement/page.tsx`, `orders/page.tsx`, and `charges/page.tsx`.
+     - Completely eliminated placeholder text collision with the 14px search icon located at `left-3` (12px).
+  2. **POS Cart Mobile Ergonomics & Lot Visibility (`sales/page.tsx`)**:
+     - Replaced text `"Override"` button with icon-only button `<Layers className="w-3.5 h-3.5" />` with accessible label.
+     - Removed line-level margin percentage `({marginPct.toFixed(0)}%)`, preserving line profit `{lineProfit >= 0 ? '+' : ''}₹{lineProfit.toFixed(2)}`.
+     - Reclaimed 85px to 100px of horizontal space for lot allocation chips (`[LOT-XXX (qty @ cost)]`) on mobile screens.
+  3. **Analytics Granularity Switcher Removal (`analytics/page.tsx`)**:
+     - Removed redundant `DAY / WEEK / MONTH / YEAR` top-right button switcher.
+     - Standardized header with `w-8 h-8` icon, title, subtitle, and `h-8.5` Refresh button with `setRefreshTrigger`.
+  4. **Automated Testing Suite**:
+     - Updated `frontend/tests/compact_design_system_harmonization.test.ts` (25 assertions).
+- **Test Executions**:
+  - `python test_suite.py`: **53 / 53 PASSED (100%)**.
+  - Frontend Jest (`npm test -- --runInBand`): **238 / 238 PASSED across all 16 test suites (100%)**.
+  - Next.js Production Build (`npm run build`): **15 / 15 static routes compiled cleanly with 0 errors**.
+- **Quality Gate Multi-Agent Review**:
+  - Functional Reviewer: **APPROVED**
+  - Critic Agent: **APPROVED**
+  - E2E Reviewer: **APPROVED**
+- **Git Push Constraint**: Preserved strictly local until explicit user approval to push.

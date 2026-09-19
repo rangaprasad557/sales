@@ -287,7 +287,7 @@ export default function ChargesPage() {
               placeholder="Search vendor, area, phone, or notes..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full h-8.5 pl-8.5 pr-3 py-1 bg-muted/40 border border-border rounded-xl text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="w-full h-8.5 pl-9 pr-3 py-1 bg-muted/40 border border-border rounded-xl text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             />
           </div>
 

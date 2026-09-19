@@ -1,14 +1,14 @@
 import fs from 'fs';
 import path from 'path';
 
-describe('PR-035 App-Wide Density & Design System Harmonization Suite', () => {
+describe('PR-035 & PR-036 App-Wide Density, Search Padding & Design Harmonization Suite', () => {
   const rootDir = path.resolve(__dirname, '..');
 
   const readComponent = (relPath: string) => {
     return fs.readFileSync(path.join(rootDir, relPath), 'utf-8');
   };
 
-  describe('1. Mobile POS Catalogue Name Truncation Fix (sales/page.tsx)', () => {
+  describe('1. Mobile POS Catalogue Name Truncation Fix & Lot Ergonomics (sales/page.tsx)', () => {
     const salesContent = readComponent('app/sales/page.tsx');
 
     test('renders mobile full-width product name container with unit badge and top-right delete button', () => {
@@ -26,22 +26,27 @@ describe('PR-035 App-Wide Density & Design System Harmonization Suite', () => {
       expect(salesContent).toContain('Please select a customer');
       expect(salesContent).toContain('Please select a sale order date');
     });
+
+    test('renders icon-only override button and removes line-level margin percentage for mobile lot space', () => {
+      expect(salesContent).toContain('title="Manual lot override"');
+      expect(salesContent).toContain('<Layers className="w-3.5 h-3.5" />');
+      expect(salesContent).not.toContain('({marginPct.toFixed(0)}%)');
+    });
   });
 
-  describe('2. Analytics Promotional Header Removal & Compact Top Bar (analytics/page.tsx)', () => {
+  describe('2. Analytics Header & Granularity Switcher Removal (analytics/page.tsx)', () => {
     const analyticsContent = readComponent('app/analytics/page.tsx');
 
     test('completely removes bulky promotional header and promotional text', () => {
       expect(analyticsContent).not.toContain('FINANCIAL REPORTING ENGINE');
-      expect(analyticsContent).not.toContain('Profit & Sales Analytics');
       expect(analyticsContent).not.toContain('Day-to-year granular reporting');
     });
 
-    test('integrates compact top bar with Analytics badge and day/week/month/year granularity buttons', () => {
-      expect(analyticsContent).toContain('Top Compact Bar: Analytics Badge + Granularity Switcher');
-      expect(analyticsContent).toContain('h-9 rounded-xl bg-card border border-border');
-      expect(analyticsContent).toContain('setGranularity(g)');
-      expect(analyticsContent).toContain('granularity === g');
+    test('removes top-right day/week/month/year button switcher and provides standard header with Refresh', () => {
+      expect(analyticsContent).not.toContain("(['day', 'week', 'month', 'year'] as const).map");
+      expect(analyticsContent).toContain('Profit & Sales Analytics');
+      expect(analyticsContent).toContain('Refresh');
+      expect(analyticsContent).toContain('setRefreshTrigger');
     });
 
     test('harmonizes KPI cards and table padding to compact standards', () => {
@@ -61,10 +66,10 @@ describe('PR-035 App-Wide Density & Design System Harmonization Suite', () => {
       expect(ordersContent).toContain('Past Orders & Invoices');
     });
 
-    test('contains h-8.5 buttons and inputs in toolbar and table', () => {
+    test('contains h-8.5 buttons and inputs in toolbar and table with pl-9 search padding', () => {
       expect(ordersContent).toContain('h-8.5 px-3 py-1.5 rounded-xl border border-border text-xs font-bold');
       expect(ordersContent).toContain('h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold');
-      expect(ordersContent).toContain('w-full h-8.5 pl-8.5 pr-8 py-1.5 rounded-xl border border-border');
+      expect(ordersContent).toContain('w-full h-8.5 pl-9 pr-8 py-1.5 rounded-xl border border-border');
     });
 
     test('preserves compact KPI cards and table cell padding', () => {
@@ -85,9 +90,9 @@ describe('PR-035 App-Wide Density & Design System Harmonization Suite', () => {
       expect(procContent).toContain('h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold');
     });
 
-    test('contains compact KPI stats and filter toolbar', () => {
+    test('contains compact KPI stats and filter toolbar with pl-9 search padding', () => {
       expect(procContent).toContain('p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs');
-      expect(procContent).toContain('w-full h-8.5 pl-8.5 pr-3 py-1 text-xs');
+      expect(procContent).toContain('w-full h-8.5 pl-9 pr-3 py-1 text-xs');
       expect(procContent).toContain('h-8.5 px-3 py-1 rounded-xl text-xs font-semibold');
     });
 
@@ -108,9 +113,9 @@ describe('PR-035 App-Wide Density & Design System Harmonization Suite', () => {
       expect(chargesContent).toContain('h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold');
     });
 
-    test('contains compact KPI cards and search filter bar', () => {
+    test('contains compact KPI cards and search filter bar with pl-9 search padding', () => {
       expect(chargesContent).toContain('p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs');
-      expect(chargesContent).toContain('w-full h-8.5 pl-8.5 pr-3 py-1');
+      expect(chargesContent).toContain('w-full h-8.5 pl-9 pr-3 py-1');
       expect(chargesContent).toContain('h-8.5 px-3 bg-primary text-primary-foreground text-xs font-bold');
     });
 
@@ -136,9 +141,9 @@ describe('PR-035 App-Wide Density & Design System Harmonization Suite', () => {
       expect(catContent).toContain('openRestockModal');
     });
 
-    test('contains compact KPI cards and search bar', () => {
+    test('contains compact KPI cards and search bar with pl-9 search padding', () => {
       expect(catContent).toContain('p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs');
-      expect(catContent).toContain('w-full h-8.5 pl-8.5 pr-3 py-1 text-xs');
+      expect(catContent).toContain('w-full h-8.5 pl-9 pr-3 py-1 text-xs');
       expect(catContent).toContain('px-2.5 py-1 rounded-lg text-xs font-semibold');
     });
 
@@ -152,30 +157,30 @@ describe('PR-035 App-Wide Density & Design System Harmonization Suite', () => {
     const suppliersContent = readComponent('app/suppliers/page.tsx');
     const categoriesContent = readComponent('app/categories/page.tsx');
 
-    test('customers page has compact header, KPIs, search, and table cells', () => {
+    test('customers page has compact header, KPIs, search with pl-9, and table cells', () => {
       expect(customersContent).toContain('w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0');
       expect(customersContent).toContain('Customer Directory');
       expect(customersContent).toContain('h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold');
       expect(customersContent).toContain('p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs');
-      expect(customersContent).toContain('w-full h-8.5 pl-8.5 pr-3 py-1 text-xs');
+      expect(customersContent).toContain('w-full h-8.5 pl-9 pr-3 py-1 text-xs');
       expect(customersContent).toContain('px-3.5 py-2.5');
     });
 
-    test('suppliers page has compact header, KPIs, search, and table cells', () => {
+    test('suppliers page has compact header, KPIs, search with pl-9, and table cells', () => {
       expect(suppliersContent).toContain('w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0');
       expect(suppliersContent).toContain('Supplier & Vendor Directory');
       expect(suppliersContent).toContain('h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold');
       expect(suppliersContent).toContain('p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs');
-      expect(suppliersContent).toContain('w-full h-8.5 pl-8.5 pr-3 py-1 text-xs');
+      expect(suppliersContent).toContain('w-full h-8.5 pl-9 pr-3 py-1 text-xs');
       expect(suppliersContent).toContain('px-3.5 py-2.5');
     });
 
-    test('categories page has compact header, KPIs, search, and tree panel', () => {
+    test('categories page has compact header, KPIs, search with pl-9, and tree panel', () => {
       expect(categoriesContent).toContain('w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0');
       expect(categoriesContent).toContain('Category Hierarchy');
       expect(categoriesContent).toContain('h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold');
       expect(categoriesContent).toContain('p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs');
-      expect(categoriesContent).toContain('w-full h-8.5 pl-8.5 pr-3 py-1 text-xs');
+      expect(categoriesContent).toContain('w-full h-8.5 pl-9 pr-3 py-1 text-xs');
       expect(categoriesContent).toContain('p-3.5 sm:p-4 shadow-xs');
     });
   });
@@ -189,8 +194,8 @@ describe('PR-035 App-Wide Density & Design System Harmonization Suite', () => {
       expect(pickerContent).toContain('Advanced Product Picker & Multi-Attribute Grid');
     });
 
-    test('has compact search, in-stock toggle, and category badges', () => {
-      expect(pickerContent).toContain('w-full h-8.5 pl-8.5 pr-8 py-1 text-xs');
+    test('has compact search with pl-9, in-stock toggle, and category badges', () => {
+      expect(pickerContent).toContain('w-full h-8.5 pl-9 pr-8 py-1 text-xs');
       expect(pickerContent).toContain('px-2.5 h-8.5 rounded-xl');
     });
 
