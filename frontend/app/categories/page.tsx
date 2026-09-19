@@ -296,18 +296,19 @@ export default function CategoriesPage() {
   const displayedTree = filterTree(categoryTree, searchQuery.toLowerCase());
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5 sm:space-y-4">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div>
-          <div className="flex items-center gap-2 text-primary font-medium text-xs uppercase tracking-wider mb-1">
-            <Layers className="w-4 h-4" />
-            <span>Master Data Module</span>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Layers className="w-4 h-4" />
+            </div>
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground">
+              Category Hierarchy
+            </h1>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
-            Category Hierarchy
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Organize the master catalogue with multi-level parent and child category relationships.
           </p>
         </div>
@@ -315,70 +316,70 @@ export default function CategoriesPage() {
         <button
           type="button"
           onClick={() => openCreateDrawer()}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/20 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary transition-all cursor-pointer"
+          className="h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 shrink-0"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-3.5 h-3.5" />
           <span>Add Category</span>
         </button>
       </div>
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Categories</span>
-            <Layers className="w-4 h-4 text-primary" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Total Categories</span>
+            <Layers className="w-3.5 h-3.5 text-primary" />
           </div>
-          <div className="text-2xl font-black text-foreground">{totalCount}</div>
-          <p className="text-xs text-muted-foreground mt-1">All registered taxons</p>
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight">{totalCount}</div>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">All registered taxons</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Root Departments</span>
-            <Folder className="w-4 h-4 text-blue-500" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Root Departments</span>
+            <Folder className="w-3.5 h-3.5 text-blue-500" />
           </div>
-          <div className="text-2xl font-black text-foreground">{rootCount}</div>
-          <p className="text-xs text-muted-foreground mt-1">Top-level product groupings</p>
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight">{rootCount}</div>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">Top-level product groupings</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Subcategories</span>
-            <FolderTree className="w-4 h-4 text-emerald-500" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Subcategories</span>
+            <FolderTree className="w-3.5 h-3.5 text-emerald-500" />
           </div>
-          <div className="text-2xl font-black text-foreground">{subcategoryCount}</div>
-          <p className="text-xs text-muted-foreground mt-1">Nested classification levels</p>
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight">{subcategoryCount}</div>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">Nested classification levels</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Assigned SKUs</span>
-            <Package className="w-4 h-4 text-primary" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Assigned SKUs</span>
+            <Package className="w-3.5 h-3.5 text-primary" />
           </div>
-          <div className="text-2xl font-black text-foreground">{totalProducts}</div>
-          <p className="text-xs text-muted-foreground mt-1">Items catalogued across hierarchy</p>
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight">{totalProducts}</div>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">Items catalogued across hierarchy</p>
         </div>
       </div>
 
       {/* Control Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-2 bg-card rounded-2xl border border-border shadow-xs">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 p-2 sm:p-2.5 bg-card rounded-2xl border border-border shadow-xs">
         <div className="relative flex-1 w-full">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Filter categories by name or code..."
-            className="w-full pl-10 pr-4 py-2 text-sm bg-transparent border-none rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
+            className="w-full h-8.5 pl-8.5 pr-3 py-1 text-xs bg-transparent border-none rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
           />
         </div>
 
-        <div className="flex items-center gap-1 bg-muted p-1 rounded-xl">
+        <div className="flex items-center gap-1 bg-muted p-0.5 rounded-xl">
           <button
             type="button"
             onClick={() => setViewMode('tree')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 h-7.5 px-2.5 rounded-lg text-xs font-semibold transition-all ${
               viewMode === 'tree'
                 ? 'bg-card text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
@@ -390,7 +391,7 @@ export default function CategoriesPage() {
           <button
             type="button"
             onClick={() => setViewMode('grid')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 h-7.5 px-2.5 rounded-lg text-xs font-semibold transition-all ${
               viewMode === 'grid'
                 ? 'bg-card text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
@@ -403,11 +404,11 @@ export default function CategoriesPage() {
       </div>
 
       {/* Main Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 sm:gap-4">
         {/* Category Tree / Grid */}
-        <div className="lg:col-span-2 rounded-2xl border border-border bg-card p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
-            <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+        <div className="lg:col-span-2 rounded-2xl border border-border bg-card p-3.5 sm:p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-border">
+            <h2 className="text-sm sm:text-base font-bold text-foreground flex items-center gap-2">
               <FolderTree className="w-4 h-4 text-primary" />
               <span>Hierarchical Category Structure</span>
             </h2>

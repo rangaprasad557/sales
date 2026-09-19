@@ -742,29 +742,45 @@ export default function SalesPOSPage() {
                     key={item.id}
                     className="p-2.5 sm:p-3 rounded-xl border border-border bg-card hover:border-primary/40 transition-all space-y-1.5"
                   >
-                    {/* Tier 1: Product Header + Inputs + Total + Delete */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-xs sm:text-sm text-foreground truncate">{item.product.name}</span>
-                          <span className="text-[10px] font-semibold text-muted-foreground px-1.5 py-0.2 rounded bg-muted shrink-0">
-                            {item.product.unit}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground truncate">
-                          <span className="font-mono">{item.product.sku}</span>
-                          <span>•</span>
-                          <span>{item.product.category}</span>
-                          {shortQty > 0 && (
-                            <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">
-                              Backlog: {shortQty.toFixed(1)} {item.product.unit}
+                    {/* Tier 1: Product Header + Inputs + Total + Delete (Responsive on Mobile) */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2">
+                      {/* Product Header: Name + Unit + SKU + Category + Mobile Delete */}
+                      <div className="flex items-start sm:items-center justify-between gap-2 min-w-0 flex-1">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
+                            <span className="font-bold text-xs sm:text-sm text-foreground" title={item.product.name}>
+                              {item.product.name}
                             </span>
-                          )}
+                            <span className="text-[10px] font-semibold text-muted-foreground px-1.5 py-0.2 rounded bg-muted shrink-0">
+                              {item.product.unit}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground truncate">
+                            <span className="font-mono">{item.product.sku}</span>
+                            <span>•</span>
+                            <span>{item.product.category}</span>
+                            {shortQty > 0 && (
+                              <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">
+                                Backlog: {shortQty.toFixed(1)} {item.product.unit}
+                              </span>
+                            )}
+                          </div>
                         </div>
+
+                        {/* Mobile Delete button (visible only < sm) */}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCartItem(item.id)}
+                          className="sm:hidden p-1 text-muted-foreground hover:text-destructive rounded transition-colors cursor-pointer shrink-0"
+                          title="Remove item"
+                          aria-label={`Remove ${item.product.name}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
 
-                      {/* Right controls: Qty input, Price input, Total, Delete */}
-                      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                      {/* Controls: Qty input, Price input, Total, Desktop Delete */}
+                      <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 pt-1 sm:pt-0 border-t sm:border-t-0 border-border/40 shrink-0">
                         {/* Qty */}
                         <div className="flex items-center gap-1">
                           <span className="text-[10px] font-semibold text-muted-foreground">Qty:</span>
@@ -835,18 +851,19 @@ export default function SalesPOSPage() {
                         </div>
 
                         {/* Line Total */}
-                        <div className="text-right min-w-[65px] sm:min-w-[80px]">
+                        <div className="text-right min-w-[60px] sm:min-w-[75px]">
                           <div className="text-xs sm:text-sm font-black text-foreground font-mono tabular-nums">
                             ₹{lineTotal.toFixed(2)}
                           </div>
                         </div>
 
-                        {/* Delete button */}
+                        {/* Desktop Delete button (visible only sm+) */}
                         <button
                           type="button"
                           onClick={() => handleRemoveCartItem(item.id)}
-                          className="p-1 text-muted-foreground hover:text-destructive rounded transition-colors cursor-pointer"
+                          className="hidden sm:inline-flex p-1 text-muted-foreground hover:text-destructive rounded transition-colors cursor-pointer"
                           title="Remove item"
+                          aria-label={`Remove ${item.product.name}`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

@@ -223,18 +223,19 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5 sm:space-y-4">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div>
-          <div className="flex items-center gap-2 text-primary font-medium text-xs uppercase tracking-wider mb-1">
-            <Users className="w-4 h-4" />
-            <span>Master Data Module</span>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Users className="w-4 h-4" />
+            </div>
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground">
+              Customer Directory
+            </h1>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
-            Customer Directory
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Manage customer accounts, billing profiles, and credit risk thresholds.
           </p>
         </div>
@@ -242,68 +243,68 @@ export default function CustomersPage() {
         <button
           type="button"
           onClick={openCreateDrawer}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/20 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary transition-all cursor-pointer"
+          className="h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 shrink-0"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-3.5 h-3.5" />
           <span>Add Customer</span>
         </button>
       </div>
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Accounts</span>
-            <Users className="w-4 h-4 text-primary" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Total Accounts</span>
+            <Users className="w-3.5 h-3.5 text-primary" />
           </div>
-          <div className="text-2xl font-black text-foreground">{customers.length}</div>
-          <p className="text-xs text-muted-foreground mt-1">Active customer profiles</p>
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight">{customers.length}</div>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">Active customer profiles</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Phone Contacts</span>
-            <Phone className="w-4 h-4 text-emerald-500" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Phone Contacts</span>
+            <Phone className="w-3.5 h-3.5 text-emerald-500" />
           </div>
-          <div className="text-2xl font-black text-foreground">
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight">
             {customers.filter((c) => c.phone).length}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Verified phone numbers</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">Verified phone numbers</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Email Profiles</span>
-            <Mail className="w-4 h-4 text-blue-500" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Email Profiles</span>
+            <Mail className="w-3.5 h-3.5 text-blue-500" />
           </div>
-          <div className="text-2xl font-black text-foreground">
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight">
             {customers.filter((c) => c.email).length}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Direct invoice recipients</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">Direct invoice recipients</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Delivery Addresses</span>
-            <MapPin className="w-4 h-4 text-primary" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Delivery Addresses</span>
+            <MapPin className="w-3.5 h-3.5 text-primary" />
           </div>
-          <div className="text-2xl font-black text-foreground">
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight">
             {customers.filter((c) => c.address).length}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Documented shipping destinations</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">Documented shipping destinations</p>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex items-center gap-3 p-2 bg-card rounded-2xl border border-border shadow-xs">
+      <div className="flex items-center gap-2.5 p-2 sm:p-2.5 bg-card rounded-2xl border border-border shadow-xs">
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search customers by company name, contact email, or phone number..."
-            className="w-full pl-10 pr-4 py-2 text-sm bg-transparent border-none rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
+            className="w-full h-8.5 pl-8.5 pr-3 py-1 text-xs bg-transparent border-none rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
           />
         </div>
       </div>
@@ -311,22 +312,22 @@ export default function CustomersPage() {
       {/* Customer Table */}
       <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-muted/50 border-b border-border text-xs uppercase text-muted-foreground font-semibold tracking-wider">
+          <table className="w-full text-left text-xs sm:text-sm">
+            <thead className="bg-muted/50 border-b border-border text-[11px] uppercase text-muted-foreground font-semibold tracking-wider">
               <tr>
-                <th className="px-6 py-4">Customer / Organization</th>
-                <th className="px-6 py-4">Contact Info</th>
-                <th className="px-6 py-4">Billing Address</th>
-                <th className="px-6 py-4 text-center">Actions</th>
+                <th className="px-3.5 py-2">Customer / Organization</th>
+                <th className="px-3 py-2">Contact Info</th>
+                <th className="px-3 py-2">Billing Address</th>
+                <th className="px-3.5 py-2 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {filteredCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
-                    <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
-                    <p className="font-medium text-foreground">No customers found</p>
-                    <p className="text-xs mt-1">Try adjusting your search criteria or add a new customer.</p>
+                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                    <Users className="w-8 h-8 mx-auto mb-1.5 text-muted-foreground/50" />
+                    <p className="font-semibold text-foreground">No customers found</p>
+                    <p className="text-xs mt-0.5">Try adjusting your search criteria or add a new customer.</p>
                   </td>
                 </tr>
               ) : (
@@ -335,28 +336,28 @@ export default function CustomersPage() {
                     key={customer.id}
                     className="hover:bg-muted/30 transition-colors group"
                   >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary font-bold text-sm flex items-center justify-center border border-primary/20 shrink-0">
+                    <td className="px-3.5 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary font-bold text-xs flex items-center justify-center border border-primary/20 shrink-0">
                           {customer.name.substring(0, 2).toUpperCase()}
                         </div>
                         <div>
-                          <span className="font-semibold text-foreground block group-hover:text-primary transition-colors">
+                          <span className="font-semibold text-foreground block group-hover:text-primary transition-colors text-xs sm:text-sm">
                             {customer.name}
                           </span>
                           {customer.notes && (
-                            <span className="text-xs text-muted-foreground line-clamp-1">
+                            <span className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
                               {customer.notes}
                             </span>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
+                    <td className="px-3 py-2.5">
+                      <div className="space-y-0.5">
                         {customer.email && (
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Mail className="w-3.5 h-3.5 text-muted-foreground/70" />
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Mail className="w-3 h-3 text-muted-foreground/70" />
                             <a
                               href={`mailto:${customer.email}`}
                               className="hover:underline hover:text-foreground"
@@ -366,42 +367,44 @@ export default function CustomersPage() {
                           </div>
                         )}
                         {customer.phone && (
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Phone className="w-3.5 h-3.5 text-muted-foreground/70" />
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Phone className="w-3 h-3 text-muted-foreground/70" />
                             <span>{customer.phone}</span>
                           </div>
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-2.5">
                       {customer.address ? (
-                        <div className="flex items-start gap-2 text-xs text-muted-foreground max-w-xs">
-                          <MapPin className="w-3.5 h-3.5 text-muted-foreground/70 shrink-0 mt-0.5" />
-                          <span className="line-clamp-2">{customer.address}</span>
+                        <div className="flex items-start gap-1.5 text-xs text-muted-foreground max-w-xs">
+                          <MapPin className="w-3 h-3 text-muted-foreground/70 shrink-0 mt-0.5" />
+                          <span className="line-clamp-2 text-[11px]">{customer.address}</span>
                         </div>
                       ) : (
-                        <span className="text-xs text-muted-foreground/50 italic">No address recorded</span>
+                        <span className="text-xs text-muted-foreground/60 italic">
+                          No address specified
+                        </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-3.5 py-2.5 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           type="button"
                           onClick={() => openEditDrawer(customer)}
-                          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors"
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors cursor-pointer"
                           title={`Edit ${customer.name}`}
                           aria-label={`Edit ${customer.name}`}
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDelete(customer)}
-                          className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive transition-colors"
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive transition-colors cursor-pointer"
                           title={`Delete ${customer.name}`}
                           aria-label={`Delete ${customer.name}`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>

@@ -694,17 +694,18 @@ export default function ProcurementPage() {
   const totalCapitalSpent = procurements.reduce((acc, p) => acc + p.totalAmount, 0);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-3.5 sm:space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div>
-          <div className="flex items-center gap-2 text-primary font-medium text-xs uppercase tracking-wider mb-1">
-            <Truck className="w-4 h-4" />
-            <span>Multi-Batch Costing Module</span>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Truck className="w-4 h-4" />
+            </div>
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground">
+              Procurement & Batch Intake
+            </h1>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
-            Procurement & Batch Intake
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Record inventory arrivals across Wholesale, Quick Commerce, and E-Commerce channels.
           </p>
         </div>
@@ -712,64 +713,64 @@ export default function ProcurementPage() {
         <button
           type="button"
           onClick={openCreateDrawer}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/20 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary transition-all cursor-pointer"
+          className="h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 shrink-0"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-3.5 h-3.5" />
           <span>New Stock Intake</span>
         </button>
       </div>
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Invoices</span>
-            <FileText className="w-4 h-4 text-primary" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Total Invoices</span>
+            <FileText className="w-3.5 h-3.5 text-primary" />
           </div>
-          <div className="text-2xl font-black text-foreground">{procurements.length}</div>
-          <p className="text-xs text-muted-foreground mt-1">Intake consignments</p>
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight">{procurements.length}</div>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Intake consignments</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Capital Invested</span>
-            <IndianRupee className="w-4 h-4 text-emerald-500" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Capital Invested</span>
+            <IndianRupee className="w-3.5 h-3.5 text-emerald-500" />
           </div>
-          <div className="text-2xl font-black text-foreground">
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight">
             ₹{totalCapitalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Total procurement value</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Total procurement value</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Active Channels</span>
-            <Store className="w-4 h-4 text-blue-500" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Active Channels</span>
+            <Store className="w-3.5 h-3.5 text-blue-500" />
           </div>
-          <div className="text-2xl font-black text-foreground">3 Sources</div>
-          <p className="text-xs text-muted-foreground mt-1">Wholesale, Quick Comm, E-Comm</p>
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight">3 Sources</div>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Wholesale, Quick Comm, E-Comm</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Allocation Method</span>
-            <Layers className="w-4 h-4 text-primary" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Allocation Method</span>
+            <Layers className="w-3.5 h-3.5 text-primary" />
           </div>
-          <div className="text-2xl font-black text-foreground">LCF</div>
-          <p className="text-xs text-muted-foreground mt-1">Lowest-Cost-First automated</p>
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight">LCF</div>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Lowest-Cost-First automated</p>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center gap-3 p-2 bg-card rounded-2xl border border-border shadow-xs">
+      <div className="flex flex-col sm:flex-row items-center gap-2.5 p-2 sm:p-2.5 bg-card rounded-2xl border border-border shadow-xs">
         <div className="relative flex-1 w-full">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search procurements by invoice number, vendor, or lot description..."
-            className="w-full pl-10 pr-4 py-2 text-sm bg-transparent border-none rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
+            className="w-full h-8.5 pl-8.5 pr-3 py-1 text-xs bg-transparent border-none rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
           />
         </div>
 
@@ -777,7 +778,7 @@ export default function ProcurementPage() {
           <button
             type="button"
             onClick={() => setSelectedSource('ALL')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+            className={`h-8.5 px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center ${
               selectedSource === 'ALL'
                 ? 'bg-primary text-primary-foreground shadow-xs'
                 : 'bg-muted text-muted-foreground hover:text-foreground'
@@ -790,7 +791,7 @@ export default function ProcurementPage() {
               key={src}
               type="button"
               onClick={() => setSelectedSource(src)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`h-8.5 px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center ${
                 selectedSource === src
                   ? 'bg-primary text-primary-foreground shadow-xs'
                   : 'bg-muted text-muted-foreground hover:text-foreground'
@@ -805,23 +806,23 @@ export default function ProcurementPage() {
       {/* Procurement Table */}
       <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-muted/50 border-b border-border text-xs uppercase text-muted-foreground font-semibold tracking-wider">
+          <table className="w-full text-left text-xs sm:text-sm">
+            <thead className="bg-muted/50 border-b border-border text-[11px] uppercase text-muted-foreground font-semibold tracking-wider">
               <tr>
-                <th className="px-6 py-4">Invoice # & Date</th>
-                <th className="px-6 py-4">Supplier & Channel</th>
-                <th className="px-6 py-4">Consignment Details</th>
-                <th className="px-6 py-4 text-right">Total Cost</th>
-                <th className="px-6 py-4 text-center">Actions</th>
+                <th className="px-3.5 py-2">Invoice # & Date</th>
+                <th className="px-3 py-2">Supplier & Channel</th>
+                <th className="px-3 py-2">Consignment Details</th>
+                <th className="px-3 py-2 text-right">Total Cost</th>
+                <th className="px-3.5 py-2 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {filteredProcurements.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
-                    <Package className="w-10 h-10 mx-auto mb-2 text-muted-foreground/50" />
-                    <p className="font-medium text-foreground">No procurement intakes recorded</p>
-                    <p className="text-xs text-muted-foreground mt-1">
+                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                    <Package className="w-8 h-8 mx-auto mb-1.5 text-muted-foreground/50" />
+                    <p className="font-semibold text-foreground">No procurement intakes recorded</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       Click &quot;New Stock Intake&quot; to record an incoming consignment.
                     </p>
                   </td>
@@ -829,46 +830,46 @@ export default function ProcurementPage() {
               ) : (
                 filteredProcurements.map((proc) => (
                   <tr key={proc.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4">
+                    <td className="px-3.5 py-2.5">
                       <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-muted text-foreground border border-border block w-max">
                         {proc.invoiceNo}
                       </span>
-                      <span className="text-xs text-muted-foreground mt-1 block">
+                      <span className="text-[11px] text-muted-foreground mt-0.5 block">
                         {proc.procurementDate}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-2.5">
                       <span className="font-semibold text-foreground block">{proc.supplierName}</span>
-                      <span className="inline-block mt-1 text-[11px] font-medium px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                      <span className="inline-block mt-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
                         {proc.source}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-xs text-muted-foreground">
+                    <td className="px-3 py-2.5 text-xs text-muted-foreground">
                       <div className="font-medium text-foreground">{proc.notes}</div>
-                      <div>Units received: {proc.itemCount}</div>
+                      <div className="text-[11px]">Units received: {proc.itemCount}</div>
                     </td>
-                    <td className="px-6 py-4 text-right font-mono text-sm font-bold text-foreground">
+                    <td className="px-3 py-2.5 text-right font-mono text-xs font-bold text-foreground">
                       ₹{proc.totalAmount.toFixed(2)}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-3.5 py-2.5 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           type="button"
                           onClick={() => openEditDrawer(proc)}
-                          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors cursor-pointer"
                           title={`Edit Invoice ${proc.invoiceNo}`}
                           aria-label={`Edit Invoice ${proc.invoiceNo}`}
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDelete(proc)}
-                          className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive transition-colors cursor-pointer"
                           title={`Delete Invoice ${proc.invoiceNo}`}
                           aria-label={`Delete Invoice ${proc.invoiceNo}`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>

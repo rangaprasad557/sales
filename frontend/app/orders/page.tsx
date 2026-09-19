@@ -449,17 +449,17 @@ export default function OrdersPage() {
   const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="space-y-3.5 sm:space-y-4 animate-in fade-in duration-300">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-primary/10 text-primary">
-              <Receipt className="w-6 h-6" />
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Receipt className="w-4 h-4" />
             </div>
-            <h1 className="text-2xl font-black tracking-tight text-foreground">Past Orders & Invoices</h1>
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground">Past Orders & Invoices</h1>
           </div>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Browse completed sales, inspect multi-batch cost breakdown, and review customer billing history.
           </p>
         </div>
@@ -469,7 +469,7 @@ export default function OrdersPage() {
             type="button"
             onClick={fetchOrders}
             disabled={loading}
-            className="px-3.5 py-2 rounded-xl border border-border text-xs font-semibold text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className="h-8.5 px-3 py-1.5 rounded-xl border border-border text-xs font-bold text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
             title="Refresh order history"
             aria-label="Refresh order history"
           >
@@ -479,7 +479,7 @@ export default function OrdersPage() {
 
           <Link
             href="/"
-            className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary transition-all shadow-sm flex items-center gap-1.5"
+            className="h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary transition-all shadow-xs flex items-center gap-1.5"
           >
             <ShoppingCart className="w-3.5 h-3.5" />
             <span>New Sale (POS)</span>
@@ -488,17 +488,17 @@ export default function OrdersPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {/* Total Orders */}
-        <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-card border border-border shadow-xs min-w-0 overflow-hidden">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Orders</span>
-            <Receipt className="w-4 h-4 text-primary" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs min-w-0 overflow-hidden">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Total Orders</span>
+            <Receipt className="w-3.5 h-3.5 text-primary" />
           </div>
-          <div className="text-xl sm:text-2xl font-black text-foreground font-mono tracking-tight truncate tabular-nums">
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight truncate tabular-nums">
             {filteredOrders.length}
           </div>
-          <p className="text-xs text-muted-foreground mt-1 truncate">
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
             {hasActiveFilters
               ? `Filtered from ${orders.length} total orders`
               : 'Completed sales transactions'}
@@ -506,61 +506,61 @@ export default function OrdersPage() {
         </div>
 
         {/* Gross Revenue */}
-        <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-card border border-border shadow-xs min-w-0 overflow-hidden">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Gross Sales</span>
-            <IndianRupee className="w-4 h-4 text-primary" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs min-w-0 overflow-hidden">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Gross Sales</span>
+            <IndianRupee className="w-3.5 h-3.5 text-primary" />
           </div>
-          <div className="text-xl sm:text-2xl font-black text-foreground font-mono tracking-tight truncate tabular-nums" title={`₹${totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}>
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight truncate tabular-nums" title={`₹${totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}>
             ₹{totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </div>
-          <p className="text-xs text-muted-foreground mt-1 truncate">Total revenue collected</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">Total revenue collected</p>
         </div>
 
         {/* Total COGS */}
-        <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-card border border-border shadow-xs min-w-0 overflow-hidden">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total COGS</span>
-            <Layers className="w-4 h-4 text-amber-500" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs min-w-0 overflow-hidden">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Total COGS</span>
+            <Layers className="w-3.5 h-3.5 text-amber-500" />
           </div>
-          <div className="text-xl sm:text-2xl font-black text-foreground font-mono tracking-tight truncate tabular-nums" title={`₹${totalCogs.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}>
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight truncate tabular-nums" title={`₹${totalCogs.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}>
             ₹{totalCogs.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </div>
-          <p className="text-xs text-muted-foreground mt-1 truncate">Acquisition lot costs</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">Acquisition lot costs</p>
         </div>
 
         {/* Net Profit */}
-        <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-card border border-border shadow-xs min-w-0 overflow-hidden">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Net Profit</span>
-            <TrendingUp className="w-4 h-4 text-emerald-500" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs min-w-0 overflow-hidden">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Net Profit</span>
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
           </div>
-          <div className={`text-xl sm:text-2xl font-black font-mono tracking-tight truncate tabular-nums flex items-baseline ${totalProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`} title={`${totalProfit >= 0 ? '+' : ''}₹${totalProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}>
+          <div className={`text-base sm:text-lg xl:text-xl font-black font-mono tracking-tight truncate tabular-nums flex items-baseline ${totalProfit >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`} title={`${totalProfit >= 0 ? '+' : ''}₹${totalProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}>
             <span className="mr-0.5">{totalProfit >= 0 ? '+' : ''}</span>
             <span>₹{totalProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1 truncate">{avgMargin.toFixed(1)}% average margin</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{avgMargin.toFixed(1)}% average margin</p>
         </div>
       </div>
 
       {/* Filter and Search Toolbar */}
-      <div className="space-y-3 p-4 rounded-3xl bg-card border border-border shadow-xs">
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+      <div className="space-y-2.5 p-2.5 sm:p-3 rounded-2xl bg-card border border-border shadow-xs">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
           {/* Free-text Search */}
           <div className="relative flex-1 min-w-[240px]">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search invoice #, customer, notes..."
-              className="w-full pl-9 pr-8 py-2 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full h-8.5 pl-8.5 pr-8 py-1.5 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                 aria-label="Clear search text"
               >
                 <X className="w-3.5 h-3.5" />
@@ -569,15 +569,15 @@ export default function OrdersPage() {
           </div>
 
           {/* Filter Controls Bar */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             {/* Customer Filter */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-border bg-background text-xs">
+            <div className="flex items-center gap-1.5 h-8.5 px-2.5 rounded-xl border border-border bg-background text-xs">
               <Users className="w-3.5 h-3.5 text-primary shrink-0" />
               <select
                 value={selectedCustomerId}
                 onChange={(e) => setSelectedCustomerId(e.target.value)}
                 aria-label="Filter orders by customer"
-                className="bg-transparent text-foreground text-xs focus:outline-none cursor-pointer max-w-[170px] truncate"
+                className="bg-transparent text-foreground text-xs focus:outline-none cursor-pointer max-w-[160px] truncate"
               >
                 <option value="ALL">All Customers ({orders.length})</option>
                 {customerOptions.walkInCount > 0 && (
@@ -592,13 +592,13 @@ export default function OrdersPage() {
             </div>
 
             {/* Sold By Filter */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-border bg-background text-xs">
+            <div className="flex items-center gap-1.5 h-8.5 px-2.5 rounded-xl border border-border bg-background text-xs">
               <User className="w-3.5 h-3.5 text-blue-500 shrink-0" />
               <select
                 value={selectedSoldBy}
                 onChange={(e) => setSelectedSoldBy(e.target.value)}
                 aria-label="Filter orders by sold by"
-                className="bg-transparent text-foreground text-xs focus:outline-none cursor-pointer max-w-[150px] truncate"
+                className="bg-transparent text-foreground text-xs focus:outline-none cursor-pointer max-w-[140px] truncate"
               >
                 <option value="ALL">All Sellers ({orders.length})</option>
                 {distinctSellers.map((s) => (
@@ -610,7 +610,7 @@ export default function OrdersPage() {
             </div>
 
             {/* Date Preset Filter */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-border bg-background text-xs">
+            <div className="flex items-center gap-1.5 h-8.5 px-2.5 rounded-xl border border-border bg-background text-xs">
               <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
               <select
                 value={datePreset}
@@ -629,7 +629,7 @@ export default function OrdersPage() {
             </div>
 
             {/* Sort Field & Order */}
-            <div className="flex items-center gap-1.5 pl-1">
+            <div className="flex items-center gap-1.5 pl-0.5">
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <ArrowUpDown className="w-3.5 h-3.5" />
               </div>
@@ -637,7 +637,7 @@ export default function OrdersPage() {
                 value={sortField}
                 onChange={(e) => setSortField(e.target.value as any)}
                 aria-label="Sort orders field"
-                className="px-2.5 py-1.5 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+                className="h-8.5 px-2.5 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
               >
                 <option value="date">Date & Time</option>
                 <option value="amount">Total Amount</option>
@@ -646,7 +646,7 @@ export default function OrdersPage() {
               <button
                 type="button"
                 onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="p-1.5 rounded-xl border border-border text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary text-xs font-semibold cursor-pointer"
+                className="h-8.5 w-8.5 rounded-xl border border-border text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary text-xs font-semibold cursor-pointer flex items-center justify-center"
                 title={`Toggle order: currently ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`}
                 aria-label="Toggle sort order"
               >
@@ -696,14 +696,14 @@ export default function OrdersPage() {
 
         {/* Active Filter Chips & Clear All */}
         {hasActiveFilters && (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/50 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-border/50 text-xs">
             <span className="text-muted-foreground font-semibold flex items-center gap-1 text-[11px] uppercase tracking-wider">
               <Filter className="w-3 h-3 text-primary" />
               <span>Active Filters:</span>
             </span>
 
             {selectedCustomerId !== 'ALL' && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 font-medium">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-primary/10 text-primary border border-primary/20 font-medium text-xs">
                 <span>
                   Customer:{' '}
                   {selectedCustomerId === 'WALK_IN'
@@ -723,7 +723,7 @@ export default function OrdersPage() {
             )}
 
             {selectedSoldBy !== 'ALL' && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-medium">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-medium text-xs">
                 <span>Sold by: {selectedSoldBy}</span>
                 <button
                   type="button"
@@ -737,7 +737,7 @@ export default function OrdersPage() {
             )}
 
             {(fromDate || toDate) && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium text-xs">
                 <span>
                   Date: {fromDate || 'Any'} → {toDate || 'Present'}
                 </span>
@@ -757,7 +757,7 @@ export default function OrdersPage() {
             )}
 
             {searchQuery.trim() && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted text-foreground border border-border font-medium">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-muted text-foreground border border-border font-medium text-xs">
                 <span>Search: "{searchQuery}"</span>
                 <button
                   type="button"
@@ -773,7 +773,7 @@ export default function OrdersPage() {
             <button
               type="button"
               onClick={handleResetFilters}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted font-semibold transition-colors cursor-pointer ml-auto text-xs"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted font-semibold transition-colors cursor-pointer ml-auto text-xs"
               aria-label="Reset all filters"
             >
               <RotateCcw className="w-3 h-3" />
@@ -783,7 +783,7 @@ export default function OrdersPage() {
         )}
 
         {/* Counter Summary */}
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
           <span>
             Showing <strong className="text-foreground font-mono">{filteredOrders.length}</strong> of{' '}
             <strong className="text-foreground font-mono">{orders.length}</strong> orders
@@ -793,36 +793,36 @@ export default function OrdersPage() {
       </div>
 
       {/* Orders Table */}
-      <div className="rounded-3xl border border-border bg-card shadow-xs overflow-hidden">
+      <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-muted/30 border-b border-border text-xs uppercase text-muted-foreground font-semibold tracking-wider">
+          <table className="w-full text-left text-xs sm:text-sm">
+            <thead className="bg-muted/30 border-b border-border text-[11px] uppercase text-muted-foreground font-semibold tracking-wider">
               <tr>
-                <th className="px-6 py-3.5">Invoice #</th>
-                <th className="px-4 py-3.5">Date & Time</th>
-                <th className="px-4 py-3.5">Customer</th>
-                <th className="px-4 py-3.5">Sold By</th>
-                <th className="px-4 py-3.5 text-center">Items & Units</th>
-                <th className="px-4 py-3.5 text-right">Order Total</th>
-                <th className="px-4 py-3.5 text-right">COGS</th>
-                <th className="px-4 py-3.5 text-right">Net Profit</th>
-                <th className="px-6 py-3.5 text-center">Receipt & Breakdown</th>
+                <th className="px-3.5 py-2">Invoice #</th>
+                <th className="px-3 py-2">Date & Time</th>
+                <th className="px-3 py-2">Customer</th>
+                <th className="px-3 py-2">Sold By</th>
+                <th className="px-3 py-2 text-center">Items & Units</th>
+                <th className="px-3 py-2 text-right">Order Total</th>
+                <th className="px-3 py-2 text-right">COGS</th>
+                <th className="px-3 py-2 text-right">Net Profit</th>
+                <th className="px-3.5 py-2 text-center">Receipt & Breakdown</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-1.5 text-primary" />
                     <p className="text-xs font-semibold">Loading past orders...</p>
                   </td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">
-                    <Receipt className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                    <Receipt className="w-6 h-6 mx-auto mb-1.5 text-muted-foreground/50" />
                     <p className="font-semibold text-foreground">No orders found</p>
-                    <p className="text-xs mt-1">
+                    <p className="text-xs mt-0.5">
                       {hasActiveFilters
                         ? 'No sales matched your active filters. Try adjusting customer, date, or seller.'
                         : 'No orders have been billed yet. Start by finalizing a sale in POS.'}
@@ -831,7 +831,7 @@ export default function OrdersPage() {
                       <button
                         type="button"
                         onClick={handleResetFilters}
-                        className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 shadow-sm cursor-pointer"
+                        className="inline-flex items-center gap-1.5 mt-3 h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 shadow-sm cursor-pointer"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
                         <span>Reset All Filters</span>
@@ -839,7 +839,7 @@ export default function OrdersPage() {
                     ) : (
                       <Link
                         href="/"
-                        className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 shadow-sm"
+                        className="inline-flex items-center gap-1.5 mt-3 h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 shadow-sm"
                       >
                         <ShoppingCart className="w-3.5 h-3.5" />
                         <span>Go to POS Billing</span>
@@ -856,17 +856,17 @@ export default function OrdersPage() {
                   return (
                     <tr key={order.id} className="hover:bg-muted/20 transition-colors">
                       {/* Invoice No */}
-                      <td className="px-6 py-4">
+                      <td className="px-3.5 py-2.5">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-foreground px-2.5 py-1 rounded-lg bg-muted border border-border">
+                          <span className="font-mono text-xs font-bold text-foreground px-2 py-0.5 rounded-lg bg-muted border border-border">
                             {order.invoice_no}
                           </span>
                         </div>
                       </td>
 
                       {/* Date & Time */}
-                      <td className="px-4 py-4 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1.5 text-foreground font-medium">
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1 text-foreground font-medium">
                           <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                           <span>{order.sale_date}</span>
                         </div>
@@ -879,22 +879,22 @@ export default function OrdersPage() {
                       </td>
 
                       {/* Customer */}
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-2.5">
                         {order.customer_name ? (
-                          <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                          <div className="flex items-center gap-1 text-xs font-semibold text-foreground">
                             <Users className="w-3.5 h-3.5 text-primary shrink-0" />
                             <span>{order.customer_name}</span>
                           </div>
                         ) : (
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-muted text-muted-foreground border border-border">
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[11px] font-medium bg-muted text-muted-foreground border border-border">
                             Walk-in Customer
                           </span>
                         )}
                       </td>
 
                       {/* Sold By */}
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-1.5 text-xs text-foreground">
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-1 text-xs text-foreground">
                           <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                           <span className="font-medium text-foreground">
                             {order.sold_by || 'Store Staff'}
@@ -903,7 +903,7 @@ export default function OrdersPage() {
                       </td>
 
                       {/* Items & Units */}
-                      <td className="px-4 py-4 text-center text-xs">
+                      <td className="px-3 py-2.5 text-center text-xs">
                         <span className="font-semibold text-foreground">
                           {order.items_count} {order.items_count === 1 ? 'item' : 'items'}
                         </span>
@@ -913,17 +913,17 @@ export default function OrdersPage() {
                       </td>
 
                       {/* Order Total */}
-                      <td className="px-4 py-4 text-right font-mono font-bold text-xs text-foreground">
+                      <td className="px-3 py-2.5 text-right font-mono font-bold text-xs text-foreground">
                         ₹{order.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </td>
 
                       {/* COGS */}
-                      <td className="px-4 py-4 text-right font-mono text-xs text-muted-foreground">
+                      <td className="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground">
                         ₹{order.total_cogs.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </td>
 
                       {/* Net Profit */}
-                      <td className="px-4 py-4 text-right text-xs">
+                      <td className="px-3 py-2.5 text-right text-xs">
                         <div className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
                           +₹{order.total_profit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </div>
@@ -933,13 +933,13 @@ export default function OrdersPage() {
                       </td>
 
                       {/* Action: View Receipt & Edit */}
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-3.5 py-2.5 text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleViewReceipt(order)}
                             disabled={isFetchingThis}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-primary/30 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground text-xs font-semibold transition-all focus-visible:ring-2 focus-visible:ring-primary cursor-pointer disabled:opacity-50 shadow-xs"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-primary/30 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground text-xs font-semibold transition-all focus-visible:ring-2 focus-visible:ring-primary cursor-pointer disabled:opacity-50 shadow-xs"
                             title="View printable invoice receipt and batch allocations"
                             aria-label={`View receipt for ${order.invoice_no}`}
                           >
@@ -954,7 +954,7 @@ export default function OrdersPage() {
                             type="button"
                             onClick={() => handleEditOrder(order)}
                             disabled={isFetchingThis}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted text-xs font-semibold transition-all focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted text-xs font-semibold transition-all focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
                             title={`Edit order ${order.invoice_no}`}
                             aria-label={`Edit order ${order.invoice_no}`}
                           >

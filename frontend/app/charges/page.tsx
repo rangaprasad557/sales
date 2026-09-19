@@ -200,18 +200,19 @@ export default function ChargesPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto pb-12">
+    <div className="space-y-3.5 sm:space-y-4 max-w-[1600px] mx-auto pb-8">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div>
-          <div className="flex items-center gap-2 text-primary font-medium text-xs uppercase tracking-wider mb-1">
-            <WalletCards className="w-4 h-4" />
-            <span>Operating Expense Management</span>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <WalletCards className="w-4 h-4" />
+            </div>
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-foreground">
+              Business Charges & Expenses
+            </h1>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground flex items-center gap-2.5">
-            <span>Business Charges & Expenses</span>
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Track operational charges, bundle packaging, transit, and vendor incidentals deducted from Net Profit.
           </p>
         </div>
@@ -220,79 +221,79 @@ export default function ChargesPage() {
           <button
             type="button"
             onClick={openCreateDrawer}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold shadow-xs hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer transition-all"
+            className="h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer transition-all inline-flex items-center gap-1.5 shrink-0"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             <span>Record Charge</span>
           </button>
         </div>
       </div>
 
       {/* KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Operating Charges</span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-              <TrendingDown className="w-4 h-4" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Total Operating Charges</span>
+            <div className="p-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <TrendingDown className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-foreground font-mono">
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight truncate tabular-nums">
             ₹{summary.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
             Deducted from gross profit for true store net profit
           </p>
         </div>
 
-        <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Charge Entries</span>
-            <div className="p-2 rounded-xl bg-primary/10 text-primary">
-              <ReceiptText className="w-4 h-4" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Total Charge Entries</span>
+            <div className="p-1 rounded-lg bg-primary/10 text-primary">
+              <ReceiptText className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-foreground font-mono">
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight truncate tabular-nums">
             {summary.total_count}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
             Historical & live operational expense items
           </p>
         </div>
 
-        <div className="p-5 rounded-3xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Average Charge per Entry</span>
-            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
-              <IndianRupee className="w-4 h-4" />
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Average Charge per Entry</span>
+            <div className="p-1 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <IndianRupee className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-foreground font-mono">
+          <div className="text-base sm:text-lg xl:text-xl font-black text-foreground font-mono tracking-tight truncate tabular-nums">
             ₹{summary.average_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
             Average expense per incidental transaction
           </p>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="p-4 rounded-3xl bg-card border border-border shadow-xs space-y-3">
-        <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row items-center gap-3">
+      <div className="p-2.5 sm:p-3 rounded-2xl bg-card border border-border shadow-xs space-y-2">
+        <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row items-center gap-2.5">
           <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search vendor, area, phone, or notes..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-muted/40 border border-border rounded-xl text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="w-full h-8.5 pl-8.5 pr-3 py-1 bg-muted/40 border border-border rounded-xl text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             />
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <div className="flex items-center gap-1.5 bg-muted/40 border border-border rounded-xl px-3 py-1.5 text-xs text-muted-foreground">
-              <span>From:</span>
+          <div className="flex items-center gap-1.5 w-full md:w-auto">
+            <div className="flex items-center gap-1.5 h-8.5 bg-muted/40 border border-border rounded-xl px-2.5 text-xs text-muted-foreground">
+              <span className="text-[11px]">From:</span>
               <input
                 type="date"
                 value={fromDate}
@@ -301,8 +302,8 @@ export default function ChargesPage() {
               />
             </div>
 
-            <div className="flex items-center gap-1.5 bg-muted/40 border border-border rounded-xl px-3 py-1.5 text-xs text-muted-foreground">
-              <span>To:</span>
+            <div className="flex items-center gap-1.5 h-8.5 bg-muted/40 border border-border rounded-xl px-2.5 text-xs text-muted-foreground">
+              <span className="text-[11px]">To:</span>
               <input
                 type="date"
                 value={toDate}
@@ -313,7 +314,7 @@ export default function ChargesPage() {
 
             <button
               type="submit"
-              className="px-3.5 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:bg-primary/90 transition-all cursor-pointer"
+              className="h-8.5 px-3 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:bg-primary/90 transition-all cursor-pointer flex items-center"
             >
               Filter
             </button>
@@ -322,7 +323,7 @@ export default function ChargesPage() {
               <button
                 type="button"
                 onClick={handleClearFilters}
-                className="px-3 py-2 text-xs text-muted-foreground hover:text-foreground rounded-xl transition-all cursor-pointer"
+                className="h-8.5 px-2.5 text-xs text-muted-foreground hover:text-foreground rounded-xl transition-all cursor-pointer flex items-center"
               >
                 Clear
               </button>
@@ -332,12 +333,12 @@ export default function ChargesPage() {
       </div>
 
       {/* Charges Data Table */}
-      <div className="rounded-3xl border border-border bg-card shadow-xs overflow-hidden">
-        <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center justify-between">
+      <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
+        <div className="px-4 sm:px-5 py-2.5 border-b border-border bg-muted/30 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ReceiptText className="w-4 h-4 text-primary" />
-            <h2 className="text-base font-bold text-foreground">Charges Ledger</h2>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+            <h2 className="text-sm sm:text-base font-bold text-foreground">Charges Ledger</h2>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
               {charges.length} {charges.length === 1 ? 'entry' : 'entries'}
             </span>
           </div>
@@ -348,50 +349,50 @@ export default function ChargesPage() {
             title="Refresh ledger"
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
         {loading ? (
-          <div className="p-12 text-center text-muted-foreground flex flex-col items-center gap-2">
-            <RefreshCw className="w-6 h-6 animate-spin text-primary" />
-            <span className="text-sm">Loading business charges...</span>
+          <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-1.5">
+            <RefreshCw className="w-5 h-5 animate-spin text-primary" />
+            <span className="text-xs">Loading business charges...</span>
           </div>
         ) : error ? (
-          <div className="p-8 text-center text-destructive flex flex-col items-center gap-2">
-            <AlertCircle className="w-6 h-6" />
-            <span className="text-sm font-semibold">{error}</span>
+          <div className="p-6 text-center text-destructive flex flex-col items-center gap-1.5">
+            <AlertCircle className="w-5 h-5" />
+            <span className="text-xs font-semibold">{error}</span>
           </div>
         ) : charges.length === 0 ? (
-          <div className="p-12 text-center text-muted-foreground flex flex-col items-center gap-2">
-            <WalletCards className="w-10 h-10 stroke-1 text-muted-foreground/50" />
-            <span className="text-base font-semibold text-foreground">No charges found</span>
+          <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-1.5">
+            <WalletCards className="w-8 h-8 stroke-1 text-muted-foreground/50" />
+            <span className="text-sm font-semibold text-foreground">No charges found</span>
             <span className="text-xs">No business charges match your selected date range or search filter.</span>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-muted/40 border-b border-border text-xs uppercase text-muted-foreground font-semibold tracking-wider">
+            <table className="w-full text-left text-xs sm:text-sm">
+              <thead className="bg-muted/40 border-b border-border text-[11px] uppercase text-muted-foreground font-semibold tracking-wider">
                 <tr>
-                  <th className="px-6 py-3.5">Date</th>
-                  <th className="px-6 py-3.5">Notes & Description</th>
-                  <th className="px-6 py-3.5 text-right">Amount</th>
-                  <th className="px-6 py-3.5 text-right">Actions</th>
+                  <th className="px-3.5 py-2">Date</th>
+                  <th className="px-3 py-2">Notes & Description</th>
+                  <th className="px-3 py-2 text-right">Amount</th>
+                  <th className="px-3.5 py-2 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {charges.map((c) => (
                   <tr key={c.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-6 py-3.5 whitespace-nowrap font-mono text-xs font-semibold text-foreground">
+                    <td className="px-3.5 py-2.5 whitespace-nowrap font-mono text-xs font-semibold text-foreground">
                       {c.charge_date}
                     </td>
-                    <td className="px-6 py-3.5 text-sm text-foreground">
+                    <td className="px-3 py-2.5 text-xs text-foreground">
                       <div className="font-medium">{c.notes || 'Incidental Charge'}</div>
                     </td>
-                    <td className="px-6 py-3.5 text-right font-mono font-bold text-amber-600 dark:text-amber-400 whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-right font-mono font-bold text-amber-600 dark:text-amber-400 whitespace-nowrap">
                       ₹{c.amount.toFixed(2)}
                     </td>
-                    <td className="px-6 py-3.5 text-right whitespace-nowrap">
+                    <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
@@ -399,7 +400,7 @@ export default function ChargesPage() {
                           title="Edit charge"
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
@@ -407,7 +408,7 @@ export default function ChargesPage() {
                           title="Delete charge"
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>

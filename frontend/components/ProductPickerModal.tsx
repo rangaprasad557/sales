@@ -175,15 +175,15 @@ export function ProductPickerModal({
       />
 
       {/* Modal Container */}
-      <div className="relative w-full max-w-5xl max-h-[90vh] bg-card border border-border rounded-3xl shadow-2xl flex flex-col z-10 overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-5xl max-h-[90vh] bg-card border border-border rounded-2xl shadow-2xl flex flex-col z-10 overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-border bg-muted/40 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shadow-primary/20">
-              <Package className="w-5 h-5" />
+        <div className="px-4 sm:px-5 py-3 border-b border-border bg-muted/40 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shadow-xs">
+              <Package className="w-4 h-4" />
             </div>
             <div>
-              <h2 id="picker-title" className="text-xl font-black tracking-tight text-foreground">
+              <h2 id="picker-title" className="text-base sm:text-lg font-bold tracking-tight text-foreground">
                 Advanced Product Picker & Multi-Attribute Grid
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -194,32 +194,32 @@ export function ProductPickerModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
+            className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
             aria-label="Close picker modal"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Multi-Attribute Filter Bar */}
-        <div className="p-4 border-b border-border bg-card/60 space-y-3">
-          <div className="flex flex-col sm:flex-row items-center gap-3">
+        <div className="p-2.5 sm:p-3 border-b border-border bg-card/60 space-y-2">
+          <div className="flex flex-col sm:flex-row items-center gap-2.5">
             {/* Fuzzy Search Input */}
             <div className="relative flex-1 w-full">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Fuzzy search by name (e.g. 'bsmt', 'wht'), SKU, barcode, or category..."
-                className="w-full pl-10 pr-4 py-2.5 text-sm bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
+                className="w-full h-8.5 pl-8.5 pr-8 py-1 text-xs bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                 autoFocus
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -227,26 +227,26 @@ export function ProductPickerModal({
             </div>
 
             {/* In-Stock Toggle */}
-            <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none shrink-0 px-3 py-2 rounded-xl bg-muted/60 border border-border hover:bg-muted">
+            <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none shrink-0 px-2.5 h-8.5 rounded-xl bg-muted/60 border border-border hover:bg-muted">
               <input
                 type="checkbox"
                 checked={onlyInStock}
                 onChange={(e) => setOnlyInStock(e.target.checked)}
-                className="w-4 h-4 rounded text-primary focus:ring-primary"
+                className="w-3.5 h-3.5 rounded text-primary focus:ring-primary"
               />
               <span>In Stock Only ({products.filter((p) => p.currentStock > 0).length})</span>
             </label>
           </div>
 
           {/* Category & Unit Badges */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
             <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">
               Category:
             </span>
             <button
               type="button"
               onClick={() => setSelectedCategory('ALL')}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+              className={`px-2 py-0.5 rounded-lg text-xs font-medium transition-all ${
                 selectedCategory === 'ALL'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:text-foreground'
@@ -259,7 +259,7 @@ export function ProductPickerModal({
                 key={cat}
                 type="button"
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+                className={`px-2 py-0.5 rounded-lg text-xs font-medium transition-all ${
                   selectedCategory === cat
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:text-foreground'
@@ -269,7 +269,7 @@ export function ProductPickerModal({
               </button>
             ))}
 
-            <div className="h-3 w-px bg-border mx-1" />
+            <div className="h-3.5 w-px bg-border mx-1" />
 
             <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">
               Unit:
@@ -277,7 +277,7 @@ export function ProductPickerModal({
             <button
               type="button"
               onClick={() => setSelectedUnit('ALL')}
-              className={`px-2 py-0.5 rounded-md font-medium transition-all ${
+              className={`px-1.5 py-0.5 rounded-md text-xs font-medium transition-all ${
                 selectedUnit === 'ALL'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:text-foreground'
@@ -290,7 +290,7 @@ export function ProductPickerModal({
                 key={u}
                 type="button"
                 onClick={() => setSelectedUnit(u)}
-                className={`px-2 py-0.5 rounded-md font-medium transition-all ${
+                className={`px-1.5 py-0.5 rounded-md text-xs font-medium transition-all ${
                   selectedUnit === u
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:text-foreground'
@@ -304,12 +304,12 @@ export function ProductPickerModal({
 
         {/* Sortable Data Grid */}
         <div className="flex-1 overflow-y-auto">
-          <table className="w-full text-left text-sm border-collapse">
-            <thead className="sticky top-0 bg-muted/80 backdrop-blur-md border-b border-border text-xs uppercase text-muted-foreground font-semibold tracking-wider z-10">
+          <table className="w-full text-left text-xs sm:text-sm border-collapse">
+            <thead className="sticky top-0 bg-muted/80 backdrop-blur-md border-b border-border text-[11px] uppercase text-muted-foreground font-semibold tracking-wider z-10">
               <tr>
                 <th
                   onClick={() => handleSort('name')}
-                  className="px-6 py-3.5 cursor-pointer hover:text-foreground select-none"
+                  className="px-3.5 py-2 cursor-pointer hover:text-foreground select-none"
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Product Item</span>
@@ -322,7 +322,7 @@ export function ProductPickerModal({
                 </th>
                 <th
                   onClick={() => handleSort('sku')}
-                  className="px-4 py-3.5 cursor-pointer hover:text-foreground select-none"
+                  className="px-3 py-2 cursor-pointer hover:text-foreground select-none"
                 >
                   <div className="flex items-center gap-1.5">
                     <span>SKU / Barcode</span>
@@ -335,7 +335,7 @@ export function ProductPickerModal({
                 </th>
                 <th
                   onClick={() => handleSort('category')}
-                  className="px-4 py-3.5 cursor-pointer hover:text-foreground select-none"
+                  className="px-3 py-2 cursor-pointer hover:text-foreground select-none"
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Category & Unit</span>
@@ -348,7 +348,7 @@ export function ProductPickerModal({
                 </th>
                 <th
                   onClick={() => handleSort('currentStock')}
-                  className="px-4 py-3.5 cursor-pointer hover:text-foreground select-none"
+                  className="px-3 py-2 cursor-pointer hover:text-foreground select-none"
                 >
                   <div className="flex items-center gap-1.5">
                     <span>In-Stock / Status</span>
@@ -361,7 +361,7 @@ export function ProductPickerModal({
                 </th>
                 <th
                   onClick={() => handleSort('lowestCost')}
-                  className="px-4 py-3.5 cursor-pointer hover:text-foreground select-none text-right"
+                  className="px-3 py-2 cursor-pointer hover:text-foreground select-none text-right"
                 >
                   <div className="flex items-center justify-end gap-1.5">
                     <span>Lowest Cost</span>
@@ -372,17 +372,17 @@ export function ProductPickerModal({
                     )}
                   </div>
                 </th>
-                <th className="px-4 py-3.5 text-center select-none">Sell Price (₹)</th>
-                <th className="px-6 py-3.5 text-center">Add Qty & Action</th>
+                <th className="px-3 py-2 text-center select-none">Sell Price (₹)</th>
+                <th className="px-3.5 py-2 text-center">Add Qty & Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {sortedProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
-                    <Package className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                    <Package className="w-8 h-8 mx-auto mb-1.5 text-muted-foreground/40" />
                     <p className="font-semibold text-foreground">No products match your fuzzy search</p>
-                    <p className="text-xs mt-1">Try relaxing your search terms or toggling filters.</p>
+                    <p className="text-xs mt-0.5">Try relaxing your search terms or toggling filters.</p>
                   </td>
                 </tr>
               ) : (
@@ -400,49 +400,49 @@ export function ProductPickerModal({
                       }`}
                     >
                       {/* Product Name */}
-                      <td className="px-6 py-3.5">
-                        <div className="font-semibold text-foreground">{p.name}</div>
+                      <td className="px-3.5 py-2">
+                        <div className="font-semibold text-foreground text-xs sm:text-sm">{p.name}</div>
                         {p.description && (
-                          <div className="text-xs text-muted-foreground line-clamp-1">
+                          <div className="text-[11px] text-muted-foreground line-clamp-1">
                             {p.description}
                           </div>
                         )}
                       </td>
 
                       {/* SKU / Barcode */}
-                      <td className="px-4 py-3.5 font-mono text-xs">
-                        <span className="px-2 py-0.5 rounded bg-muted text-foreground border border-border">
+                      <td className="px-3 py-2 font-mono text-xs">
+                        <span className="px-1.5 py-0.5 rounded bg-muted text-foreground border border-border">
                           {p.sku}
                         </span>
                         {p.barcode && (
-                          <div className="text-[11px] text-muted-foreground mt-0.5">
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
                             {p.barcode}
                           </div>
                         )}
                       </td>
 
                       {/* Category & Unit */}
-                      <td className="px-4 py-3.5 text-xs">
+                      <td className="px-3 py-2 text-xs">
                         <span className="font-medium text-foreground">{p.category}</span>
-                        <span className="ml-2 font-mono text-[11px] px-1.5 py-0.2 rounded bg-muted/60 text-muted-foreground border border-border">
+                        <span className="ml-1.5 font-mono text-[10px] px-1 py-0.2 rounded bg-muted/60 text-muted-foreground border border-border">
                           {p.unit}
                         </span>
                       </td>
 
                       {/* Stock / Health Badge */}
-                      <td className="px-4 py-3.5">
+                      <td className="px-3 py-2">
                         {isDepleted ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/30">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/30">
                             <XCircle className="w-3 h-3" />
                             <span>Depleted (0)</span>
                           </span>
                         ) : isLow ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30">
                             <AlertTriangle className="w-3 h-3" />
                             <span>Low ({p.currentStock})</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
                             <CheckCircle2 className="w-3 h-3" />
                             <span>In Stock ({p.currentStock})</span>
                           </span>
@@ -450,14 +450,14 @@ export function ProductPickerModal({
                       </td>
 
                       {/* Lowest Batch Cost */}
-                      <td className="px-4 py-3.5 text-right font-mono text-xs font-bold text-foreground">
+                      <td className="px-3 py-2 text-right font-mono text-xs font-bold text-foreground">
                         ₹{p.lowestCost > 0 ? p.lowestCost.toFixed(2) : '0.00'}
                       </td>
 
                       {/* Custom Sell Price */}
-                      <td className="px-4 py-3.5 text-center">
-                        <div className="relative inline-block w-24">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                      <td className="px-3 py-2 text-center">
+                        <div className="relative inline-block w-20">
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
                             ₹
                           </span>
                           <input
@@ -475,14 +475,14 @@ export function ProductPickerModal({
                             placeholder={defaultPrice.toFixed(2)}
                             disabled={isDepleted}
                             aria-label={`Sell price for ${p.name}`}
-                            className="w-full pl-5 pr-2 py-1.5 text-right text-xs font-semibold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-40 font-mono"
+                            className="w-full h-7 pl-4 pr-1.5 text-right text-xs font-semibold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-40 font-mono"
                           />
                         </div>
                       </td>
 
                       {/* Add Qty & Action */}
-                      <td className="px-6 py-3.5">
-                        <div className="flex items-center justify-center gap-2">
+                      <td className="px-3.5 py-2">
+                        <div className="flex items-center justify-center gap-1.5">
                           <input
                             type="text"
                             inputMode="numeric"
@@ -498,16 +498,16 @@ export function ProductPickerModal({
                             placeholder="Qty"
                             disabled={isDepleted}
                             aria-label={`Quantity for ${p.name}`}
-                            className="w-16 px-2 py-1.5 text-center text-xs font-semibold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-40 font-mono"
+                            className="w-14 h-7 px-1.5 text-center text-xs font-semibold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-40 font-mono"
                           />
                           <button
                             type="button"
                             onClick={() => handleAddSingleItem(p)}
                             disabled={isDepleted}
-                            className="p-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-primary transition-all cursor-pointer"
+                            className="p-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-primary transition-all cursor-pointer"
                             title={`Add ${p.name} to sale`}
                           >
-                            <Plus className="w-4 h-4" />
+                            <Plus className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -520,7 +520,7 @@ export function ProductPickerModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-border bg-muted/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="px-4 sm:px-5 py-2.5 border-t border-border bg-muted/30 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="text-xs text-muted-foreground">
             Showing <strong className="text-foreground">{sortedProducts.length}</strong> of{' '}
             <strong className="text-foreground">{products.length}</strong> catalogue products.
@@ -531,11 +531,11 @@ export function ProductPickerModal({
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
+              className="h-8.5 px-3 py-1 rounded-xl border border-border text-xs font-semibold text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
             >
               Cancel
             </button>
@@ -544,9 +544,9 @@ export function ProductPickerModal({
               type="button"
               onClick={handleAddAllSelected}
               disabled={itemsReadyToAdd.length === 0}
-              className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-bold shadow-md shadow-primary/20 hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40 transition-all flex items-center gap-2 cursor-pointer"
+              className="h-8.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40 transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               <span>
                 Add Selected to Sale ({itemsReadyToAdd.reduce((acc, item) => acc + item.qty, 0)} units)
               </span>
