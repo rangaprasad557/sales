@@ -27,6 +27,7 @@ export const products = pgTable('products', {
   unit: varchar('unit', { length: 50 }).notNull().default('pcs'), // 'pcs' | 'kg' | 'box' | 'bottle' | 'bag' | 'dozen'
   minStockThreshold: integer('min_stock_threshold').notNull().default(5),
   defaultSalePrice: numeric('default_sale_price', { precision: 12, scale: 2 }).notNull().default('0.00'),
+  salePrice: numeric('sale_price', { precision: 12, scale: 2 }).notNull().default('0.00'),
   description: text('description'),
   embedding: pgVector('embedding'), // pgvector for semantic search discovery
   createdAt: timestamp('created_at').defaultNow().notNull(),

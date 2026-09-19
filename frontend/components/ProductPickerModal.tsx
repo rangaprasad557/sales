@@ -133,8 +133,10 @@ export function ProductPickerModal({
     for (const p of products) {
       const qty = enteredQuantities[p.id] || 0;
       if (qty > 0) {
-        // default suggested price is lowestCost * 1.30 or minimum $5.00
-        const defaultPrice = p.lowestCost > 0 ? parseFloat((p.lowestCost * 1.3).toFixed(2)) : 10.0;
+        // default suggested price is configured salePrice or lowestCost * 1.30
+        const defaultPrice = (p.salePrice && p.salePrice > 0)
+          ? p.salePrice
+          : (p.lowestCost > 0 ? parseFloat((p.lowestCost * 1.3).toFixed(2)) : 10.0);
         const price = customPrices[p.id] !== undefined ? customPrices[p.id] : defaultPrice;
         items.push({ product: p, qty, salePrice: price });
       }
@@ -151,7 +153,9 @@ export function ProductPickerModal({
 
   const handleAddSingleItem = (product: CatalogueProduct) => {
     const qty = enteredQuantities[product.id] || 1;
-    const defaultPrice = product.lowestCost > 0 ? parseFloat((product.lowestCost * 1.3).toFixed(2)) : 10.0;
+    const defaultPrice = (product.salePrice && product.salePrice > 0)
+      ? product.salePrice
+      : (product.lowestCost > 0 ? parseFloat((product.lowestCost * 1.3).toFixed(2)) : 10.0);
     const price = customPrices[product.id] !== undefined ? customPrices[product.id] : defaultPrice;
 
     onAddItems([{ product, qty, salePrice: price }]);
@@ -390,7 +394,9 @@ export function ProductPickerModal({
                   const qtyEntered = enteredQuantities[p.id] || 0;
                   const isDepleted = p.currentStock <= 0;
                   const isLow = p.currentStock > 0 && p.currentStock <= p.minStock;
-                  const defaultPrice = p.lowestCost > 0 ? parseFloat((p.lowestCost * 1.3).toFixed(2)) : 10.0;
+                  const defaultPrice = (p.salePrice && p.salePrice > 0)
+                    ? p.salePrice
+                    : (p.lowestCost > 0 ? parseFloat((p.lowestCost * 1.3).toFixed(2)) : 10.0);
 
                   return (
                     <tr

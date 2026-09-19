@@ -3362,6 +3362,66 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_54_configurable_catalogue_sale_price(self):
+        """Verify configurable sale_price on POST /api/products, PUT /api/products/<id>, and GET /api/products."""
+        sku1 = f"TEST-SELLPRICE-{uuid.uuid4().hex[:6].upper()}"
+        sku2 = f"TEST-NOSELLPRICE-{uuid.uuid4().hex[:6].upper()}"
+
+        # 1. Create product with explicit sale_price
+        p1_payload = {
+            "name": "Configured Price Item",
+            "sku": sku1,
+            "category": "Electronics",
+            "unit": "pcs",
+            "min_stock": 5,
+            "sale_price": 149.99
+        }
+        st1, _, res1 = self._http_post("/api/products", p1_payload)
+        self.assertEqual(st1, 201)
+        p1_id = res1["id"]
+
+        # 2. Create product without sale_price (should default to 0.0)
+        p2_payload = {
+            "name": "Default Unconfigured Price Item",
+            "sku": sku2,
+            "category": "Electronics",
+            "unit": "pcs",
+            "min_stock": 5
+        }
+        st2, _, res2 = self._http_post("/api/products", p2_payload)
+        self.assertEqual(st2, 201)
+        p2_id = res2["id"]
+
+        # 3. GET /api/products and verify both products
+        st_get, _, body_get = self._http_get("/api/products")
+        self.assertEqual(st_get, 200)
+        products = json.loads(body_get)["products"]
+
+        prod1 = next(p for p in products if p["id"] == p1_id)
+        prod2 = next(p for p in products if p["id"] == p2_id)
+
+        self.assertAlmostEqual(float(prod1.get("sale_price", 0.0)), 149.99, places=2)
+        self.assertAlmostEqual(float(prod2.get("sale_price", 0.0)), 0.0, places=2)
+
+        # 4. PUT /api/products/<id> to update sale_price
+        put_payload = {
+            "name": "Configured Price Item Updated",
+            "sku": sku1,
+            "category": "Electronics",
+            "unit": "pcs",
+            "min_stock": 10,
+            "sale_price": 175.50
+        }
+        st_put, _, res_put = self._http_put(f"/api/products/{p1_id}", put_payload)
+        self.assertEqual(st_put, 200)
+        self.assertTrue(res_put.get("success"))
+
+        # 5. Verify updated sale_price in GET
+        st_get2, _, body_get2 = self._http_get("/api/products")
+        self.assertEqual(st_get2, 200)
+        prod1_updated = next(p for p in json.loads(body_get2)["products"] if p["id"] == p1_id)
+        self.assertAlmostEqual(float(prod1_updated.get("sale_price", 0.0)), 175.50, places=2)
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
 

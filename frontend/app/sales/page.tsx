@@ -189,7 +189,12 @@ export default function SalesPOSPage() {
       targetId = updated[existingIndex].id;
       setCart(updated);
     } else {
-      const defaultPrice = product.lowestCost > 0 ? parseFloat((product.lowestCost * 1.3).toFixed(2)) : 10.0;
+      const defaultPrice =
+        product.salePrice && product.salePrice > 0
+          ? product.salePrice
+          : product.lowestCost > 0
+          ? parseFloat((product.lowestCost * 1.3).toFixed(2))
+          : 10.0;
       targetId = `${Date.now()}-${product.id}`;
       const newItem: CartItem = {
         id: targetId,
@@ -234,6 +239,7 @@ export default function SalesPOSPage() {
             currentStock: parseFloat(p.stock || p.current_stock || p.total_stock || '0'),
             minStock: parseInt(p.min_stock || p.minStock || '5', 10),
             lowestCost: parseFloat(p.lowest_cost || p.lowestCost || '0'),
+            salePrice: parseFloat(p.sale_price || p.salePrice || p.default_sale_price || '0'),
             barcode: p.barcode || '',
           }))
         );
@@ -647,7 +653,11 @@ export default function SalesPOSPage() {
                             <span>{p.category}</span>
                             <span>•</span>
                             <span className="font-bold text-primary">
-                              ₹{p.lowestCost > 0 ? (p.lowestCost * 1.3).toFixed(2) : '10.00'}
+                              ₹{p.salePrice && p.salePrice > 0
+                                ? p.salePrice.toFixed(2)
+                                : p.lowestCost > 0
+                                ? (p.lowestCost * 1.3).toFixed(2)
+                                : '10.00'}
                             </span>
                           </div>
                         </div>

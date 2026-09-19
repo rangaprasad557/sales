@@ -37,6 +37,7 @@ export interface CatalogueProduct {
   currentStock: number;
   minStock: number;
   lowestCost: number;
+  salePrice?: number;
   latestProcurementCost?: number;
   latestProcurementDate?: string;
   latestSupplierSource?: string;
@@ -74,6 +75,7 @@ export default function CataloguePage() {
     category: 'General',
     unit: 'pcs',
     minStock: '10',
+    salePrice: '',
     barcode: '',
     description: '',
   });
@@ -98,6 +100,7 @@ export default function CataloguePage() {
           currentStock: parseFloat(p.stock || p.current_stock || p.total_stock || '0'),
           minStock: parseInt(p.min_stock || p.minStock || '5', 10),
           lowestCost: parseFloat(p.lowest_cost || p.lowestCost || '0'),
+          salePrice: parseFloat(p.sale_price || p.salePrice || p.default_sale_price || '0'),
           latestProcurementCost: parseFloat(p.latest_procurement_cost || p.latestProcurementCost || p.lowest_cost || '0'),
           latestProcurementDate: p.latest_procurement_date || '',
           latestSupplierSource: p.latest_supplier_source || '',
@@ -182,6 +185,7 @@ export default function CataloguePage() {
       category: categories[0] || 'General',
       unit: 'pcs',
       minStock: '10',
+      salePrice: '',
       barcode: '',
       description: '',
     });
@@ -197,6 +201,7 @@ export default function CataloguePage() {
       category: product.category,
       unit: product.unit,
       minStock: String(product.minStock),
+      salePrice: product.salePrice && product.salePrice > 0 ? String(product.salePrice) : '',
       barcode: product.barcode || '',
       description: product.description || '',
     });
@@ -225,6 +230,12 @@ export default function CataloguePage() {
     if (isNaN(minVal) || minVal < 0) {
       errors.minStock = 'Minimum stock threshold must be 0 or higher';
     }
+    if (formData.salePrice && formData.salePrice.trim()) {
+      const sp = parseFloat(formData.salePrice);
+      if (isNaN(sp) || sp < 0) {
+        errors.salePrice = 'Selling rate must be 0 or higher';
+      }
+    }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -240,6 +251,9 @@ export default function CataloguePage() {
       `${formData.name.trim().toUpperCase().replace(/[^A-Z0-9]/g, '-').slice(0, 10)}-${Math.floor(100 + Math.random() * 900)}`
     ).toUpperCase();
 
+    const salePriceVal = parseFloat(formData.salePrice);
+    const validSalePrice = !isNaN(salePriceVal) && salePriceVal >= 0 ? salePriceVal : 0.0;
+
     const payload = {
       name: formData.name.trim(),
       sku: finalSku,
@@ -247,6 +261,8 @@ export default function CataloguePage() {
       unit: formData.unit,
       min_stock: minVal,
       minStock: minVal,
+      sale_price: validSalePrice,
+      salePrice: validSalePrice,
       barcode: formData.barcode.trim(),
       description: formData.description.trim(),
     };
@@ -601,6 +617,7 @@ export default function CataloguePage() {
                 <th className="px-3 py-2">SKU / Barcode</th>
                 <th className="px-3 py-2">Category & Unit</th>
                 <th className="px-3 py-2">Procurement Rate (Cost)</th>
+                <th className="px-3 py-2">Selling Rate</th>
                 <th className="px-3 py-2">Current Stock</th>
                 <th className="px-3 py-2">Stock Status</th>
                 <th className="px-3.5 py-2 text-center">Quick Actions</th>
@@ -609,7 +626,7 @@ export default function CataloguePage() {
             <tbody className="divide-y divide-border">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                     <Package className="w-8 h-8 mx-auto mb-1.5 text-muted-foreground/50" />
                     <p className="font-semibold text-foreground">No products match your criteria</p>
                     <p className="text-xs mt-0.5">Try relaxing filters or add new items to the catalogue.</p>
@@ -702,6 +719,41 @@ export default function CataloguePage() {
                         ) : (
                           <div className="text-xs text-muted-foreground/60 italic">
                             No procurement recorded
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Selling Rate (Configured vs Auto) */}
+                      <td className="px-3 py-2.5">
+                        {product.salePrice && product.salePrice > 0 ? (
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-0.5 text-xs sm:text-sm font-mono font-black text-foreground">
+                              <IndianRupee className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                              <span>{product.salePrice.toFixed(2)}</span>
+                              <span className="text-[10px] text-muted-foreground font-normal ml-0.5">
+                                /{product.unit}
+                              </span>
+                            </div>
+                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                              Configured
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-0.5 text-xs sm:text-sm font-mono font-bold text-muted-foreground">
+                              <IndianRupee className="w-3 h-3 text-muted-foreground/70" />
+                              <span>
+                                {effectiveProcRate > 0
+                                  ? (effectiveProcRate * 1.3).toFixed(2)
+                                  : '10.00'}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground font-normal ml-0.5">
+                                /{product.unit}
+                              </span>
+                            </div>
+                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border">
+                              Auto (+30%)
+                            </span>
                           </div>
                         )}
                       </td>
@@ -1055,6 +1107,37 @@ export default function CataloguePage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+              Configured Sell Price (₹) (Optional)
+            </label>
+            <div className="relative">
+              <IndianRupee className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                inputMode="decimal"
+                value={formData.salePrice}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9.]/g, '');
+                  setFormData({ ...formData, salePrice: val });
+                }}
+                placeholder="0.00 (Leave blank to auto-calculate Lowest Cost + 30%)"
+                className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary font-mono ${
+                  formErrors.salePrice ? 'border-destructive' : 'border-border'
+                }`}
+              />
+            </div>
+            {formErrors.salePrice && (
+              <p className="mt-1 text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {formErrors.salePrice}
+              </p>
+            )}
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              When configured, POS billing defaults to this sell price. If 0 or blank, POS automatically calculates Lowest Cost + 30%.
+            </p>
           </div>
 
           <div>

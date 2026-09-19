@@ -225,8 +225,8 @@ def load_store_catalog(conn):
         prods = data.get("products", [])
         for p in prods:
             cur.execute(
-                "INSERT OR IGNORE INTO products (id, name, sku, category, unit, min_stock, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (p["id"], p["name"], p["sku"], p.get("category", "General"), p.get("unit", "pcs"), p.get("min_stock", 1), p.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                "INSERT OR IGNORE INTO products (id, name, sku, category, unit, min_stock, sale_price, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (p["id"], p["name"], p["sku"], p.get("category", "General"), p.get("unit", "pcs"), p.get("min_stock", 1), float(p.get("sale_price", p.get("sell_price", p.get("default_sale_price", 0.0)))), p.get("created_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
             )
         for c in data.get("categories", []):
             cur.execute("INSERT OR IGNORE INTO categories (id, name, description, icon) VALUES (?, ?, ?, ?)",
@@ -256,6 +256,7 @@ def _init_postgres_db(seed_if_empty=False):
         category VARCHAR(100) NOT NULL,
         unit VARCHAR(50) NOT NULL DEFAULT 'pcs',
         min_stock INTEGER NOT NULL DEFAULT 5,
+        sale_price NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
         created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -391,6 +392,11 @@ def _init_postgres_db(seed_if_empty=False):
         conn.commit()
     except Exception:
         pass
+    try:
+        cur.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS sale_price NUMERIC(12, 2) NOT NULL DEFAULT 0.00")
+        conn.commit()
+    except Exception:
+        pass
 
     conn.commit()
 
@@ -433,9 +439,14 @@ def _init_sqlite_db(seed_if_empty=False):
         category TEXT NOT NULL,
         unit TEXT NOT NULL DEFAULT 'pcs',
         min_stock INTEGER NOT NULL DEFAULT 5,
+        sale_price REAL NOT NULL DEFAULT 0.0,
         created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     )
     """)
+    try:
+        cur.execute("ALTER TABLE products ADD COLUMN sale_price REAL NOT NULL DEFAULT 0.0")
+    except sqlite3.OperationalError:
+        pass
 
     # 2. Customers
     cur.execute("""
@@ -699,15 +710,15 @@ def seed_data(conn):
 
     # Seed Products
     products = [
-        ("Wireless Optical Mouse", "TECH-MOU-01", "Electronics", "pcs", 5),
-        ("Mechanical Gaming Keyboard", "TECH-KEY-02", "Electronics", "pcs", 3),
-        ("USB-C Fast Charging Hub 7-in-1", "TECH-HUB-03", "Accessories", "pcs", 5),
-        ("Noise-Cancelling Headphones", "AUD-HEA-04", "Audio", "pcs", 2),
-        ("Ergonomic Aluminium Laptop Stand", "ACC-STA-05", "Accessories", "pcs", 4),
-        ("Premium Arabica Coffee Beans 500g", "GRO-COF-06", "Groceries", "bag", 8),
-        ("Smart LED Desk Lamp", "HOM-LMP-07", "Home & Office", "pcs", 3)
+        ("Wireless Optical Mouse", "TECH-MOU-01", "Electronics", "pcs", 5, 12.00),
+        ("Mechanical Gaming Keyboard", "TECH-KEY-02", "Electronics", "pcs", 3, 49.00),
+        ("USB-C Fast Charging Hub 7-in-1", "TECH-HUB-03", "Accessories", "pcs", 5, 19.50),
+        ("Noise-Cancelling Headphones", "AUD-HEA-04", "Audio", "pcs", 2, 79.00),
+        ("Ergonomic Aluminium Laptop Stand", "ACC-STA-05", "Accessories", "pcs", 4, 39.00),
+        ("Premium Arabica Coffee Beans 500g", "GRO-COF-06", "Groceries", "bag", 8, 14.50),
+        ("Smart LED Desk Lamp", "HOM-LMP-07", "Home & Office", "pcs", 3, 29.00)
     ]
-    cur.executemany("INSERT INTO products (name, sku, category, unit, min_stock) VALUES (?, ?, ?, ?, ?)", products)
+    cur.executemany("INSERT INTO products (name, sku, category, unit, min_stock, sale_price) VALUES (?, ?, ?, ?, ?, ?)", products)
 
     # Seed Customers
     customers = [

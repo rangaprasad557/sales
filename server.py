@@ -624,13 +624,14 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 sku = body.get("sku", "").strip()
                 category = body.get("category", "General").strip()
                 unit = body.get("unit", "pcs").strip()
-                min_stock = int(body.get("min_stock", 5))
+                min_stock = int(body.get("min_stock", body.get("minStock", 5)))
+                sale_price = float(body.get("sale_price", body.get("sell_price", body.get("default_sale_price", body.get("salePrice", 0.0)))))
                 if not name or not sku:
                     error_response(self, "Product name and SKU are required", 400)
                     return
                 cur.execute(
-                    "UPDATE products SET name = ?, sku = ?, category = ?, unit = ?, min_stock = ? WHERE id = ?",
-                    (name, sku, category, unit, min_stock, int(entity_id))
+                    "UPDATE products SET name = ?, sku = ?, category = ?, unit = ?, min_stock = ?, sale_price = ? WHERE id = ?",
+                    (name, sku, category, unit, min_stock, sale_price, int(entity_id))
                 )
                 conn.commit()
                 json_response(self, {"success": True, "id": int(entity_id), "message": "Product updated"})
@@ -1963,15 +1964,16 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 sku = body.get("sku", "").strip()
                 category = body.get("category", "General").strip()
                 unit = body.get("unit", "pcs").strip()
-                min_stock = int(body.get("min_stock", 5))
+                min_stock = int(body.get("min_stock", body.get("minStock", 5)))
+                sale_price = float(body.get("sale_price", body.get("sell_price", body.get("default_sale_price", body.get("salePrice", 0.0)))))
 
                 if not name or not sku:
                     error_response(self, "Product name and SKU are required", 400)
                     return
 
                 cur.execute(
-                    "INSERT INTO products (name, sku, category, unit, min_stock) VALUES (?, ?, ?, ?, ?)",
-                    (name, sku, category, unit, min_stock)
+                    "INSERT INTO products (name, sku, category, unit, min_stock, sale_price) VALUES (?, ?, ?, ?, ?, ?)",
+                    (name, sku, category, unit, min_stock, sale_price)
                 )
                 conn.commit()
                 json_response(self, {"success": True, "id": cur.lastrowid, "message": "Product created"}, 201)

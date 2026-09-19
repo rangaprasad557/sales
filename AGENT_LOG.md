@@ -1333,3 +1333,28 @@ The system meets 100% of functional, architectural, accessibility, data integrit
   - Critic Agent: **APPROVED**
   - E2E Reviewer: **APPROVED**
 - **Git Push Constraint**: Preserved strictly local until explicit user approval to push.
+
+---
+
+### PR-037: Configurable Catalogue Sell Price (2026-09-19)
+
+- **Objective**: Enable store owners to configure an explicit selling price per catalogue product, with a three-tier pricing hierarchy: Configured sale_price > LCF+30% auto-calculation > ₹10.00 fallback.
+- **Changes Delivered**:
+  1. **Database Schema (`db.py`)**: Added `sale_price NUMERIC(12,2) DEFAULT 0.00` to products table (PostgreSQL + SQLite), idempotent migrations, updated seed_data and load_store_catalog.
+  2. **Drizzle ORM (`backend/src/db/schema/products.ts`)**: Added salePrice column.
+  3. **Backend API (`server.py`)**: POST/PUT `/api/products` accept sale_price with multi-alias fallback chain.
+  4. **Catalogue UI (`frontend/app/catalogue/page.tsx`)**: Selling Rate column with Configured/Auto badges, drawer form with ₹ currency input and validation.
+  5. **POS Billing (`frontend/app/sales/page.tsx`)**: Three-tier pricing hierarchy in addProductToCart and autocomplete.
+  6. **Product Picker (`frontend/components/ProductPickerModal.tsx`)**: Same pricing hierarchy for default prices.
+  7. **Backend Test (`test_suite.py`)**: test_54_configurable_catalogue_sale_price — CRUD round-trip verification.
+  8. **Frontend Test (`frontend/tests/configurable_catalogue_sell_price.test.ts`)**: 14 assertions across pricing hierarchy, validation, badges, picker integration, WCAG contrast.
+- **Test Executions**:
+  - `python test_suite.py`: **54 / 54 PASSED (100%)**.
+  - Frontend Jest (`npm test -- --runInBand`): **253 / 253 PASSED across 17 test suites (100%)**.
+  - Next.js Production Build (`npm run build`): **15 / 15 static routes compiled cleanly with 0 errors**.
+- **Quality Gate Multi-Agent Review**:
+  - Functional Reviewer: **APPROVED**
+  - E2E Reviewer: **APPROVED**
+  - Critic Agent: **APPROVED**
+- **Key Review Findings**: sale_price never affects inventory valuation or LCF allocation; historical sales preserved via unit_sale_price snapshot; migrations idempotent; backward compatible (sale_price=0 falls back to auto pricing).
+- **Git Push Constraint**: Preserved strictly local until explicit user approval to push.
