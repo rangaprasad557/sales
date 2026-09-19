@@ -171,26 +171,26 @@ export function Navigation() {
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-border bg-card/80 backdrop-blur-md">
-        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-12 sm:h-13 flex items-center justify-between gap-2 sm:gap-4">
           {/* Brand & Desktop Navigation */}
           <div className="flex items-center gap-2 lg:gap-3 shrink-0 min-w-0">
             <button
               type="button"
               onClick={() => setMobileSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
+              className="lg:hidden p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
               aria-label="Open mobile navigation"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-4 h-4" />
             </button>
 
             {/* Cigarette Sales Brand Emblem linking to POS billing */}
             <Link
               href="/"
-              className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 shadow-xs group transition-all shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 shadow-xs group transition-all shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               aria-label="Apex Cigarette Sales Home"
               title="New Sale (POS)"
             >
-              <CigaretteIcon className="w-6 h-6 group-hover:scale-110 transition-transform" />
+              <CigaretteIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
             </Link>
 
             {/* Desktop Nav Links */}
@@ -202,7 +202,7 @@ export function Navigation() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                       isActive
                         ? 'bg-primary/10 text-primary border border-primary/20 shadow-xs'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -219,7 +219,7 @@ export function Navigation() {
                 <button
                   type="button"
                   onClick={() => setIsMastersOpen((prev) => !prev)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer ${
                     isMastersActive
                       ? 'bg-primary/10 text-primary border border-primary/20 shadow-xs'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -285,7 +285,7 @@ export function Navigation() {
                 type="button"
                 onClick={handleDownloadBackup}
                 disabled={isBackingUp}
-                className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 title="Download Store Backup (JSON)"
                 aria-label="Download Store Backup"
               >
@@ -299,7 +299,7 @@ export function Navigation() {
                 type="button"
                 onClick={() => document.getElementById('backup-file-input')?.click()}
                 disabled={isRestoring}
-                className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 title="Restore Store from Backup (JSON)"
                 aria-label="Restore Store from Backup"
               >
@@ -310,13 +310,13 @@ export function Navigation() {
             {/* Authentication State & Profile Pill */}
             {!mounted ? (
               <div
-                className="w-20 sm:w-24 h-9 rounded-lg bg-muted border border-border animate-pulse shrink-0"
+                className="w-20 sm:w-24 h-8 rounded-lg bg-muted border border-border animate-pulse shrink-0"
                 aria-hidden="true"
               />
             ) : currentUser ? (
-              <div className="flex items-center gap-2 pl-2 pr-1.5 py-1 h-9 rounded-lg bg-card border border-border shadow-xs shrink-0">
+              <div className="flex items-center gap-1.5 pl-2 pr-1.5 py-0.5 h-8 rounded-lg bg-card border border-border shadow-xs shrink-0">
                 <div
-                  className="w-6 h-6 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-[10px] shrink-0"
+                  className="w-5.5 h-5.5 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-[10px] shrink-0"
                   title={`${currentUser.name} (Full Access)`}
                 >
                   {currentUser.name.charAt(0).toUpperCase()}
@@ -342,7 +342,7 @@ export function Navigation() {
             ) : (
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center gap-1.5 px-3 h-9 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 cursor-pointer select-none"
+                className="inline-flex items-center justify-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 cursor-pointer select-none"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Sign In</span>

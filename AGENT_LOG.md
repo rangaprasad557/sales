@@ -1242,3 +1242,33 @@ The system meets 100% of functional, architectural, accessibility, data integrit
 
 
 
+
+### [2026-09-19] PR-034: Mandatory Customer & Order Date Selection with High-Density POS Layout
+- **User Requests**:
+  1. *"#1 - MAke date and customer manadatory selection in POS sale order creation. Put blank by default."*
+  2. *"#2 - At max I am able to see one item in order after adding. - refer screenshot , suggestions - Can remove 'Point of Sale Engine POS Billing & Multi-Batch Allocation...', Can remove '$ Past Orders' button in this screen, Customer and Date can be in another card and card can be placed above/before 'Financial Allocation Summary', reduce height of quick search and product picker buttons. 'inancial Allocation Summary' and customer date info grid can be bottom of item grid? Can height of top ibbon can be reduced?"*
+- **Architectural Deliverables**:
+  1. **Mandatory Customer & Order Date Selection (Blank Default & Strict Validation)**:
+     - `selectedCustomerId` defaults to `null` and `saleDate` defaults to `''`.
+     - Customer select dropdown defaults to `-- Select Customer (Required) * --`.
+     - Order date input defaults to blank with explicit required indicators (`* Required`).
+     - `handleCheckout` strictly blocks checkout when customer or date is omitted, displaying toast notifications and activating red error rings (`border-rose-500 ring-2 ring-rose-500/20`) and inline `AlertTriangle` warning messages.
+     - Automatically resets `selectedCustomerId: null`, `saleDate: ''`, and clears error flags upon successful sale completion.
+  2. **High-Density Viewport Optimization (Fitting 5 to 7 Line Items Simultaneously)**:
+     - Removed promotional header banner and redundant `Past Orders` button, recovering 120px+ of vertical space.
+     - Compressed top action bar into a single `h-9` row with POS Billing status badge, quick search input, and Product Picker modal trigger button.
+     - Organized right sidebar into two stacked cards: **Card 1 (Customer & Order Date)** positioned directly above **Card 2 (Financial Summary & Complete Sale)**.
+     - Redesigned cart item cards into a compact 2-tier row (~68px–72px per item): Tier 1 for name, SKU, unit, Qty, Price, Total, Delete; Tier 2 for LCF batch chips, backlog warning, line profit, and manual override.
+     - Added `max-h-[calc(100vh-210px)] overflow-y-auto pr-1` internal scroll container, displaying 5 to 7 items on standard 1080p laptop displays without page-level scrollbar jumps.
+  3. **Global Navigation & Layout Compactness**:
+     - Reduced desktop navbar height in `Navigation.tsx` from `h-16` (64px) to `h-12 sm:h-13` (48px–52px).
+     - Reduced `<main>` vertical layout padding in `layout.tsx` from `py-6 sm:py-8` to `py-3.5 sm:py-4`.
+- **Test Executions**:
+  - `python test_suite.py`: **53 / 53 PASSED (100%)**.
+  - Frontend Jest (`npm test -- --runInBand`): **213 / 213 PASSED across all 15 test suites (100%)**, including `pos_mandatory_fields_and_density.test.ts`.
+  - Next.js Production Build (`npm run build`): Cleanly compiled all 15 static routes with 0 errors.
+- **Quality Gate Multi-Agent Review**:
+  - Functional Reviewer: **APPROVED**
+  - Critic Agent: **APPROVED**
+  - E2E Reviewer: **APPROVED**
+- **Git Push Constraint**: Preserved strictly local per user instruction: *"address do not push"*.

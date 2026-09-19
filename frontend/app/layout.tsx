@@ -30,7 +30,7 @@ export default function RootLayout({
           <AuthGuard>
             <div className="relative min-h-screen flex flex-col overflow-x-hidden">
               <Navigation />
-              <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 min-w-0">
+              <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 sm:py-4 min-w-0">
                 {children}
               </main>
               <CommandPalette />
