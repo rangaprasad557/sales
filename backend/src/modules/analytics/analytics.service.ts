@@ -292,6 +292,55 @@ export class AnalyticsService {
       };
     }).sort((a, b) => b.profit - a.profit || b.units_sold - a.units_sold);
 
+    // 5.5 Product Monthly Unit Sales
+    const monthlySalesMap = new Map<number, { name: string, sku: string, monthly_data: Record<string, number>, total: number }>();
+    const allMonthsSet = new Set<string>();
+
+    const saleIdToDate = new Map<number, Date>();
+    for (const sale of matchingSales) {
+      saleIdToDate.set(sale.id, new Date(sale.saleDate));
+    }
+
+    for (const item of matchingSaleItems) {
+      const saleDate = saleIdToDate.get(item.saleId);
+      if (!saleDate) continue;
+      
+      const year = saleDate.getFullYear();
+      const month = String(saleDate.getMonth() + 1).padStart(2, '0');
+      const monthBucket = `${year}-${month}`;
+      
+      allMonthsSet.add(monthBucket);
+      
+      let prodSales = monthlySalesMap.get(item.productId);
+      if (!prodSales) {
+        const prodInfo = allProducts.find(p => p.id === item.productId);
+        prodSales = {
+          name: prodInfo?.name || 'Unknown',
+          sku: prodInfo?.sku || 'Unknown',
+          monthly_data: {},
+          total: 0
+        };
+        monthlySalesMap.set(item.productId, prodSales);
+      }
+      
+      prodSales.monthly_data[monthBucket] = (prodSales.monthly_data[monthBucket] || 0) + item.quantity;
+      prodSales.total += item.quantity;
+    }
+
+    const months = Array.from(allMonthsSet).sort();
+    const productMonthlySalesItems = Array.from(monthlySalesMap.entries()).map(([productId, data]) => ({
+      product_id: productId,
+      product_name: data.name,
+      sku: data.sku,
+      monthly_data: data.monthly_data,
+      total: data.total
+    })).sort((a, b) => b.total - a.total);
+    
+    const product_monthly_sales = {
+      months,
+      products: productMonthlySalesItems
+    };
+
     // 6. Procurement Channel Source Breakdown
     const sourceMap = new Map<
       string,
@@ -341,6 +390,7 @@ export class AnalyticsService {
       summary,
       timeline,
       items,
+      product_monthly_sales,
       sources,
     };
   }

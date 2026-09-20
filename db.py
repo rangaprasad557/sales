@@ -365,6 +365,26 @@ def _init_postgres_db(seed_if_empty=False):
     );
     CREATE INDEX IF NOT EXISTS idx_charges_date ON charges(charge_date DESC, id DESC);
 
+    CREATE TABLE IF NOT EXISTS salesperson_ledger (
+        id SERIAL PRIMARY KEY,
+        salesperson VARCHAR(100) NOT NULL DEFAULT 'Surendra',
+        entry_date DATE NOT NULL,
+        entry_type VARCHAR(50) NOT NULL DEFAULT 'SALE',
+        counterparty VARCHAR(255),
+        item_description VARCHAR(255) NOT NULL,
+        quantity NUMERIC(12, 2) DEFAULT 0.0,
+        unit_rate NUMERIC(12, 2) DEFAULT 0.0,
+        total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.0,
+        cash_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.0,
+        online_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.0,
+        due_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.0,
+        notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_ledger_date ON salesperson_ledger(entry_date DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_ledger_salesperson ON salesperson_ledger(salesperson);
+    CREATE INDEX IF NOT EXISTS idx_ledger_type ON salesperson_ledger(entry_type);
+
     CREATE INDEX IF NOT EXISTS idx_lots_product_cost ON inventory_lots(product_id, unit_cost, remaining_qty);
     CREATE INDEX IF NOT EXISTS idx_lots_procurement_id ON inventory_lots(procurement_id);
     CREATE INDEX IF NOT EXISTS idx_lots_product_rem ON inventory_lots(product_id, remaining_qty);
@@ -415,7 +435,7 @@ def _init_postgres_db(seed_if_empty=False):
         conn.commit()
 
     # Sync sequences so SERIAL id generation starts after imported records
-    for tbl in ['sale_item_lots', 'sale_items', 'sales', 'inventory_lots', 'procurements', 'customers', 'products', 'suppliers', 'categories']:
+    for tbl in ['salesperson_ledger', 'charges', 'sale_item_lots', 'sale_items', 'sales', 'inventory_lots', 'procurements', 'customers', 'products', 'suppliers', 'categories']:
         try:
             cur.execute(f"SELECT setval(pg_get_serial_sequence('{tbl}', 'id'), COALESCE((SELECT MAX(id) FROM {tbl}), 1))")
         except Exception:
@@ -630,6 +650,29 @@ def _init_sqlite_db(seed_if_empty=False):
     )
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_charges_date ON charges(charge_date DESC, id DESC)")
+
+    # Salesperson Ledger table
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS salesperson_ledger (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        salesperson TEXT NOT NULL DEFAULT 'Surendra',
+        entry_date TEXT NOT NULL,
+        entry_type TEXT NOT NULL DEFAULT 'SALE',
+        counterparty TEXT,
+        item_description TEXT NOT NULL,
+        quantity REAL DEFAULT 0.0,
+        unit_rate REAL DEFAULT 0.0,
+        total_amount REAL NOT NULL DEFAULT 0.0,
+        cash_amount REAL NOT NULL DEFAULT 0.0,
+        online_amount REAL NOT NULL DEFAULT 0.0,
+        due_amount REAL NOT NULL DEFAULT 0.0,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ledger_date ON salesperson_ledger(entry_date DESC, id DESC)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ledger_salesperson ON salesperson_ledger(salesperson)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ledger_type ON salesperson_ledger(entry_type)")
     conn.commit()
 
     # Check if database has products or was explicitly cleared

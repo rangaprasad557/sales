@@ -1358,3 +1358,31 @@ The system meets 100% of functional, architectural, accessibility, data integrit
   - Critic Agent: **APPROVED**
 - **Key Review Findings**: sale_price never affects inventory valuation or LCF allocation; historical sales preserved via unit_sale_price snapshot; migrations idempotent; backward compatible (sale_price=0 falls back to auto pricing).
 - **Git Push Constraint**: Preserved strictly local until explicit user approval to push.
+
+---
+
+### PR-038: Salesperson Ledger & Monthly Unit Sales by Catalogue (2026-09-20)
+
+- **Objective**: Deliver two core capabilities:
+  1. Monthly unit sales pivot cross-tab per catalogue on Analytics.
+  2. Complete Salesperson Ledger & Cash Accountability module (/ledger) replacing Surendra's Excel tracking sheet, tracking collections (cash/online), disbursements (expenses/bills/purchases), and settlements with the business owner.
+- **Changes Delivered**:
+  1. **Database Schema (`db.py`)**: Added `salesperson_ledger` table with indices on `entry_date`, `salesperson`, and `entry_type`. Added sequence sync for PostgreSQL.
+  2. **Drizzle ORM (`backend/src/db/schema/salesperson_ledger.ts`)**: Created schema and exported in `schema/index.ts`.
+  3. **Backend Analytics Engine (`analytics.service.ts` & `server.py`)**: Added `product_monthly_sales` grouping units sold by product and YYYY-MM with period totals.
+  4. **Backend REST API (`server.py`)**: Added `/api/ledger` and `/api/ledger/summary` endpoints with full filtering, pagination, search, and CRUD support.
+  5. **Analytics UI (`frontend/app/analytics/page.tsx`)**: Added Monthly Unit Sales by Catalogue card with responsive cross-tab table, column/row totals, and zero indicators.
+  6. **Ledger UI (`frontend/app/ledger/page.tsx`)**: Created `/ledger` page with 4 balance cards (Cash, Online, Due, Net Position), filter bar, entry type tabs, transactions table, and slide-over drawer with quick split buttons.
+  7. **Navigation (`frontend/components/Navigation.tsx`)**: Added Ledger link with Wallet icon to desktop and mobile menus.
+  8. **Excel Migration Script (`scripts/migrate_surendra_ledger.py`)**: Migrated 4,503 rows from Surendra's Excel workbook with fuzzy product normalization. Exact 100% balance reconciliation with Excel Row 1:
+     - Cash: ₹29,935.00
+     - Online: -₹94,227.32
+     - Net: -₹64,292.32
+  9. **Backend Test (`test_suite.py`)**: `test_e2e_55_salesperson_ledger_crud_and_balances` (55/55 passed).
+  10. **Frontend Tests**: `monthly_unit_sales.test.ts` & `salesperson_ledger.test.ts` (267/267 passed across 19 suites).
+- **Test Executions**:
+  - `python test_suite.py`: **55 / 55 PASSED (100%)**.
+  - Frontend Jest (`npm test -- --runInBand`): **267 / 267 PASSED across 19 test suites (100%)**.
+  - Next.js Production Build (`npm run build`): **16 / 16 static routes compiled cleanly with 0 errors**.
+- **Quality Gate Multi-Agent Review**: Ready for multi-agent adversarial review.
+- **Git Push Constraint**: Preserved strictly local until explicit user approval to push.

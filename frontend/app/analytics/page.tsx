@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Clock,
   CheckCircle2,
+  Grid3X3,
 } from 'lucide-react';
 
 interface AnalyticsSummary {
@@ -60,6 +61,19 @@ const EMPTY_SUMMARY: AnalyticsSummary = {
   unitsSold: 0,
 };
 
+interface ProductMonthlySales {
+  product_name: string;
+  sku: string;
+  monthly_data: Record<string, number>;
+  total: number;
+}
+
+function formatMonthHeader(month: string): string {
+  const [y, m] = month.split('-');
+  const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${names[parseInt(m,10)-1] || m} ${y}`;
+}
+
 function formatYMD(d: Date): string {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -106,6 +120,8 @@ export default function AnalyticsPage() {
   const [summary, setSummary] = useState<AnalyticsSummary>(EMPTY_SUMMARY);
   const [timeline, setTimeline] = useState<TimelineBucket[]>([]);
   const [products, setProducts] = useState<ProductPerformance[]>([]);
+  const [productMonthlySales, setProductMonthlySales] = useState<ProductMonthlySales[]>([]);
+  const [salesMonths, setSalesMonths] = useState<string[]>([]);
 
   // Preset date calculator
   const handlePresetSelect = (preset: 'ALL' | 'TODAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'THIS_YEAR') => {
@@ -243,6 +259,18 @@ export default function AnalyticsPage() {
               cogs: parseFloat(p.cogs ?? p.total_cost ?? 0) || 0,
               profit: parseFloat(p.profit ?? 0) || 0,
               marginPct: parseFloat(p.margin_pct ?? 0) || 0,
+            }))
+          );
+        }
+
+        if (data?.product_monthly_sales) {
+          setSalesMonths(data.product_monthly_sales.months || []);
+          setProductMonthlySales(
+            (data.product_monthly_sales.products || []).map((p: any) => ({
+              product_name: p.product_name || p.productName || '',
+              sku: p.sku || '',
+              monthly_data: p.monthly_data || p.monthlyData || {},
+              total: p.total || 0,
             }))
           );
         }
@@ -641,6 +669,86 @@ export default function AnalyticsPage() {
                 ))
               )}
             </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Monthly Unit Sales by Catalogue */}
+      <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
+        <div className="px-4 sm:px-5 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
+          <h2 className="text-sm sm:text-base font-bold text-foreground flex items-center gap-2">
+            <Grid3X3 className="w-4 h-4 text-primary" />
+            <span>Monthly Unit Sales by Catalogue</span>
+          </h2>
+          <span className="text-[11px] font-medium text-muted-foreground">
+            Scoped to {activeScopeLabel}
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs sm:text-sm">
+            <thead className="bg-muted/30 border-b border-border text-[11px] uppercase text-muted-foreground font-semibold tracking-wider">
+              <tr>
+                <th className="px-3.5 py-2 min-w-[200px]">Product</th>
+                {salesMonths.map((m) => (
+                  <th key={m} className="px-3 py-2 text-center whitespace-nowrap">
+                    {formatMonthHeader(m)}
+                  </th>
+                ))}
+                <th className="px-3.5 py-2 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {productMonthlySales.length === 0 ? (
+                <tr>
+                  <td colSpan={salesMonths.length + 2} className="px-4 py-6 text-center text-xs text-muted-foreground">
+                    No monthly sales recorded for this period.
+                  </td>
+                </tr>
+              ) : (
+                productMonthlySales.map((p, idx) => (
+                  <tr key={idx} className="hover:bg-muted/20 transition-colors">
+                    <td className="px-3.5 py-2.5">
+                      <div className="font-semibold text-foreground">{p.product_name}</div>
+                      <span className="font-mono text-[11px] text-muted-foreground">{p.sku}</span>
+                    </td>
+                    {salesMonths.map((m) => {
+                      const val = p.monthly_data[m] || 0;
+                      return (
+                        <td key={m} className="px-3 py-2.5 text-center font-mono">
+                          {val === 0 ? (
+                            <span className="text-muted-foreground">–</span>
+                          ) : (
+                            <span className="font-bold">{val}</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="px-3.5 py-2.5 text-right font-mono font-bold text-primary">
+                      {p.total}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {productMonthlySales.length > 0 && (
+              <tfoot className="bg-muted/30 border-t border-border">
+                <tr>
+                  <td className="px-3.5 py-3 font-bold text-foreground">Total Units</td>
+                  {salesMonths.map((m) => {
+                    const colTotal = productMonthlySales.reduce((acc, p) => acc + (p.monthly_data[m] || 0), 0);
+                    return (
+                      <td key={m} className="px-3 py-3 text-center font-mono font-bold text-foreground">
+                        {colTotal === 0 ? '–' : colTotal}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3.5 py-3 text-right font-mono font-bold text-primary">
+                    {productMonthlySales.reduce((acc, p) => acc + p.total, 0)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>

@@ -1180,6 +1180,68 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                     "message": "Business charge updated successfully"
                 })
 
+            # PUT /api/ledger/<id>
+            elif path.startswith("/api/ledger/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid ledger entry ID", 400)
+                    return
+                ledger_id = int(entity_id)
+                cur.execute("SELECT * FROM salesperson_ledger WHERE id = ?", (ledger_id,))
+                existing = cur.fetchone()
+                if not existing:
+                    error_response(self, "Ledger entry not found", 404)
+                    return
+
+                salesperson = str(body.get("salesperson", existing["salesperson"])).strip() or "Surendra"
+                entry_date = body.get("entry_date", existing["entry_date"])
+                if hasattr(entry_date, "strftime"):
+                    entry_date = entry_date.strftime("%Y-%m-%d")
+                else:
+                    entry_date = str(entry_date).strip()
+
+                try:
+                    datetime.strptime(entry_date, "%Y-%m-%d")
+                except ValueError:
+                    error_response(self, "Invalid date format for entry_date. Expected YYYY-MM-DD", 400)
+                    return
+
+                entry_type = str(body.get("entry_type", existing["entry_type"])).strip() or "SALE"
+                counterparty = body.get("counterparty", existing["counterparty"])
+                item_description = str(body.get("item_description", existing["item_description"])).strip()
+                if not item_description:
+                    error_response(self, "item_description is required", 400)
+                    return
+
+                try:
+                    qty = float(body.get("quantity", existing["quantity"] or 0.0))
+                    rate = float(body.get("unit_rate", existing["unit_rate"] or 0.0))
+                    total = float(body.get("total_amount", existing["total_amount"] or 0.0))
+                    cash = float(body.get("cash_amount", existing["cash_amount"] or 0.0))
+                    online = float(body.get("online_amount", existing["online_amount"] or 0.0))
+                    due = float(body.get("due_amount", existing["due_amount"] or 0.0))
+                except (ValueError, TypeError):
+                    error_response(self, "Amounts must be valid numbers", 400)
+                    return
+
+                if total == 0.0 and (qty > 0 and rate > 0):
+                    total = round(qty * rate, 2)
+
+                notes = body.get("notes", existing["notes"])
+
+                cur.execute("""
+                    UPDATE salesperson_ledger
+                    SET salesperson = ?, entry_date = ?, entry_type = ?, counterparty = ?,
+                        item_description = ?, quantity = ?, unit_rate = ?, total_amount = ?,
+                        cash_amount = ?, online_amount = ?, due_amount = ?, notes = ?
+                    WHERE id = ?
+                """, (salesperson, entry_date, entry_type, counterparty, item_description, qty, rate, total, cash, online, due, notes, ledger_id))
+                conn.commit()
+
+                cur.execute("SELECT * FROM salesperson_ledger WHERE id = ?", (ledger_id,))
+                updated = dict(cur.fetchone())
+                json_response(self, {"success": True, "entry": updated, "message": "Ledger entry updated successfully"})
+
             else:
                 error_response(self, "Endpoint not found", 404)
 
@@ -1276,6 +1338,21 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                 cur.execute("DELETE FROM charges WHERE id = ?", (charge_id,))
                 conn.commit()
                 json_response(self, {"success": True, "id": charge_id, "message": "Charge deleted successfully"})
+
+            # DELETE /api/ledger/<id>
+            elif path.startswith("/api/ledger/"):
+                entity_id = path.split("/")[-1]
+                if not entity_id.isdigit():
+                    error_response(self, "Invalid ledger entry ID", 400)
+                    return
+                ledger_id = int(entity_id)
+                cur.execute("SELECT id FROM salesperson_ledger WHERE id = ?", (ledger_id,))
+                if not cur.fetchone():
+                    error_response(self, "Ledger entry not found", 404)
+                    return
+                cur.execute("DELETE FROM salesperson_ledger WHERE id = ?", (ledger_id,))
+                conn.commit()
+                json_response(self, {"success": True, "id": ledger_id, "message": "Ledger entry deleted successfully"})
 
             else:
                 error_response(self, "Endpoint not found", 404)
@@ -1703,6 +1780,125 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                     }
                 })
 
+            elif path == "/api/ledger/summary":
+                salesperson = query.get("salesperson", [None])[0]
+                from_date = query.get("from_date", [None])[0] or query.get("fromDate", [None])[0]
+                to_date = query.get("to_date", [None])[0] or query.get("toDate", [None])[0]
+
+                where_clauses = ["1=1"]
+                params = []
+                if salesperson:
+                    where_clauses.append("salesperson = ?")
+                    params.append(salesperson)
+                if from_date:
+                    where_clauses.append("entry_date >= ?")
+                    params.append(from_date)
+                if to_date:
+                    where_clauses.append("entry_date <= ?")
+                    params.append(to_date)
+
+                where_sql = " AND ".join(where_clauses)
+                cur.execute(f"""
+                    SELECT 
+                        COUNT(*) as entry_count,
+                        COALESCE(SUM(cash_amount), 0.0) as total_cash,
+                        COALESCE(SUM(online_amount), 0.0) as total_online,
+                        COALESCE(SUM(due_amount), 0.0) as total_due,
+                        COALESCE(SUM(CASE WHEN entry_type = 'SALE' THEN total_amount ELSE 0.0 END), 0.0) as total_sales,
+                        COALESCE(SUM(CASE WHEN entry_type IN ('EXPENSE', 'BILL_PAYMENT') THEN total_amount ELSE 0.0 END), 0.0) as total_expenses
+                    FROM salesperson_ledger
+                    WHERE {where_sql}
+                """, params)
+                sum_row = cur.fetchone()
+                total_cash = round(float(sum_row["total_cash"]), 2) if sum_row else 0.0
+                total_online = round(float(sum_row["total_online"]), 2) if sum_row else 0.0
+                total_due = round(float(sum_row["total_due"]), 2) if sum_row else 0.0
+                total_sales = round(float(sum_row["total_sales"]), 2) if sum_row else 0.0
+                total_expenses = round(float(sum_row["total_expenses"]), 2) if sum_row else 0.0
+                entry_count = int(sum_row["entry_count"]) if sum_row else 0
+                net_balance = round(total_cash + total_online, 2)
+
+                json_response(self, {
+                    "success": True,
+                    "summary": {
+                        "total_cash": total_cash,
+                        "total_online": total_online,
+                        "total_due": total_due,
+                        "total_sales": total_sales,
+                        "total_expenses": total_expenses,
+                        "net_balance": net_balance,
+                        "entry_count": entry_count
+                    }
+                })
+
+            elif path == "/api/ledger" or path.startswith("/api/ledger/"):
+                parts = path.strip("/").split("/")
+                if len(parts) == 3 and parts[2].isdigit():
+                    entry_id = int(parts[2])
+                    cur.execute("SELECT id, salesperson, entry_date, entry_type, counterparty, item_description, quantity, unit_rate, total_amount, cash_amount, online_amount, due_amount, notes, created_at FROM salesperson_ledger WHERE id = ?", (entry_id,))
+                    row = cur.fetchone()
+                    if not row:
+                        error_response(self, "Ledger entry not found", 404)
+                        return
+                    json_response(self, {"success": True, "entry": dict(row)})
+                    return
+
+                salesperson = query.get("salesperson", [None])[0]
+                entry_type = query.get("entry_type", [None])[0] or query.get("entryType", [None])[0]
+                from_date = query.get("from_date", [None])[0] or query.get("fromDate", [None])[0]
+                to_date = query.get("to_date", [None])[0] or query.get("toDate", [None])[0]
+                search = query.get("search", [""])[0].strip()
+                limit = int(query.get("limit", [500])[0])
+                offset = int(query.get("offset", [0])[0])
+
+                where_clauses = ["1=1"]
+                params = []
+                if salesperson:
+                    where_clauses.append("salesperson = ?")
+                    params.append(salesperson)
+                if entry_type:
+                    where_clauses.append("entry_type = ?")
+                    params.append(entry_type)
+                if from_date:
+                    where_clauses.append("entry_date >= ?")
+                    params.append(from_date)
+                if to_date:
+                    where_clauses.append("entry_date <= ?")
+                    params.append(to_date)
+                if search:
+                    where_clauses.append("(counterparty LIKE ? OR item_description LIKE ? OR notes LIKE ?)")
+                    s_param = f"%{search}%"
+                    params.extend([s_param, s_param, s_param])
+
+                where_sql = " AND ".join(where_clauses)
+
+                cur.execute(f"SELECT COUNT(*) as total_count FROM salesperson_ledger WHERE {where_sql}", params)
+                sum_row = cur.fetchone()
+                total_count = int(sum_row["total_count"]) if sum_row else 0
+
+                query_sql = f"""
+                    SELECT id, salesperson, entry_date, entry_type, counterparty, item_description, quantity, unit_rate, total_amount, cash_amount, online_amount, due_amount, notes, created_at
+                    FROM salesperson_ledger
+                    WHERE {where_sql}
+                    ORDER BY entry_date DESC, id DESC
+                    LIMIT ? OFFSET ?
+                """
+                cur.execute(query_sql, params + [limit, offset])
+                entries_list = [dict(r) for r in cur.fetchall()]
+
+                # Also fetch distinct salespersons for filter dropdown
+                cur.execute("SELECT DISTINCT salesperson FROM salesperson_ledger WHERE salesperson IS NOT NULL ORDER BY salesperson ASC")
+                salespersons = [r["salesperson"] for r in cur.fetchall() if r["salesperson"]]
+                if not salespersons:
+                    salespersons = ["Surendra"]
+
+                json_response(self, {
+                    "success": True,
+                    "entries": entries_list,
+                    "total_count": total_count,
+                    "salespersons": salespersons
+                })
+
             elif path == "/api/analytics":
                 self.handle_analytics_get(cur, query)
 
@@ -1943,6 +2139,52 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
         """)
         sources = [dict(r) for r in cur.fetchall()]
 
+        # 5. Product Monthly Sales Breakdown
+        if db.is_postgres():
+            month_group = "TO_CHAR(s.sale_date, 'YYYY-MM')"
+        else:
+            month_group = "strftime('%Y-%m', s.sale_date)"
+
+        cur.execute(f"""
+            SELECT 
+                p.id as product_id,
+                p.name as product_name,
+                p.sku,
+                {month_group} as month_bucket,
+                COALESCE(SUM(si.qty), 0.0) as units_sold
+            FROM sale_items si
+            JOIN sales s ON si.sale_id = s.id
+            JOIN products p ON si.product_id = p.id
+            WHERE {where_sql}
+            GROUP BY p.id, p.name, p.sku, {month_group}
+            ORDER BY p.name ASC, month_bucket ASC
+        """, params)
+
+        pms_rows = [dict(r) for r in cur.fetchall()]
+        all_pms_months = sorted(list(set(r["month_bucket"] for r in pms_rows if r.get("month_bucket"))))
+        pms_by_product = {}
+        for r in pms_rows:
+            pid = r["product_id"]
+            if pid not in pms_by_product:
+                pms_by_product[pid] = {
+                    "product_id": pid,
+                    "product_name": r["product_name"],
+                    "sku": r["sku"],
+                    "monthly_data": {},
+                    "total": 0
+                }
+            mb = r["month_bucket"]
+            qty = float(r["units_sold"]) if r.get("units_sold") is not None else 0.0
+            qty_val = int(qty) if qty.is_integer() else round(qty, 2)
+            pms_by_product[pid]["monthly_data"][mb] = qty_val
+            pms_by_product[pid]["total"] += qty_val
+
+        pms_list = sorted(list(pms_by_product.values()), key=lambda x: x["total"], reverse=True)
+        product_monthly_sales = {
+            "months": all_pms_months,
+            "products": pms_list
+        }
+
         json_response(self, {
             "success": True,
             "granularity": granularity,
@@ -1952,6 +2194,7 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
             "timeline": timeline,
             "items_breakdown": items_breakdown,
             "products": items_breakdown,
+            "product_monthly_sales": product_monthly_sales,
             "sources_breakdown": sources
         })
 
@@ -2188,6 +2431,57 @@ class InventorySalesRequestHandler(http.server.BaseHTTPRequestHandler):
                     "notes": notes,
                     "message": "Business charge recorded successfully"
                 }, 201)
+
+            elif path == "/api/ledger":
+                salesperson = str(body.get("salesperson", "Surendra")).strip() or "Surendra"
+                entry_date = body.get("entry_date", "").strip() if isinstance(body.get("entry_date"), str) else ""
+                if not entry_date:
+                    entry_date = datetime.now().strftime("%Y-%m-%d")
+                else:
+                    try:
+                        datetime.strptime(entry_date, "%Y-%m-%d")
+                    except ValueError:
+                        error_response(self, "Invalid date format for entry_date. Expected YYYY-MM-DD", 400)
+                        return
+
+                entry_type = str(body.get("entry_type", "SALE")).strip() or "SALE"
+                counterparty = body.get("counterparty")
+                if counterparty:
+                    counterparty = str(counterparty).strip()
+                item_description = str(body.get("item_description", "")).strip()
+                if not item_description:
+                    error_response(self, "item_description is required", 400)
+                    return
+
+                try:
+                    qty = float(body.get("quantity", 0.0) or 0.0)
+                    rate = float(body.get("unit_rate", 0.0) or 0.0)
+                    total = float(body.get("total_amount", 0.0) or 0.0)
+                    cash = float(body.get("cash_amount", 0.0) or 0.0)
+                    online = float(body.get("online_amount", 0.0) or 0.0)
+                    due = float(body.get("due_amount", 0.0) or 0.0)
+                except (ValueError, TypeError):
+                    error_response(self, "Numeric amounts must be valid numbers", 400)
+                    return
+
+                if total == 0.0 and (qty > 0 and rate > 0):
+                    total = round(qty * rate, 2)
+
+                notes = body.get("notes")
+                if notes:
+                    notes = str(notes).strip()
+
+                cur.execute("""
+                    INSERT INTO salesperson_ledger (
+                        salesperson, entry_date, entry_type, counterparty, item_description,
+                        quantity, unit_rate, total_amount, cash_amount, online_amount, due_amount, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (salesperson, entry_date, entry_type, counterparty, item_description, qty, rate, total, cash, online, due, notes))
+                conn.commit()
+                new_id = cur.lastrowid
+                cur.execute("SELECT * FROM salesperson_ledger WHERE id = ?", (new_id,))
+                created = dict(cur.fetchone())
+                json_response(self, {"success": True, "entry": created, "message": "Ledger entry created successfully"}, 201)
 
             else:
                 error_response(self, "Endpoint not found", 404)

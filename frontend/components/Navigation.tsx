@@ -19,6 +19,7 @@ import {
   Download,
   Upload,
   WalletCards,
+  Wallet,
   ChevronDown,
 } from 'lucide-react';
 import { useUIStore } from '../store/useUIStore';
@@ -154,6 +155,7 @@ export function Navigation() {
   const navLinks = [
     { href: '/orders', label: 'Orders', icon: Receipt },
     { href: '/procurement', label: 'Procurement', icon: Truck },
+    { href: '/ledger', label: 'Ledger', icon: Wallet },
     { href: '/charges', label: 'Charges', icon: WalletCards },
     { href: '/analytics', label: 'Analytics', icon: BarChart3 },
     { href: '/catalogue', label: 'Catalogue', icon: Package },

@@ -3422,6 +3422,102 @@ class TestLiveHTTPServerE2E(unittest.TestCase):
         prod1_updated = next(p for p in json.loads(body_get2)["products"] if p["id"] == p1_id)
         self.assertAlmostEqual(float(prod1_updated.get("sale_price", 0.0)), 175.50, places=2)
 
+    def test_e2e_55_salesperson_ledger_crud_and_balances(self):
+        """PR-038B: Verify Salesperson Ledger CRUD API, summary calculation, and filters."""
+        # 1. POST a sale entry
+        entry_payload = {
+            "salesperson": "Surendra",
+            "entry_date": "2026-09-20",
+            "entry_type": "SALE",
+            "counterparty": "Nallurhalli Pan Shop",
+            "item_description": "King Lights",
+            "quantity": 5,
+            "unit_rate": 200.0,
+            "total_amount": 1000.0,
+            "cash_amount": 400.0,
+            "online_amount": 600.0,
+            "due_amount": 0.0,
+            "notes": "Delivered in morning slot"
+        }
+        st, _, res = self._http_post("/api/ledger", entry_payload)
+        self.assertEqual(st, 201)
+        self.assertTrue(res["success"])
+        entry_id = res["entry"]["id"]
+        self.assertEqual(res["entry"]["salesperson"], "Surendra")
+        self.assertAlmostEqual(float(res["entry"]["cash_amount"]), 400.0, places=2)
+        self.assertAlmostEqual(float(res["entry"]["online_amount"]), 600.0, places=2)
+
+        # 2. POST an expense entry
+        exp_payload = {
+            "salesperson": "Surendra",
+            "entry_date": "2026-09-20",
+            "entry_type": "EXPENSE",
+            "counterparty": "Auto",
+            "item_description": "Auto Charges GID to Vivekananda Nagar",
+            "quantity": 1,
+            "unit_rate": 150.0,
+            "total_amount": 150.0,
+            "cash_amount": -150.0,
+            "online_amount": 0.0,
+            "due_amount": 0.0,
+            "notes": "Travel expense"
+        }
+        st_exp, _, res_exp = self._http_post("/api/ledger", exp_payload)
+        self.assertEqual(st_exp, 201)
+        exp_id = res_exp["entry"]["id"]
+
+        # 3. GET /api/ledger/<id>
+        st_get, _, body_get = self._http_get(f"/api/ledger/{entry_id}")
+        self.assertEqual(st_get, 200)
+        entry_fetched = json.loads(body_get)["entry"]
+        self.assertEqual(entry_fetched["item_description"], "King Lights")
+
+        # 4. GET /api/ledger/summary
+        st_sum, _, body_sum = self._http_get("/api/ledger/summary?salesperson=Surendra")
+        self.assertEqual(st_sum, 200)
+        summary = json.loads(body_sum)["summary"]
+        self.assertGreaterEqual(summary["entry_count"], 2)
+        self.assertAlmostEqual(summary["total_cash"], 250.0, places=2) # 400 - 150
+        self.assertAlmostEqual(summary["total_online"], 600.0, places=2)
+        self.assertAlmostEqual(summary["net_balance"], 850.0, places=2)
+
+        # 5. PUT /api/ledger/<id>
+        update_payload = {
+            "salesperson": "Surendra",
+            "entry_date": "2026-09-20",
+            "entry_type": "SALE",
+            "counterparty": "Nallurhalli Pan Shop",
+            "item_description": "King Lights Premium",
+            "quantity": 5,
+            "unit_rate": 200.0,
+            "total_amount": 1000.0,
+            "cash_amount": 500.0,
+            "online_amount": 500.0,
+            "due_amount": 0.0,
+            "notes": "Updated cash/online split"
+        }
+        st_put, _, res_put = self._http_put(f"/api/ledger/{entry_id}", update_payload)
+        self.assertEqual(st_put, 200)
+        self.assertEqual(res_put["entry"]["item_description"], "King Lights Premium")
+        self.assertAlmostEqual(float(res_put["entry"]["cash_amount"]), 500.0, places=2)
+
+        # 6. Filter by search
+        st_srch, _, body_srch = self._http_get("/api/ledger?search=Premium")
+        self.assertEqual(st_srch, 200)
+        entries_srch = json.loads(body_srch)["entries"]
+        self.assertEqual(len(entries_srch), 1)
+        self.assertEqual(entries_srch[0]["id"], entry_id)
+
+        # 7. DELETE /api/ledger/<id>
+        st_del1, _, _ = self._http_delete(f"/api/ledger/{entry_id}")
+        self.assertEqual(st_del1, 200)
+        st_del2, _, _ = self._http_delete(f"/api/ledger/{exp_id}")
+        self.assertEqual(st_del2, 200)
+
+        # Verify 404 after delete
+        st_del_chk, _, _ = self._http_get(f"/api/ledger/{entry_id}")
+        self.assertEqual(st_del_chk, 404)
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
 
